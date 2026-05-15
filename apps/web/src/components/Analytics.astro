@@ -136,3 +136,9 @@ const host = import.meta.env.PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
     </>
   )
 }
+
+{/* Vercel Analytics — no-op outside Vercel deployments; safe in local dev. */}
+<script>
+  import { inject } from "@vercel/analytics";
+  inject();
+</script>

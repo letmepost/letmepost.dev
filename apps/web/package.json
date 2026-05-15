@@ -21,6 +21,7 @@
     "@letmepost/schemas": "workspace:*",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/vite": "^4.2.4",
+    "@vercel/analytics": "^2.0.1",
     "astro": "^5.1.0",
     "astro-icon": "^1.1.5",
     "posthog-js": "^1.372.10",
