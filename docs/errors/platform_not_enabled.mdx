@@ -1,0 +1,38 @@
+---
+title: platform_not_enabled
+description: The platform exists in the API enum but isn't switched on for your org yet.
+---
+
+You tried to connect or publish to a platform that the API knows about but hasn't been enabled for your organization. Most commonly this means the platform is approval-gated upstream (Meta App Review, X Developer Portal review, LinkedIn Marketing Developer Platform) and your app's review hasn't cleared.
+
+## What triggers it
+
+- `POST /v1/accounts/connect/:platform` against a platform whose developer-portal review hasn't been approved for your app.
+- `POST /v1/posts` with a `targets[].platform` that points at a not-yet-enabled platform.
+- An admin toggled a platform off for the org without disconnecting existing accounts (rare).
+
+## Response shape
+
+```json platform_not_enabled.json
+{
+  "error": {
+    "code": "platform_not_enabled",
+    "platform": "twitter",
+    "message": "Twitter / X is not enabled for this organization yet.",
+    "remediation": "Watch the changelog at https://docs.letmepost.dev/changelog or `GET /v1/platform-versions` for status; approval-gated platforms turn on as their reviews clear.",
+    "docUrl": "https://docs.letmepost.dev/errors/platform_not_enabled",
+    "requestId": "req_..."
+  }
+}
+```
+
+## What to do
+
+- **For approval-gated platforms** (X, LinkedIn, Meta family) — wait for the review to clear. The `changelog` and `GET /v1/platform-versions` both surface live status.
+- **For self-host deployments** — check that the platform's OAuth credentials are present in your environment (e.g. `META_APP_ID`, `TWITTER_CLIENT_ID`). The platform stays disabled if its credentials are unset.
+- **For the meantime** — Bluesky has no upstream review gate and works for every signup today. The API surface (`POST /v1/posts`) is identical, so any code you write against Bluesky carries over.
+
+## Related
+
+- [Platforms overview](/platforms-overview) — current support status.
+- [Self-host](/guides/self-host) — environment variables that gate each platform.

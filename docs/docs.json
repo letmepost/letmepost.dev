@@ -104,6 +104,7 @@
               "errors/platform_auth_failed",
               "errors/platform_rejected",
               "errors/platform_unavailable",
+              "errors/platform_not_enabled",
               "errors/internal_error",
               "errors/unauthenticated",
               "errors/unauthorized",

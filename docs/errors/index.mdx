@@ -1,6 +1,6 @@
 ---
 title: Errors
-description: The eleven error codes, the response shape, and what to do about each one.
+description: The twelve error codes, the response shape, and what to do about each one.
 ---
 
 Every failure response from the API uses the same envelope:
@@ -24,7 +24,7 @@ Every failure response from the API uses the same envelope:
 
 | field              | always set | meaning                                                  |
 |--------------------|------------|----------------------------------------------------------|
-| `code`             | yes        | one of the eleven values below                           |
+| `code`             | yes        | one of the twelve values below                           |
 | `message`          | yes        | human-readable explanation                               |
 | `rule`             | when known | preflight rule id or validation field path               |
 | `platform`         | when known | which upstream platform was involved                     |
@@ -38,7 +38,7 @@ Every failure response from the API uses the same envelope:
 
 The shape never collapses to `{ body: {}, message: "" }`. If the upstream platform returned nothing meaningful, we still attach a `code`, `message`, and `requestId`.
 
-## The eleven codes
+## The twelve codes
 
 | code | typical HTTP | what it means |
 |------|--------------|---------------|
