@@ -327,11 +327,14 @@ function CopyAsCurl({ post }: { post: PostDetail }) {
 
   const curl = useMemo(() => {
     // Reconstruct what the original CreatePostRequest looked like as best
-    // as we can from what's stored. mediaRefs / scheduledAt round-trip
-    // because they're persisted on the row; firstComment doesn't (not in
-    // the response shape today — Phase 11 follow-up).
+    // as we can from what's stored. We always show the multi-target shape
+    // — even for posts that were originally sent with the legacy
+    // single-target body — because that's the canonical surface today.
+    // mediaRefs / scheduledAt round-trip because they're persisted on the
+    // row; firstComment and per-target options don't (not in the row today
+    // — Phase 11 follow-up).
     const body: Record<string, unknown> = {
-      account: { platform: post.platform, id: post.accountId },
+      targets: [{ accountId: post.accountId }],
       text: post.text,
     };
     if (post.mediaRefs && post.mediaRefs.length > 0) {

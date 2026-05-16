@@ -415,13 +415,16 @@ function QuickStartBody({
   const account = accountsQuery.data?.[0] ?? null;
 
   const accountId = account?.id ?? "<your-account-id>";
-  const platform = account?.platform ?? "bluesky";
+  // Quickstart uses the multi-target shape since that's the v1 surface.
+  // `platform` is no longer part of the request body — the API resolves it
+  // server-side from the stored account row, which is why a single string
+  // accountId is all you need to fan out.
   const example = `curl -X POST ${API_URL}/v1/posts \\
   -H "Authorization: Bearer ${apiKey ?? "lmp_live_…"}" \\
   -H "Content-Type: application/json" \\
   -H "Idempotency-Key: $(uuidgen)" \\
   -d '{
-    "account": { "platform": "${platform}", "id": "${accountId}" },
+    "targets": [{ "accountId": "${accountId}" }],
     "text": "Hello from letmepost.dev"
   }'`;
 
@@ -446,7 +449,7 @@ function QuickStartBody({
           "Idempotency-Key": crypto.randomUUID(),
         },
         body: JSON.stringify({
-          account: { platform: account.platform, id: account.id },
+          targets: [{ accountId: account.id }],
           text: "Hello from letmepost.dev",
         }),
       });
