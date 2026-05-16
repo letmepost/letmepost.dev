@@ -66,16 +66,6 @@
         ]
       },
       {
-        "tab": "SDKs",
-        "icon": "code",
-        "pages": ["sdks/typescript", "sdks/python", "sdks/go"]
-      },
-      {
-        "tab": "Tools",
-        "icon": "terminal",
-        "pages": ["cli", "mcp"]
-      },
-      {
         "tab": "Webhooks",
         "icon": "webhook",
         "pages": [

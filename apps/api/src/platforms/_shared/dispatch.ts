@@ -87,22 +87,17 @@ export type PublishContext =
   | { skipGates: true; db?: DrizzleClient };
 
 /**
- * Hard cap on per-batch fan-out concurrency. Matches MAX_TARGETS_PER_REQUEST
- * (7) so by construction a single request can never exceed this limit — but
- * we keep the check here for callers (e.g. workers) that fan out from
- * outside the route boundary.
+ * Per-batch fan-out concurrency cap. Intentionally lower than
+ * MAX_TARGETS_PER_REQUEST (25) so a large batch chunks through upstream APIs
+ * in 7-at-a-time slices rather than blasting all 25 in parallel — Meta in
+ * particular rate-limits aggressively when hit concurrently.
  */
 export const MAX_FANOUT_CONCURRENCY = 7;
 
 /**
  * Run `publishForAccount` across N (account, input) pairs concurrently.
  * Order of results matches input order so callers can correlate by index.
- *
- * Parallelism is capped at MAX_FANOUT_CONCURRENCY. The cap matches the
- * route-level target cap today, so for an in-route call this is effectively
- * "all at once" — but keeping the chunk loop here means a future caller
- * (e.g. a worker batch retry) that fans out beyond seven won't hammer
- * upstream APIs all at once.
+ * Chunks at MAX_FANOUT_CONCURRENCY to keep upstream parallelism bounded.
  */
 export async function publishAcrossTargets(
   items: ReadonlyArray<{

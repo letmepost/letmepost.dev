@@ -63,14 +63,6 @@ const MIN_FUTURE_DELAY_MS = 1_000;
  *     persisted with status="queued", a delayed job is enqueued per row,
  *     and the endpoint returns 202.
  *
- * Both the new multi-target body and the legacy single-target body
- * (`account: {...}, text, ...`) are accepted. Legacy bodies are transparently
- * rewritten into the multi-target shape immediately after validation so the
- * rest of the handler only has to think about `targets[]`. We DON'T tag
- * legacy results with `legacy_shape: true` — silent rewrite keeps the API
- * surface honest about what we returned, and the body-hash idempotency
- * record already disambiguates retry shapes.
- *
  * Idempotency-Key applies to the whole batch — see middleware/idempotency.ts.
  * A retried fan-out replays the original CreatePostResponse (same batch id,
  * same per-target results) instead of re-publishing; changing any target
