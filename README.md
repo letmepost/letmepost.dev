@@ -30,7 +30,7 @@ curl -X POST https://api.letmepost.dev/v1/posts \
   -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
   -d '{
-    "account": { "platform": "bluesky", "id": "acc_…" },
+    "targets": [{ "accountId": "acc_…" }],
     "text": "Shipping letmepost.dev"
   }'
 ```
@@ -43,10 +43,12 @@ curl -X POST https://api.letmepost.dev/v1/posts \
     "code": "preflight_failed",
     "rule": "bluesky.text.max_graphemes",
     "platform": "bluesky",
-    "platform_version": "atproto-2026-04",
+    "platformVersion": "atproto-2026-04",
     "message": "Post text is 312 graphemes; Bluesky allows at most 300.",
     "remediation": "Shorten the post to 300 graphemes or fewer.",
-    "request_id": "req_01HY6X4AWBJM2K9F2PTQMRD9JQ"
+    "docUrl": "https://docs.letmepost.dev/errors/preflight_failed",
+    "ruleUrl": "https://docs.letmepost.dev/preflight/bluesky-text-max_graphemes",
+    "requestId": "req_01HY6X4AWBJM2K9F2PTQMRD9JQ"
   }
 }
 ```
@@ -95,23 +97,26 @@ curl -X POST https://api.letmepost.dev/v1/accounts/connect/bluesky \
 curl -X POST https://api.letmepost.dev/v1/posts \
   -H "Authorization: Bearer lmp_live_…" \
   -H "Idempotency-Key: $(uuidgen)" \
-  -d '{ "account": { "platform": "bluesky", "id": "acc_…" }, "text": "Hello, world" }'
+  -d '{ "targets": [{ "accountId": "acc_…" }], "text": "Hello, world" }'
 ```
 
 90-second walkthrough at [docs.letmepost.dev/quickstart](https://docs.letmepost.dev/quickstart).
 
 ## Self-host
 
-Apache 2.0 from day 0. Same code runs the hosted SaaS and the self-host Docker Compose — no feature gate, no open-core trick.
+Apache 2.0 from day 0. The same code that runs `api.letmepost.dev` runs on your own infra — no feature gate, no open-core trick.
 
 ```bash
 git clone https://github.com/rosekamallove/letmepost.dev
 cd letmepost.dev
-cp apps/api/.env.example apps/api/.env  # fill in your platform OAuth credentials
-docker compose up
+pnpm install
+cp apps/api/.env.example apps/api/.env             # fill in your platform OAuth credentials
+docker compose -f docker-compose.dev.yml up -d     # spins up Postgres + Redis only
+pnpm --filter @letmepost/api db:migrate
+pnpm dev                                           # API + dashboard in watch mode
 ```
 
-BYO Postgres (or Neon), BYO Redis (or Upstash), BYO platform credentials. Hosted is permanently optional.
+The dev compose file ships Postgres + Redis. The API, worker, and dashboard run via `pnpm` — see [docs.letmepost.dev/self-host/quick-start](https://docs.letmepost.dev/self-host/quick-start) for the full walkthrough and [self-host/deploying](https://docs.letmepost.dev/self-host/deploying) for production patterns. BYO Postgres (or Neon), BYO Redis (or Upstash), BYO platform credentials. Hosted is permanently optional.
 
 ## Running locally (development)
 
