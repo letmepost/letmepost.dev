@@ -1,44 +1,82 @@
 ---
 title: Scheduled posts
-description: Pass scheduledAt to queue a post for the future. 202 instead of 201, queued status, post.queued webhook.
+description: Pass scheduledAt to queue a batch for the future. 202 instead of 200, queued status per target, post.queued webhook per target.
 ---
 
-Add `scheduledAt` to a `POST /v1/posts` body and the request is persisted with `status: "queued"`. A delayed job runs on the publish queue at the requested time.
+Add `scheduledAt` to a `POST /v1/posts` body and every target in the batch is persisted with `status: "queued"`. A delayed publish job is enqueued per target at the requested time.
 
 ## Request
 
-```json scheduled.json
+```bash scheduled.sh
+curl -X POST https://api.letmepost.dev/v1/posts \
+  -H "Authorization: Bearer $LMP_KEY" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  --data @- <<EOF
 {
-  "account": { "platform": "bluesky", "id": "..." },
+  "targets": [
+    { "accountId": "00000000-0000-0000-0000-000000000000" }
+  ],
   "text": "Friday at noon UTC",
   "scheduledAt": "2026-05-08T12:00:00Z"
 }
+EOF
 ```
 
 ## Response
 
-You get `202 Accepted` instead of `201 Created`:
+You get `202 Accepted` instead of `200 OK`:
 
 ```json 202.json
 {
-  "id": "post_01HY6X4AWBJM2K9F2PTQMRD9JQ",
-  "platform": "bluesky",
+  "id": "batch_01HY6X4AWBJM2K9F2PTQMRD9JQ",
   "status": "queued",
+  "createdAt": "2026-05-04T15:30:00.000Z",
   "scheduledAt": "2026-05-08T12:00:00.000Z",
-  "createdAt": "2026-05-04T15:30:00.000Z"
+  "results": [
+    {
+      "accountId": "00000000-0000-0000-0000-000000000000",
+      "platform": "bluesky",
+      "postId": "post_01HY6X4AWBJM2K9F2PTQMRD9JQ",
+      "status": "queued"
+    }
+  ]
 }
 ```
 
-Save the `id`. To check what happened later, fetch [`GET /v1/posts/:id`](/api-reference/#get-/v1/posts/:id) — it returns the full attempt history once the job has run.
+Save `results[].postId` per target. To check what happened later, fetch [`GET /v1/posts/:id`](/api-reference/#get-/v1/posts/:id) for any of them — each returns the full attempt history once its job has run.
 
 ## Constraints
 
 - `scheduledAt` must be at least 1 second in the future. Closer than that and you get [`validation_failed`](/errors/validation_failed) with `rule: "scheduledAt.future"`. The 1-second floor is a guardrail against races where the worker fires before the persisting transaction commits.
+- **`publishNow: true` is mutually exclusive with `scheduledAt`.** Sending both surfaces `validation_failed` with `rule: "mode_conflict"`. Drop one of them.
 - **v1 scheduled posts accept text only.** Media and `firstComment` on scheduled posts surface `validation_failed` with `rule: "scheduledAt.text_only"`. The remediation is to publish synchronously — the scheduled-media path needs persistent media storage and ships in a follow-up slice.
+
+## Multi-target scheduling
+
+`scheduledAt` applies to every target in the batch — same firing time for all of them. The batch is atomic on accept: either every target gets queued, or none do. Each target then runs through its own publish job and surfaces independently in webhooks and the post log.
+
+```bash scheduled-fan-out.sh
+curl -X POST https://api.letmepost.dev/v1/posts \
+  -H "Authorization: Bearer $LMP_KEY" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  --data @- <<EOF
+{
+  "targets": [
+    { "accountId": "<twitter_account_id>" },
+    { "accountId": "<linkedin_account_id>" },
+    { "accountId": "<bluesky_account_id>" }
+  ],
+  "text": "Coordinated drop on Friday at noon UTC",
+  "scheduledAt": "2026-05-08T12:00:00Z"
+}
+EOF
+```
 
 ## Lifecycle
 
-A scheduled post moves through these statuses:
+A scheduled target moves through these statuses:
 
 ```
 queued    →   publishing   →   published
@@ -46,16 +84,16 @@ queued    →   publishing   →   published
                           ↘   failed
 ```
 
-Subscribe to webhooks for each transition:
+Subscribe to webhooks for each transition. Events fire **per target**, not per batch:
 
-- [`post.queued`](/webhooks/post-queued) — fired immediately on accept.
-- [`post.published`](/webhooks/post-published) — successful publish.
+- [`post.queued`](/webhooks/post-queued) — fired per target immediately on accept.
+- [`post.published`](/webhooks/post-published) — successful publish on a target.
 - [`post.rejected`](/webhooks/post-rejected) — preflight or platform rejected; not retried.
 - [`post.failed`](/webhooks/post-failed) — transient failure; the worker may retry per the queue policy.
 
 ## Idempotency on scheduled posts
 
-`Idempotency-Key` works the same way as on immediate posts — the replay cache returns the original `202` response if you retry within 24 h with the same body. The queued job is enqueued exactly once.
+`Idempotency-Key` works the same way as on immediate posts and applies to the whole batch — the replay cache returns the original `202` envelope (same batch id, same per-target rows) if you retry within 24 h with the same body. Each queued job is enqueued exactly once.
 
 ## Time zones
 

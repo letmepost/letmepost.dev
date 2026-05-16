@@ -12,7 +12,7 @@ A "platform account" is a single connected identity on an upstream platform — 
 | Bluesky    | `credentials`   | submit handle + app password, no OAuth round-trip |
 | everything else | `oauth`    | redirect → upstream consent → callback            |
 
-Both end with a row in `platform_accounts` and an `id` you reference from post bodies as `account.id`.
+Both end with a row in `platform_accounts` and an `id` you reference from post bodies as `targets[].accountId`.
 
 ## OAuth: connect → complete
 
@@ -43,11 +43,9 @@ curl -X POST https://api.letmepost.dev/v1/accounts/connect/bluesky/complete \\
 
 We never store your main account password. Revoke an app password at any time on bsky.app and the connection breaks cleanly with `platform_auth_failed`.
 
-## Fan-out: Meta is one connect, two platforms
+## Meta surfaces each connect separately
 
-Connecting `facebook` grants both Facebook Pages publish *and* the linked Instagram Business publish — Pages are discovered via `GET /me/accounts`, IG Business via the Page's `instagram_business_account` field. The single OAuth produces two `platform_accounts` rows: one for `facebook`, one for `instagram` (when an IG Business is linked).
-
-To post to Threads you connect separately — Threads has its own OAuth (`threads.net`), distinct from Facebook Login for Business.
+Facebook Pages, Instagram Business, and Threads each have their own connect flow — one OAuth per `platform_accounts` row. Connecting `facebook` discovers Pages via `GET /me/accounts`; connecting `instagram` runs the standalone Instagram Login OAuth and uses `/me?fields=id` for the Content Publishing API user id; connecting `threads` runs Threads' own OAuth at `threads.net`. No silent fan-out — every connected identity is one explicit OAuth.
 
 ## Token lifecycle
 

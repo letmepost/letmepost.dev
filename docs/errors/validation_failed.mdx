@@ -1,17 +1,35 @@
 ---
 title: validation_failed
-description: Request body or query string failed schema validation. The rule field carries the path of the offending field.
+description: Request body or query failed schema or batch-level validation. The rule field carries the specific check that failed.
 ---
 
-The request body, headers, or query parameters didn't match the documented schema. This is a schema-level rejection — preflight (which checks platform-specific rules) hasn't run yet.
+The request body, headers, or query parameters didn't match the documented schema, or the request violated a batch-level rule (target count, mode conflict, account resolution). This is rejection at the route boundary — platform-specific preflight (which checks platform constraints) only runs after validation passes.
 
 ## What triggers it
 
-- Required field missing (e.g. `account.platform` absent on `POST /v1/posts`).
+- Required field missing (e.g. no `targets[]`, no `text`).
 - Type mismatch (e.g. `text: 42` instead of a string).
 - Out-of-range value (e.g. `limit: -1` on a list endpoint).
 - Bad pattern match (e.g. `mediaId: "foo"` — must match `^med_[0-9A-Za-z]{22}$`).
 - Constraint violation (e.g. `scheduledAt` parses but is in the past).
+- Batch-level rules listed below.
+
+## Batch and target rules
+
+These rules fire on `POST /v1/posts` after schema parsing but before preflight. They map directly to the validation layer in `apps/api/src/routes/posts.ts`.
+
+| `rule` | meaning | remediation |
+|---|---|---|
+| `targets.required` | `targets[]` was empty | Send at least one target. |
+| `targets.max` | `targets[]` exceeded 25 entries | Split the publish into batches of at most 25 targets. |
+| `target.account.not_connected` | A target's `platform` matched zero connected accounts in the org+profile scope | Connect the platform first, or pass an explicit `accountId`. |
+| `target.account.ambiguous` | A target's `platform` matched 2+ connected accounts; we won't guess | Pass an explicit `accountId` (the `remediation` field lists the candidate ids). |
+| `targets.options.platform_mismatch` | A target's `options.platform` doesn't match the resolved account's platform | Drop `options`, or set `options.platform` to match. |
+| `targets.account.platform_mismatch` | A target carried both `accountId` and `platform` and they disagreed | Drop `platform`, or set it to match the account. |
+| `mode_conflict` | `publishNow: true` AND `scheduledAt` both set | Drop one of the two — they're mutually exclusive. |
+| `scheduledAt.future` | `scheduledAt` was less than 1 second in the future | Send a timestamp at least 1 second ahead. |
+| `scheduledAt.text_only` | Scheduled post carried `media` or `firstComment` (not supported in v1) | Publish synchronously, or drop media/firstComment. |
+| `body.json` | Request body wasn't valid JSON | Send a JSON body with `Content-Type: application/json`. |
 
 ## Response shape
 
@@ -19,34 +37,49 @@ The request body, headers, or query parameters didn't match the documented schem
 {
   "error": {
     "code": "validation_failed",
-    "message": "Required",
-    "rule": "account.platform",
-    "platformResponse": [
-      { "code": "invalid_type", "expected": "string", "received": "undefined", "path": ["account", "platform"], "message": "Required" }
-    ],
-    "remediation": "Check the request body matches the documented schema.",
+    "message": "A single request may not fan out to more than 25 targets.",
+    "rule": "targets.max",
+    "remediation": "Split the publish into batches of at most 25 targets.",
+    "docUrl": "https://docs.letmepost.dev/errors/validation_failed",
     "requestId": "req_..."
   }
 }
 ```
 
-`rule` is the dot-joined Zod path that failed. `platformResponse` carries the full Zod issues array — every issue, not just the first — so a UI can render them inline next to the right field.
+For pure schema failures the `rule` is the dot-joined Zod path and `platformResponse` carries the full Zod issues array — every issue, not just the first — so a UI can render them inline next to the right field:
+
+```json zod-issues.json
+{
+  "error": {
+    "code": "validation_failed",
+    "message": "Required",
+    "rule": "targets",
+    "platformResponse": [
+      { "code": "invalid_type", "expected": "array", "received": "undefined", "path": ["targets"], "message": "Required" }
+    ],
+    "remediation": "Check the request body matches the documented schema.",
+    "docUrl": "https://docs.letmepost.dev/errors/validation_failed",
+    "requestId": "req_..."
+  }
+}
+```
 
 ## Reproducing it
 
 ```bash reproduce.sh
-# Missing 'text' — should fail with rule: "text"
-curl -X POST https://api.letmepost.dev/v1/posts \\
-  -H "Authorization: Bearer $LMP_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{ "account": { "platform": "bluesky", "id": "..." } }'
+# Missing 'targets' — should fail with rule: "targets"
+curl -X POST https://api.letmepost.dev/v1/posts \
+  -H "Authorization: Bearer $LMP_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "text": "shipped" }'
 ```
 
 ## Remediation
 
-Read the path in `rule`, fix the field. The rule field is always the path of the **first** failure; check `platformResponse` for the full list when you're rendering form errors to a user.
+Read the `rule` field and either fix the field at that path, or follow the batch-rule table above. For pure Zod failures, `rule` is the path of the **first** issue; check `platformResponse` for the full list when you're rendering form errors to a user.
 
 ## Related
 
 - [`preflight_failed`](/errors/preflight_failed) — passes schema, fails platform constraints.
+- [`idempotency_conflict`](/errors/idempotency_conflict) — same key, different body.
 - [API reference](/api-reference) — every endpoint's request schema.
