@@ -5,51 +5,95 @@ icon: linkedin
 iconType: brands
 ---
 
-LinkedIn's Versioned REST API. v1 covers personal posting only; org/Company posting requires the Marketing Developer Platform (MDP) and ships in a follow-up slice.
+<Warning>
+**Before you start.** v1 supports **personal posting only** (`urn:li:person:*`). Organization / Company Page posting requires LinkedIn's Marketing Developer Platform (MDP) approval plus the `w_organization_social` scope — passing an `urn:li:organization:*` author URN today fails preflight with [`linkedin.author.org_not_supported`](/preflight/linkedin-author-org_not_supported).
+</Warning>
 
-## Connect
+## Quick reference
 
-`POST /v1/accounts/connect/linkedin`. OAuth 2.0, three-legged. After complete, we call `/userinfo` to mint a stable `urn:li:person:*` author URN and store it on the `platform_accounts` row.
+| Limit / capability | Value |
+|---|---|
+| Character limit | 3,000 graphemes (emoji-aware) |
+| Author URN format | `urn:li:person:{id}` (org URNs gated behind MDP) |
+| Visibility | `PUBLIC` or `CONNECTIONS` |
+| Post types supported | text |
+| Images / video / document | Not supported in v1 (media slice TBD) |
+| Scheduling | Yes (via `scheduledAt`) |
+| Reply / thread support | Not supported in v1 |
+| First comment | Not supported in v1 |
+| Inbox / DM | Not supported in v1 |
+| Analytics | Not supported in v1 |
 
-## Scopes
+## Connect an account
 
-| scope                  | requested |
-|------------------------|-----------|
-| `w_member_social`      | always — required to post on a personal account. |
-| `openid`, `profile`    | always — needed to mint the URN. |
-| `email`                | extended only. |
-| `r_organization_social`, `w_organization_social` | extended only — gated behind MDP. |
+`POST /v1/accounts/connect/linkedin`. OAuth 2.0, three-legged. After the callback the provider calls `/v2/userinfo` to mint a stable `urn:li:person:{id}` author URN, stored on `tokenMetadata.authorUrn`. That URN is what `posts.author` carries on every publish.
 
-Org posting requires both MDP approval and the `w_organization_social` scope. Until MDP clears, `extended` org scopes are off and [`linkedin.author.org_not_supported`](/preflight/linkedin-author-org_not_supported) fires if you try.
+### Scopes
 
-## Version pinning
+| scope | requested |
+|---|---|
+| `w_member_social` | always — required to post on a personal account. |
+| `openid`, `profile` | always — needed to mint the URN via `/v2/userinfo`. |
+| `email` | extended only. |
+| `r_organization_social`, `w_organization_social` | extended only — gated behind MDP approval. |
 
-LinkedIn sunset five API versions in six months from 2024–2025. We pin a single version for our `Linkedin-Version` header and upgrade internally; the public version tracker (`GET /v1/platform-versions`) shows the current pin and any in-flight migration. When LinkedIn announces a sunset, you'll see [`version.deprecated`](/webhooks/version-deprecated) on accounts that need attention.
+Until MDP clears for your app, `extended` org scopes are off by default and any attempt to post against an org URN fails preflight.
 
-## Token lifecycle
+### Version pinning
 
-LinkedIn tokens are 60 days, **no refresh**. Re-auth is mandatory at expiry. We fire [`token.expiring`](/webhooks/token-expiring) seven days ahead so you can prompt your user.
+LinkedIn sunset five API versions in six months from 2024 – 2025. letmepost pins a single version on the `Linkedin-Version` header and upgrades internally; the public version tracker (`GET /v1/platform-versions`) shows the current pin and any in-flight migration. When LinkedIn announces a sunset, [`version.deprecated`](/webhooks/version-deprecated) fires on the affected accounts.
 
-## Posting
+### Token lifecycle
+
+LinkedIn tokens last **60 days** with **no refresh** — re-auth is mandatory at expiry. letmepost fires [`token.expiring`](/webhooks/token-expiring) seven days ahead so you can prompt the user.
+
+## Post types
+
+### Text post
 
 ```json text.json
 {
-  "account": { "platform": "linkedin", "id": "..." },
+  "targets": [{ "accountId": "..." }],
   "text": "Personal LinkedIn post"
 }
 ```
 
-## Constraints
+The author URN is resolved from the connected account; passing an explicit author URN on the request body is not required (and is overridden by the connect-time URN).
 
-- Text: 3000 graphemes max, emoji-aware ([`linkedin.text.max_graphemes`](/preflight/linkedin-text-max_graphemes))
-- Author URN must be `urn:li:person:*` ([`linkedin.author.urn_format`](/preflight/linkedin-author-urn_format))
-- Org URNs rejected in v1 ([`linkedin.author.org_not_supported`](/preflight/linkedin-author-org_not_supported))
+## Wisdom (platform-specific things that bite)
 
-## Preflight rules
+<Tip>
+- **External URLs in the post body materially reduce LinkedIn's organic reach.** LinkedIn's distribution algorithm de-prioritizes posts that link off-platform. The standard remediation is to keep the body link-free and put the URL in the first comment — but letmepost does not yet support a `firstComment` field on LinkedIn (the v2 comment API isn't wired). For now, post without the link and drop it manually, or post the link in the body and accept the reach hit.
+- LinkedIn tokens have **no refresh token**. They die at 60 days, hard. Subscribe to [`token.expiring`](/webhooks/token-expiring) and prompt the user before they lose the connection — the publisher returns [`platform_auth_failed`](/errors/platform_auth_failed) the moment the token aged out.
+- The post `id` and `uri` come back as the LinkedIn **URN** itself (`urn:li:share:…`), not a clickable URL — LinkedIn's create response doesn't include a web permalink. Construct the public URL with the URN's numeric tail if you need one.
+- Org / Company posting needs both MDP approval and the `w_organization_social` extended scope. Posting against an `urn:li:organization:*` URN fails preflight with a remediation that points at the post-MDP follow-up slice.
+- LinkedIn's character counter is grapheme-aware: emoji + ZWJ sequences count as one grapheme, matching the publisher's preflight counter.
+- The version tracker is the canonical source for "what LinkedIn API version letmepost is running against right now" — when LinkedIn ships a versioned change, our migration runs centrally and you see the rollover via the [`version.deprecated`](/webhooks/version-deprecated) webhook.
+</Tip>
 
-- [`linkedin.text.non_empty`](/preflight/linkedin-text-non_empty)
-- [`linkedin.text.max_graphemes`](/preflight/linkedin-text-max_graphemes)
-- [`linkedin.author.urn_format`](/preflight/linkedin-author-urn_format)
-- [`linkedin.author.org_not_supported`](/preflight/linkedin-author-org_not_supported)
-- [`linkedin.author.unresolved`](/preflight/linkedin-author-unresolved)
-- [`linkedin.visibility.enum`](/preflight/linkedin-visibility-enum)
+## Common errors
+
+| Error rule | What it means | How to fix |
+|---|---|---|
+| [`linkedin.text.non_empty`](/preflight/linkedin-text-non_empty) | Empty post body | Provide non-whitespace text. |
+| [`linkedin.text.max_graphemes`](/preflight/linkedin-text-max_graphemes) | Body > 3,000 graphemes | Trim under 3,000. |
+| [`linkedin.author.urn_format`](/preflight/linkedin-author-urn_format) | Author URN doesn't match `urn:li:person:*` or `urn:li:organization:*` | Use the URN persisted at connect (the publisher does this for you). |
+| [`linkedin.author.org_not_supported`](/preflight/linkedin-author-org_not_supported) | Tried to publish under an `urn:li:organization:*` URN | Use a person URN. Org posting requires MDP approval and lands in a follow-up slice. |
+| [`linkedin.author.unresolved`](/preflight/linkedin-author-unresolved) | Account row missing the cached author URN | Disconnect and reconnect — the URN is minted at connect from `/v2/userinfo`. |
+| [`linkedin.visibility.enum`](/preflight/linkedin-visibility-enum) | Visibility wasn't `PUBLIC` or `CONNECTIONS` | Pass one of those two values, or omit (defaults to PUBLIC). |
+
+## What you can't do (yet)
+
+- Organization / Company Page posts (requires MDP).
+- Image, video, multi-image, or document posts (media slice deferred).
+- Polls.
+- First comment / threaded replies as the author.
+- Mentions of other LinkedIn members (requires the v2 entity resolution surface).
+- Reading post engagement, comments, or impressions.
+- Scheduling via LinkedIn's own scheduled-post API — `scheduledAt` runs in letmepost's queue instead.
+
+## API reference
+
+- [`POST /v1/posts`](/api-reference/posts/create) — primary publish.
+- [`POST /v1/accounts/connect/linkedin`](/api-reference/accounts/connect-linkedin) — start a LinkedIn OAuth flow.
+- [`GET /v1/platform-versions`](/api-reference/platform-versions/list) — current pinned LinkedIn API version + migration state.

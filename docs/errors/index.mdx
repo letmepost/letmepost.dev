@@ -75,7 +75,43 @@ if (!res.ok) {
 
 ## Why this matters
 
-Ayrshare's own documentation admits their error 138 "masks multiple distinct underlying causes." That's the failure mode we built to defeat. Every code on this page is narrow, stable, and documented; if we discover a new failure shape, we add a new code with its own page rather than fold it into an existing one.
+Every code on this page is narrow, stable, and documented. If we discover a new failure shape, we add a new code with its own page rather than fold it into an existing one — broad error codes that mask multiple underlying causes are the failure mode this design exists to defeat.
+
+## Best practices
+
+<Steps>
+<Step title="Branch on `code`, never on `message`">
+Error messages are tuned for humans and can change between releases. The `code` field is part of the API contract — it's stable. Always switch on `code` (and `rule` for preflight failures), never on substring match against `message`.
+
+```ts
+// Stable
+if (err.code === "preflight_failed" && err.rule === "instagram.media.required") {
+  attachDefaultImage();
+}
+
+// Brittle
+if (err.message.includes("Instagram requires media")) { /* … */ }
+```
+</Step>
+
+<Step title="Respect `Retry-After` and the `RateLimit-*` headers">
+On `rate_limited` responses, the `Retry-After` header tells you how many seconds to wait. The per-route `RateLimit-Limit` / `RateLimit-Remaining` / `RateLimit-Reset` headers (IETF draft naming) show how much budget remains in the current window when present. The always-present `X-RateLimit-Limit` is the static ceiling for the route. Honor whichever is present — retrying earlier just burns budget.
+</Step>
+
+<Step title="Treat platform 4xx as caller-fixable, 5xx as platform-fault">
+Platform `4xx` responses (mapped to letmepost `platform_rejected` with the upstream `platformResponse`) usually mean the post itself violated platform rules — character count, missing media, banned URL pattern. These can be fixed by editing the post.
+
+Platform `5xx` responses (mapped to `platform_unavailable`) are upstream issues. Retry with backoff; check the [status page](https://status.letmepost.dev) if it persists.
+</Step>
+
+<Step title="Follow `docUrl` for unknown codes">
+Every error response includes a `docUrl` that points at the corresponding code's docs page, and a `ruleUrl` when `rule` is present. If you hit an error code you don't recognize, the `docUrl` value will take you to its remediation page directly.
+</Step>
+
+<Step title="Always grep by `requestId`">
+Every response carries a `requestId` in the body and the `x-request-id` response header. When you open a support issue or check the logs, include it — it indexes the full request log for that operation across the entire pipeline.
+</Step>
+</Steps>
 
 ## See also
 

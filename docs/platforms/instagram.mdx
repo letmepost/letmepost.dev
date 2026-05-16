@@ -1,59 +1,79 @@
 ---
-title: Instagram Business
-description: Instagram Business via the Meta Graph API. Connected together with Facebook Pages — one OAuth, two platforms.
+title: Instagram
+description: Instagram Business / Creator via the Content Publishing API. Standalone Instagram Login — no Facebook required.
 icon: instagram
 iconType: brands
 ---
 
-Instagram Business is published via Meta's Graph API, **not** the consumer Instagram API. Connecting Instagram is a side effect of connecting Facebook — there is no separate `connect/instagram` endpoint. One Meta OAuth produces two letmepost rows: one `facebook`, one `instagram` (when an IG Business is linked to a Page the user manages).
+<Warning>
+**Before you start.** Instagram requires a **Business** or **Creator** account. Personal accounts cannot publish via the Content Publishing API regardless of scopes granted — the connect flow rejects them with `instagram.account_type.requires_professional` and a remediation pointing at the Switch to professional account toggle in the IG app.
+</Warning>
 
-## Connect
+## Quick reference
 
-Start at `POST /v1/accounts/connect/facebook` (not `instagram`). The Facebook OAuth grants the scopes needed for both Pages and IG Business. After complete:
+| Limit / capability | Value |
+|---|---|
+| Caption character limit | 2,200 graphemes |
+| Items per carousel | 2 – 10 (mixed image + video allowed) |
+| **Image format** | **JPEG only** (PNG, WebP, HEIC, GIF rejected by Meta) |
+| Image size | 8,000,000 bytes (8 MB) |
+| Video formats | mp4, mov |
+| Video size | 1,000,000,000 bytes (1 GB) |
+| Reels duration | ≤ 90 s (platform-enforced) |
+| Alt text per item | 2,200 graphemes |
+| Post types supported | single image, single video (Reels), carousel |
+| Text-only post | **Not supported** — every post requires media |
+| Scheduling | Yes (via `scheduledAt`) |
+| Reply / thread support | Not supported in v1 |
+| First comment | Not supported in v1 |
+| Story | Not supported in v1 |
+| Inbox / DM | Not supported in v1 |
+| Analytics | Not supported in v1 |
 
-- We call `GET /me/accounts` to discover Pages.
-- For each Page, we read `instagram_business_account` to find the linked IG.
-- One row per discovered Page, plus one IG row per Page that has an IG Business linked.
+## Connect an account
 
-If the user manages no Pages: [`facebook.pages.none`](/preflight/facebook-pages-none).
-If a Page has no IG Business linked: only the Facebook row is created.
+Instagram has its own OAuth (since the 2024 Instagram Login product) — distinct from Facebook Login. There is no FB fan-out anymore; connecting Instagram does **not** also connect Facebook.
 
-## Scopes
+`POST /v1/accounts/connect/instagram` produces an authorize URL at `instagram.com/oauth/authorize`. After the user grants, the callback runs three Graph calls:
 
-The Facebook connect requests these scopes (all of them; IG Business only works with `pages_show_list` + the `instagram_*` scopes):
+1. Exchange `code` → short-lived token (1 h).
+2. Swap short-lived → long-lived (60 d).
+3. `GET /me?fields=id,user_id,username,account_type` — the **Content Publishing API expects `id` (the IG-scoped user id), not `user_id`** — the provider persists `id` as `platformAccountId`. If `account_type === "PERSONAL"` the connect is rejected.
+
+### Scopes
 
 ```
-pages_show_list             — list Pages the user manages
-pages_manage_posts          — create posts on Pages
-pages_read_engagement       — pre-req for posts on some apps
-business_management         — needed for Pages connected via Business
-instagram_basic             — read IG Business account info per Page
-instagram_content_publish   — two-step container publish on IG
+instagram_business_basic           — read /me + identity
+instagram_business_content_publish — create + publish containers
 ```
 
-`extended` scopes (off by default): `pages_read_user_content`, `pages_manage_engagement`, `instagram_manage_comments`, `instagram_manage_insights`.
+`extended` scopes (off by default) cover comment + insight reads — not required for publishing.
 
-## Token lifecycle
+### Token lifecycle
 
-We exchange the short-lived token for a long-lived (~60-day) token at connect time, then refresh on schedule. `token.expiring` fires before expiry.
+Long-lived tokens last 60 days and are refreshable any time after the first 24 hours via `GET /refresh_access_token`. The provider refreshes on schedule; `token.expiring` fires before expiry.
 
-## Posting
+## Post types
 
-Instagram has **no text-only post shape** — every post needs at least one media item ([`instagram.media.required`](/preflight/instagram-media-required)).
+### Single image
 
 ```json single-image.json
 {
-  "account": { "platform": "instagram", "id": "..." },
-  "text": "shipped",
+  "targets": [{ "accountId": "..." }],
+  "text": "Caption is optional",
   "media": [
     { "kind": "image", "mediaId": "med_…", "altText": "..." }
   ]
 }
 ```
 
+### Single video (Reels)
+
+Single-video posts route through the `REELS` container — Instagram retired the legacy `VIDEO` product surface in 2024.
+
 ```json reels.json
 {
-  "account": { "platform": "instagram", "id": "..." },
+  "targets": [{ "accountId": "..." }],
   "text": "Reels caption",
   "media": [
     { "kind": "video", "mediaId": "med_…" }
@@ -61,43 +81,61 @@ Instagram has **no text-only post shape** — every post needs at least one medi
 }
 ```
 
+### Carousel (2 – 10, mixed)
+
+Carousel children can mix image and video items.
+
 ```json carousel.json
 {
-  "account": { "platform": "instagram", "id": "..." },
-  "text": "carousel of three",
+  "targets": [{ "accountId": "..." }],
+  "text": "Mixed carousel of three",
   "media": [
-    { "kind": "image", "mediaId": "med_…" },
-    { "kind": "image", "mediaId": "med_…" },
-    { "kind": "image", "mediaId": "med_…" }
+    { "kind": "image", "mediaId": "med_a…" },
+    { "kind": "video", "mediaId": "med_b…" },
+    { "kind": "image", "mediaId": "med_c…" }
   ]
 }
 ```
 
-## Constraints
+The publisher creates each child container (`is_carousel_item=true`), polls each to `FINISHED`, then creates a `CAROUSEL` parent with the child ids and publishes the parent.
 
-- Caption: 2200 graphemes max ([`instagram.text.max_graphemes`](/preflight/instagram-text-max_graphemes))
-- Media required ([`instagram.media.required`](/preflight/instagram-media-required))
-- Carousel: 2–10 items, mixed allowed ([`instagram.media.count_max`](/preflight/instagram-media-count_max))
-- **Image mime: JPEG only** ([`instagram.media.mime_allowed`](/preflight/instagram-media-mime_allowed))
-- Video mimes: mp4, mov
-- Image size: 8 MB max
-- Video size: 1 GB max; Reels duration ≤ 90 s (enforced platform-side)
-- Aspect ratio: 0.8..1.91 for feed, 9:16 for Reels — caught at container-finalize as [`instagram.media.aspect_ratio`](/preflight/instagram-media-aspect_ratio)
-- **Media URLs must be publicly reachable** — the canonical [`instagram.media.reachable`](/preflight/instagram-media-reachable) (Meta's notorious `OAuthException 2207052`)
+## Wisdom (platform-specific things that bite)
 
-## Preflight rules
+<Tip>
+- **JPEG only** for images. PNG, WebP, HEIC, and GIF will be rejected with `code 100, error_subcode 2207003`. Preflight catches this locally so you don't lose a roundtrip — re-encode to JPEG via your image pipeline (or upload via [`POST /v1/media`](/api-reference/media/create) which preserves the source mime).
+- Media URLs **must be publicly reachable** by Meta's CDN — anonymous HTTPS, no auth, no Drive links, no signed S3 URLs that expire before the container finishes. Unreachable URLs surface as `OAuthException 2207052`, the canonical opaque-rejection.
+- The first **125 characters** of the caption show before the "more" fold in feed. Front-load anything important.
+- Container expiry: Instagram's media containers live for **24 hours** after creation. The publisher creates + publishes in one synchronous flow so this rarely matters, but a scheduled post that ages out triggers `instagram.container.expired`.
+- The Content Publishing API uses `id` (the IG-scoped user id) on `/{ig-user-id}/media` — **not** `user_id` from the token-exchange response. The provider stores the right one; if you ever rebuild this manually, sending `user_id` returns `code:2`.
+- Reels duration is platform-enforced. We size-check at preflight, but the 90 s ceiling is checked by Instagram at container-finalize and surfaces as a platform rejection.
+- The publisher's response carries a permalink fetched best-effort via `GET /{media-id}?fields=permalink`. If that call 404s, the publish still succeeds and the response carries the id alone.
+</Tip>
 
-- [`instagram.media.required`](/preflight/instagram-media-required)
-- [`instagram.text.max_graphemes`](/preflight/instagram-text-max_graphemes)
-- [`instagram.media.count_max`](/preflight/instagram-media-count_max)
-- [`instagram.media.alt_text_max_graphemes`](/preflight/instagram-media-alt_text_max_graphemes)
-- [`instagram.media.mime_allowed`](/preflight/instagram-media-mime_allowed)
-- [`instagram.media.image_size_max`](/preflight/instagram-media-image_size_max)
-- [`instagram.media.video_size_max`](/preflight/instagram-media-video_size_max)
-- [`instagram.media.reachable`](/preflight/instagram-media-reachable)
-- [`instagram.media.aspect_ratio`](/preflight/instagram-media-aspect_ratio)
+## Common errors
 
-## Notes
+| Error rule | What it means | How to fix |
+|---|---|---|
+| [`instagram.media.required`](/preflight/instagram-media-required) | No media on the post | Attach at least one image or video; Instagram has no text-only feed surface. |
+| [`instagram.text.max_graphemes`](/preflight/instagram-text-max_graphemes) | Caption > 2,200 graphemes | Trim under 2,200. |
+| [`instagram.media.count_max`](/preflight/instagram-media-count_max) | More than 10 items in a carousel | Reduce to ≤10, or split into multiple posts. |
+| [`instagram.media.mime_allowed`](/preflight/instagram-media-mime_allowed) | Image isn't JPEG, or video isn't mp4/mov | Re-encode to JPEG (images) or mp4/mov (video). |
+| [`instagram.media.image_size_max`](/preflight/instagram-media-image_size_max) | Image > 8 MB | Compress under 8,000,000 bytes. |
+| [`instagram.media.video_size_max`](/preflight/instagram-media-video_size_max) | Video > 1 GB | Compress under 1,000,000,000 bytes. |
+| [`instagram.container.expired`](/preflight/instagram-container-expired) | Container aged past Instagram's 24 h window | Re-create and publish in one flow. |
+| [`instagram.account_type.requires_professional`](/preflight/instagram-account_type-requires_professional) | Connect attempted with a PERSONAL account | Switch the IG account to Business or Creator in-app, then reconnect. |
 
-- Use [`POST /v1/media`](/guides/upload-media) to upload. URLs from your own host work but introduce the reachability failure mode — Meta's CDN must be able to fetch them anonymously.
-- Reels and feed video are unified on the modern API; we route single-video posts through the Reels container and feed-video posts have been retired.
+## What you can't do (yet)
+
+- Stories (Stories use a separate `STORIES` container type not in v1).
+- Direct messages.
+- First comment as the author.
+- Tagging users or product tags.
+- Editing or deleting a published post.
+- Posting from a **Personal** Instagram account (Meta's API restriction — switch to Business or Creator).
+- Reading comments, replies, or insights (requires `extended` scopes plus read endpoints not in v1).
+
+## API reference
+
+- [`POST /v1/posts`](/api-reference/posts/create) — primary publish.
+- [`POST /v1/media`](/api-reference/media/create) — upload images/videos for `mediaId` references.
+- [`POST /v1/accounts/connect/instagram`](/api-reference/accounts/connect-instagram) — start an Instagram OAuth flow.

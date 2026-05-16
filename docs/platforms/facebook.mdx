@@ -1,72 +1,141 @@
 ---
 title: Facebook Pages
-description: Facebook Pages via the Meta Graph API. One OAuth connects Pages and any linked Instagram Business accounts.
+description: Facebook Pages via the Meta Graph API. Page Access Tokens, three endpoints (/feed, /photos, /videos), no IG fan-out.
 icon: facebook
 iconType: brands
 ---
 
-Facebook Pages publishing via the Meta Graph API. Connecting Facebook is the entry point for both `facebook` and `instagram` platforms in letmepost — see the [Instagram page](/platforms/instagram) for the fan-out.
+<Warning>
+**Before you start.** Facebook publishing happens against a **Page** (not a personal profile). The connect flow uses Facebook Login for Business, then discovers Pages via `GET /me/accounts` — one letmepost row per Page. If the user manages no Pages, the connect fails with [`facebook.pages.none`](/preflight/facebook-pages-none).
+</Warning>
 
-## Connect
+## Quick reference
 
-`POST /v1/accounts/connect/facebook`. Standard Facebook Login for Business OAuth. After complete, we discover Pages via `GET /me/accounts` and create one `platform_accounts` row per Page (plus one IG row per Page that has an IG Business linked).
+| Limit / capability | Value |
+|---|---|
+| Character limit | 63,206 graphemes |
+| Images per post | up to 10 (multi-photo via `attached_media`) |
+| Image formats | jpeg, png, gif, webp |
+| Image size | 4,000,000 bytes (4 MB) |
+| Video formats | mp4, mov |
+| Video size | 4,000,000,000 bytes (4 GB) |
+| Mixed image + video | Rejected — one media kind per post |
+| Post types supported | text, single image, multi-image, single video, link share |
+| Scheduling | Yes (via `scheduledAt`) |
+| Reply / thread support | Not supported in v1 |
+| First comment | Not supported in v1 |
+| Inbox / DM | Not supported in v1 |
+| Analytics | Not supported in v1 |
 
-## Scopes
+## Connect an account
+
+`POST /v1/accounts/connect/facebook`. Standard Facebook Login for Business OAuth. After complete, the provider calls `GET /me/accounts` and creates one `platform_accounts` row per Page the user manages, each carrying its own **Page Access Token** (the non-expiring token used for publishing, distinct from the User Access Token).
+
+If the user manages no Pages: [`facebook.pages.none`](/preflight/facebook-pages-none). Personal profiles cannot publish via the Graph API and are out of scope for v1.
+
+### Scopes
 
 ```
 pages_show_list             — list Pages the user manages
 pages_manage_posts          — create posts on Pages
 pages_read_engagement       — pre-req for posts on some apps
 business_management         — Pages connected via Business
-instagram_basic             — read IG Business per Page
-instagram_content_publish   — IG container publish
 ```
 
-The IG scopes are requested even on the Facebook connect because the same OAuth grant covers both. `extended` adds insights / engagement scopes.
+`extended` adds insights / engagement scopes (`pages_read_user_content`, `pages_manage_engagement`).
 
-## Token lifecycle
+### Token lifecycle
 
-Long-lived (~60-day) tokens, refreshed on schedule.
+The User Access Token from the OAuth handshake is short-lived; the provider swaps it for a long-lived (~60-day) user token, then derives a **Page Access Token** per Page via `/me/accounts`. Page Access Tokens are non-expiring as long as the user token stays fresh; refresh runs on schedule. `token.expiring` fires before expiry on the user token.
 
-## Posting
+## Post types
+
+### Text post
 
 ```json text.json
 {
-  "account": { "platform": "facebook", "id": "..." },
+  "targets": [{ "accountId": "..." }],
   "text": "Page update"
 }
 ```
 
-```json photo.json
+Internally this routes to `POST /{page-id}/feed` with `message`.
+
+### Single image
+
+```json single-image.json
 {
-  "account": { "platform": "facebook", "id": "..." },
+  "targets": [{ "accountId": "..." }],
   "text": "with a photo",
   "media": [{ "kind": "image", "mediaId": "med_…" }]
 }
 ```
 
-## Constraints
+Internally: `POST /{page-id}/photos` with caption.
 
-- Text: 63,206 graphemes ([`facebook.text.max_graphemes`](/preflight/facebook-text-max_graphemes))
-- Image mimes: jpeg, png ([`facebook.media.mime_allowed`](/preflight/facebook-media-mime_allowed))
-- Video mimes: mp4, mov
-- Image size: 4 MB max ([`facebook.media.image_size_max`](/preflight/facebook-media-image_size_max))
-- Video size: 4 GB max ([`facebook.media.video_size_max`](/preflight/facebook-media-video_size_max))
-- Mixed image + video: rejected ([`facebook.media.image_video_exclusive`](/preflight/facebook-media-image_video_exclusive))
-- Up to 10 images per post ([`facebook.media.count_max`](/preflight/facebook-media-count_max))
+### Multi-image (up to 10)
 
-## Preflight rules
+```json multi-image.json
+{
+  "targets": [{ "accountId": "..." }],
+  "text": "three photos",
+  "media": [
+    { "kind": "image", "mediaId": "med_a…" },
+    { "kind": "image", "mediaId": "med_b…" },
+    { "kind": "image", "mediaId": "med_c…" }
+  ]
+}
+```
 
-- [`facebook.text.required`](/preflight/facebook-text-required)
-- [`facebook.text.max_graphemes`](/preflight/facebook-text-max_graphemes)
-- [`facebook.media.image_video_exclusive`](/preflight/facebook-media-image_video_exclusive)
-- [`facebook.media.count_max`](/preflight/facebook-media-count_max)
-- [`facebook.media.mime_allowed`](/preflight/facebook-media-mime_allowed)
-- [`facebook.media.image_size_max`](/preflight/facebook-media-image_size_max)
-- [`facebook.media.video_size_max`](/preflight/facebook-media-video_size_max)
-- [`facebook.pages.none`](/preflight/facebook-pages-none) — connect-time, not publish-time.
+The publisher stages each photo as `published=false` via `POST /{page-id}/photos`, then creates the wall post with `POST /{page-id}/feed` carrying `attached_media: [{ media_fbid }]`.
 
-## See also
+### Single video
 
-- [Instagram](/platforms/instagram) — same OAuth, sibling rows.
-- [Accounts](/guides/connect-account) — fan-out semantics.
+```json video.json
+{
+  "targets": [{ "accountId": "..." }],
+  "text": "demo clip",
+  "media": [{ "kind": "video", "mediaId": "med_…" }]
+}
+```
+
+Routes to `POST /{page-id}/videos` with the media URL. Only one video per post; mixing image + video on the same post is rejected upfront.
+
+## Wisdom (platform-specific things that bite)
+
+<Tip>
+- The **Page Access Token** is what publishes — not the User Access Token. The provider derives it at connect; revoking the user's session in Facebook also kills the Page token even though the Page token itself has no documented expiry.
+- Multi-photo posts on Pages are a two-step dance: upload N photos unpublished, then attach the resulting `media_fbid`s to one `/feed` call. The publisher hides this; if any single photo upload fails, the whole post fails (no half-posted state).
+- FB's hard cap is 63,206 codeunits; we pre-check at 63,206 **graphemes**, which is strictly tighter — a payload that passes preflight never trips Meta's server-side check.
+- The response `id` comes back as `{page-numeric-id}_{post-numeric-id}`; the publisher derives a clean `https://www.facebook.com/{pageId}/posts/{postId}` permalink for the response `uri`.
+- Link previews are auto-rendered by Facebook when a URL appears in `message` — no separate field is required; passing `link` is for explicit-share semantics only and is honored only on text-only posts.
+- Page-level rate limits scale with Page size and prior engagement; bursty publish patterns trigger [`platform_unavailable`](/errors/platform_unavailable) (mapped from Meta `code: 4`).
+</Tip>
+
+## Common errors
+
+| Error rule | What it means | How to fix |
+|---|---|---|
+| [`facebook.text.required`](/preflight/facebook-text-required) | Empty text and no media | Provide text or attach `media[]`. |
+| [`facebook.text.max_graphemes`](/preflight/facebook-text-max_graphemes) | Message > 63,206 graphemes | Trim under the cap. |
+| [`facebook.media.image_video_exclusive`](/preflight/facebook-media-image_video_exclusive) | Attached both images and a video | Split into separate posts. |
+| [`facebook.media.count_max`](/preflight/facebook-media-count_max) | More than one video, or more than 10 photos | One video per post; ≤10 photos per multi-image post. |
+| [`facebook.media.mime_allowed`](/preflight/facebook-media-mime_allowed) | Unsupported image/video mime | Images: jpeg/png/gif/webp. Videos: mp4/mov. |
+| [`facebook.media.image_size_max`](/preflight/facebook-media-image_size_max) | Image > 4 MB | Re-encode under 4,000,000 bytes. |
+| [`facebook.media.video_size_max`](/preflight/facebook-media-video_size_max) | Video > 4 GB | Compress under 4,000,000,000 bytes. |
+| [`facebook.pages.none`](/preflight/facebook-pages-none) | Connect-time: user manages no Pages | The user must own/manage a Page in Business Manager before connecting. |
+
+## What you can't do (yet)
+
+- Posting to a personal profile (Meta's Graph API doesn't expose write access to user feeds).
+- First comment / threaded replies as the Page.
+- Story posts, Reels (Facebook Reels live behind a separate publishing surface not in v1).
+- Tagging users or co-authors.
+- Targeted post audience (Facebook geo/demographic targeting).
+- Reading comments, reactions, or insights (those scopes are `extended` and the read APIs aren't wired in v1).
+
+## API reference
+
+- [`POST /v1/posts`](/api-reference/posts/create) — primary publish.
+- [`POST /v1/media`](/api-reference/media/create) — upload images/videos for `mediaId` references.
+- [`POST /v1/accounts/connect/facebook`](/api-reference/accounts/connect-facebook) — start a Facebook OAuth flow.

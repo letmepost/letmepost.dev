@@ -5,45 +5,61 @@ icon: bluesky
 iconType: brands
 ---
 
-Bluesky is the only v1 platform that's live for everyone today. The integration uses scoped app passwords instead of OAuth — there's no app review, no API key request, no allowlist.
+<Warning>
+**Before you start.** Bluesky doesn't have OAuth — you connect with an app password generated at [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords). Don't paste a main account password; the platform's session endpoint accepts it but the publisher refuses by design.
+</Warning>
 
-## Connect
+## Quick reference
+
+| Limit / capability | Value |
+|---|---|
+| Character limit | 300 graphemes |
+| Images per post | 4 |
+| Image formats | jpeg, png, webp, gif |
+| Image size | 1,000,000 bytes (~976 KB) |
+| Video formats | mp4 |
+| Video size | 100,000,000 bytes (100 MB) |
+| Video duration | platform-enforced (no client-side cap) |
+| Mixed image + video | Rejected — pick one per post |
+| Alt text per item | 2000 graphemes |
+| Post types supported | text, single image, multi-image, video |
+| Scheduling | Yes (via `scheduledAt`) |
+| Reply chain | Yes (first-comment supported) |
+| First comment | Yes (`firstComment.text`) |
+| Inbox / DM | Not supported in v1 |
+| Analytics | Not supported in v1 (AT Proto exposes no impressions data) |
+
+## Connect an account
 
 Generate an app password at [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords). The format is 19 characters with hyphens (e.g. `abcd-efgh-ijkl-mnop`). Submit it via the dashboard's **Accounts** page or programmatically:
 
 ```bash connect.sh
-curl -X POST https://api.letmepost.dev/v1/accounts/connect/bluesky/complete \\
-  -H "Authorization: Bearer $LMP_KEY" \\
-  -H "Content-Type: application/json" \\
+curl -X POST https://api.letmepost.dev/v1/accounts/connect/bluesky/complete \
+  -H "Authorization: Bearer $LMP_KEY" \
+  -H "Content-Type: application/json" \
   -d '{ "identifier": "you.bsky.social", "appPassword": "abcd-efgh-ijkl-mnop" }'
 ```
 
 The `complete` response carries the `id` you'll send posts against. App passwords can be revoked at any time on bsky.app — when that happens the connection breaks cleanly with [`platform_auth_failed`](/errors/platform_auth_failed).
 
-## Scopes
+App passwords don't have OAuth scopes; they grant the same permissions as the password itself. AT Protocol JWTs are short-lived (minutes); the publisher refreshes on every 401 so you don't manage tokens. Subscribe to [`token.revoked`](/webhooks/token-revoked) for upstream revocations.
 
-App passwords don't have OAuth scopes; they grant the same permissions as the password itself. We never store or see your main account password.
+## Post types
 
-## Token lifecycle
+### Text post
 
-AT Protocol JWTs are short-lived (minutes). We refresh on every 401 from the platform; you don't manage this. Subscribe to [`token.revoked`](/webhooks/token-revoked) if you want to know when the user revoked the app password upstream.
-
-## Posting
-
-Minimal example:
-
-```json post.json
+```json text.json
 {
-  "account": { "platform": "bluesky", "id": "..." },
+  "targets": [{ "accountId": "..." }],
   "text": "Shipping letmepost.dev"
 }
 ```
 
-With media:
+### Single image
 
-```json post-with-media.json
+```json single-image.json
 {
-  "account": { "platform": "bluesky", "id": "..." },
+  "targets": [{ "accountId": "..." }],
   "text": "Look at this",
   "media": [
     { "kind": "image", "mediaId": "med_…", "altText": "Status page screenshot" }
@@ -51,56 +67,83 @@ With media:
 }
 ```
 
-## Constraints
+### Multi-image
 
-- Text: 300 graphemes max ([`bluesky.text.max_graphemes`](/preflight/bluesky-text-max_graphemes))
-- Images: up to 4 per post; jpeg, png, webp, gif; ≤ 976 KB each
-- Video: 1 per post; mp4 only; ≤ 100 MB
-- Mixed image + video: rejected ([`bluesky.media.image_video_exclusive`](/preflight/bluesky-media-image_video_exclusive))
-- Alt text: 2000 graphemes max
-- First comment: supported; same constraints as the parent post
+Up to four images per post. Mixing images and video on the same post is rejected by preflight ([`bluesky.media.image_video_exclusive`](/preflight/bluesky-media-image_video_exclusive)).
 
-## Video uploads
-
-Bluesky video does **not** go through `com.atproto.repo.uploadBlob` — that's the most common reason naive integrations break. Videos route to a dedicated transcoding service (`video.bsky.app`) that produces the playable blob ref needed for `app.bsky.embed.video`. The publisher runs the documented flow transparently:
-
-1. Mint a short-lived service auth JWT via `com.atproto.server.getServiceAuth`, scoped narrowly to `app.bsky.video.uploadVideo` on `did:web:video.bsky.app`.
-2. Probe `app.bsky.video.getUploadLimits` so a daily-quota exhaustion fails loudly with [`bluesky.video.quota_exhausted`](/preflight/bluesky-video-quota_exhausted) instead of a 200 → silent FAILED.
-3. Stream the bytes to `app.bsky.video.uploadVideo`. Bluesky deduplicates by content hash, so re-uploading the same clip can short-circuit straight to `JOB_STATE_COMPLETED`.
-4. Poll `app.bsky.video.getJobStatus` until COMPLETED or FAILED.
-5. Embed the returned blob ref as `app.bsky.embed.video` on the post record.
-
-Failure modes — [`bluesky.video.job_failed`](/preflight/bluesky-video-job_failed), [`bluesky.video.transcode_timeout`](/preflight/bluesky-video-transcode_timeout) — surface with the upstream reason when available.
-
-## Preflight rules
-
-- [`bluesky.text.non_empty`](/preflight/bluesky-text-non_empty)
-- [`bluesky.text.max_graphemes`](/preflight/bluesky-text-max_graphemes)
-- [`bluesky.media.image_video_exclusive`](/preflight/bluesky-media-image_video_exclusive)
-- [`bluesky.media.count_max`](/preflight/bluesky-media-count_max)
-- [`bluesky.media.alt_text_max_graphemes`](/preflight/bluesky-media-alt_text_max_graphemes)
-- [`bluesky.media.mime_allowed`](/preflight/bluesky-media-mime_allowed)
-- [`bluesky.media.image_size_max`](/preflight/bluesky-media-image_size_max)
-- [`bluesky.media.video_size_max`](/preflight/bluesky-media-video_size_max)
-- [`bluesky.video.quota_exhausted`](/preflight/bluesky-video-quota_exhausted)
-- [`bluesky.video.job_failed`](/preflight/bluesky-video-job_failed)
-- [`bluesky.video.transcode_timeout`](/preflight/bluesky-video-transcode_timeout)
-- [`bluesky.first_comment.non_empty`](/preflight/bluesky-first_comment-non_empty)
-- [`bluesky.first_comment.max_graphemes`](/preflight/bluesky-first_comment-max_graphemes)
-
-## Response
-
-A successful publish returns the AT Proto URI + CID:
-
-```json response.json
+```json multi-image.json
 {
-  "id": "post_…",
-  "platform": "bluesky",
-  "status": "published",
-  "uri": "at://did:plc:abc/app.bsky.feed.post/3kr…",
-  "cid": "bafyrei…",
-  "createdAt": "2026-05-04T12:00:00Z"
+  "targets": [{ "accountId": "..." }],
+  "text": "Four shots",
+  "media": [
+    { "kind": "image", "mediaId": "med_a…", "altText": "front" },
+    { "kind": "image", "mediaId": "med_b…", "altText": "back" },
+    { "kind": "image", "mediaId": "med_c…", "altText": "left" },
+    { "kind": "image", "mediaId": "med_d…", "altText": "right" }
+  ]
 }
 ```
 
-The `uri` resolves to the post on bsky.app; you can construct the public URL from it.
+### Video
+
+```json video.json
+{
+  "targets": [{ "accountId": "..." }],
+  "text": "demo clip",
+  "media": [
+    { "kind": "video", "mediaId": "med_…", "altText": "..." }
+  ]
+}
+```
+
+The publisher runs Bluesky's documented video flow transparently: mint a service-auth JWT scoped to `app.bsky.video.uploadVideo`, probe `getUploadLimits` so quota exhaustion fails loudly with [`bluesky.video.quota_exhausted`](/preflight/bluesky-video-quota_exhausted), stream bytes to `uploadVideo`, poll `getJobStatus` until COMPLETED, then embed the blob ref as `app.bsky.embed.video`. Videos do **not** go through `com.atproto.repo.uploadBlob` — that's the most common reason naive integrations break.
+
+### First comment
+
+```json first-comment.json
+{
+  "targets": [{ "accountId": "..." }],
+  "text": "Main post",
+  "firstComment": { "text": "Reply that drops in seconds later" }
+}
+```
+
+The reply posts as a child of the main record under the same DID. If the parent publishes but the comment fails, the parent stays — the response carries a `warnings[]` entry with `code: "first_comment_failed"` instead of failing the whole call.
+
+## Wisdom (platform-specific things that bite)
+
+<Tip>
+- Mentions, hashtags, and URLs are AT Proto **facets** — letmepost auto-detects them from plain text and builds the facet ranges. Don't construct facet byte offsets manually; the post will index correctly without them.
+- Bluesky's image blob ceiling is 976 KB, not 1 MB — a 1,000,000-byte file is at the edge and re-encoded JPEGs around 950 KB are the safe zone.
+- Videos count against a **daily** account quota that lives entirely on Bluesky's side. The first preflight call to `getUploadLimits` surfaces remaining headroom before bytes are sent — exhausted callers fail with [`bluesky.video.quota_exhausted`](/preflight/bluesky-video-quota_exhausted) and no upload happens.
+- Bluesky deduplicates videos by content hash, so re-uploading the same clip can short-circuit `JOB_STATE_COMPLETED` without re-transcoding.
+- The `uri` on the response is the AT Proto record URI (`at://did:plc:abc/app.bsky.feed.post/3kr…`), not a bsky.app URL. The public URL is derived from the DID + record key.
+- Bluesky has no scheduled-publish API; `scheduledAt` is handled by letmepost's queue — the post fires from our worker when the time comes.
+</Tip>
+
+## Common errors
+
+| Error rule | What it means | How to fix |
+|---|---|---|
+| [`bluesky.text.max_graphemes`](/preflight/bluesky-text-max_graphemes) | Post exceeded the 300-grapheme cap | Trim to ≤300 graphemes. |
+| [`bluesky.text.non_empty`](/preflight/bluesky-text-non_empty) | Text field was empty or whitespace | Provide non-whitespace text — Bluesky has no media-only post shape. |
+| [`bluesky.media.image_video_exclusive`](/preflight/bluesky-media-image_video_exclusive) | Attached both images and a video | Split into two posts; AT Proto records hold one media kind per record. |
+| [`bluesky.media.count_max`](/preflight/bluesky-media-count_max) | More than 4 images or more than 1 video | Reduce to 4 images max, or 1 video. |
+| [`bluesky.media.image_size_max`](/preflight/bluesky-media-image_size_max) | Image exceeded 976 KB | Re-encode under 1,000,000 bytes. |
+| [`bluesky.media.mime_allowed`](/preflight/bluesky-media-mime_allowed) | Unsupported image/video mime | Images: jpeg/png/webp/gif. Videos: mp4. |
+| [`bluesky.video.quota_exhausted`](/preflight/bluesky-video-quota_exhausted) | Daily video upload quota hit | Wait for the quota window to roll over; letmepost reads the live limit from `getUploadLimits` so the check is current. |
+| [`bluesky.video.job_failed`](/preflight/bluesky-video-job_failed) | Bluesky's transcoder rejected the clip | Inspect `platformResponse` for the upstream reason — usually codec or duration. |
+
+## What you can't do (yet)
+
+- Starter packs, custom feeds, pin-to-profile.
+- Direct messages and DM attachments (AT Proto chat lives on a separate XRPC surface not exposed in v1).
+- Analytics — AT Proto records carry no impression count by design.
+- Polls, quote posts, and labeler interactions.
+- Editing or backdating a published record.
+
+## API reference
+
+- [`POST /v1/posts`](/api-reference/posts/create) — primary publish.
+- [`POST /v1/media`](/api-reference/media/create) — upload images/videos for `mediaId` references.
+- [`POST /v1/accounts/connect/bluesky/complete`](/api-reference/accounts/connect-bluesky) — finish a Bluesky connect.
