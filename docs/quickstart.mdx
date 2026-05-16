@@ -1,37 +1,34 @@
 ---
 title: Quickstart
-description: Send your first post to Bluesky in 90 seconds. Curl-only, no SDK.
+description: Publish your first tweet via curl in 90 seconds.
 icon: rocket
 ---
 
-In 90 seconds you'll publish to Bluesky from your terminal. Bluesky is the only platform that's live for everyone today — the others are gated by platform review and ship as approvals clear.
+In 90 seconds you'll publish to X (Twitter) from your terminal. The same `POST /v1/posts` shape works for every platform we support — Twitter is the entry-point because most developers already think in tweets.
+
+<Note>
+Each platform turns on as its developer-portal review clears. Bluesky has no review gate, so it works for every signup today; the rest ship as approvals clear. Same API, same error envelope, same idempotency contract — the only thing that varies is which connect button is wired up for your org. Substitute any other platform's `accountId` below if Twitter isn't live for you yet.
+</Note>
 
 ## 1. Get an API key
 
-Sign in at [letmepost.dev/dashboard](https://dashboard.letmepost.dev) and mint a key from the API keys page. Keys look like `lmp_live_…` (production) or `lmp_test_…` (sandbox). Treat them like passwords; the dashboard only shows the secret once.
+Sign in at [dashboard.letmepost.dev](https://dashboard.letmepost.dev) and mint a key from the **API keys** page. Keys look like `lmp_live_…` (production) or `lmp_test_…` (sandbox). Treat them like passwords; the dashboard only shows the secret once.
 
-## 2. Connect a Bluesky account
-
-Bluesky is the only platform that uses an app password instead of OAuth. Generate one at [bsky.app/settings/app-passwords](https://bsky.app/settings/app-passwords) — copy the 19-character password it shows you. Then submit it through the dashboard's **Accounts** page (or via the API):
-
-```bash connect-bluesky.sh
-# Step 1 — start the connect flow.
-curl -X POST https://api.letmepost.dev/v1/accounts/connect/bluesky \
-  -H "Authorization: Bearer $LMP_KEY"
-
-# Step 2 — submit the handle + app password.
-curl -X POST https://api.letmepost.dev/v1/accounts/connect/bluesky/complete \
-  -H "Authorization: Bearer $LMP_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "identifier": "you.bsky.social",
-    "appPassword": "abcd-efgh-ijkl-mnop"
-  }'
+```bash
+export LMP_KEY=lmp_live_...
 ```
 
-The `complete` response carries the account `id` you'll send posts against. Save it — that's the value for `account.id` below.
+## 2. Connect Twitter
 
-## 3. Send a post
+Open the dashboard's **Accounts** page and click **Connect X / Twitter**. The OAuth 2.0 PKCE flow is fully handled for you — you grant scopes once and we manage refresh transparently afterwards. When you come back, the account row will show the connected handle and an `id` you'll send posts against.
+
+<Note>
+Each platform has its own connect flow (OAuth, PKCE, or app password for Bluesky). They're all documented per platform under [Platforms](/platforms-overview), but the dashboard is the easiest path for the first connection — it manages redirects and stores tokens encrypted.
+</Note>
+
+Copy the connected account's `id` from the dashboard. You'll need it in the next step.
+
+## 3. Send a tweet
 
 <CodeGroup>
 
@@ -40,13 +37,14 @@ curl -X POST https://api.letmepost.dev/v1/posts \
   -H "Authorization: Bearer $LMP_KEY" \
   -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
-  -d '{
-    "account": {
-      "platform": "bluesky",
-      "id": "00000000-0000-0000-0000-000000000000"
-    },
-    "text": "Hello from letmepost.dev"
-  }'
+  --data @- <<EOF
+{
+  "targets": [
+    { "accountId": "00000000-0000-0000-0000-000000000000" }
+  ],
+  "text": "Hello from letmepost.dev"
+}
+EOF
 ```
 
 ```ts TypeScript
@@ -58,10 +56,9 @@ const res = await fetch("https://api.letmepost.dev/v1/posts", {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    account: {
-      platform: "bluesky",
-      id: "00000000-0000-0000-0000-000000000000",
-    },
+    targets: [
+      { accountId: "00000000-0000-0000-0000-000000000000" },
+    ],
     text: "Hello from letmepost.dev",
   }),
 });
@@ -70,8 +67,8 @@ if (!res.ok) {
   const { error } = await res.json();
   throw new Error(`${error.code}: ${error.message}`);
 }
-const post = await res.json();
-console.log(post.id, post.uri);
+const batch = await res.json();
+console.log(batch.id, batch.results[0].uri);
 ```
 
 ```python Python
@@ -85,15 +82,14 @@ res = requests.post(
         "Content-Type": "application/json",
     },
     json={
-        "account": {
-            "platform": "bluesky",
-            "id": "00000000-0000-0000-0000-000000000000",
-        },
+        "targets": [
+            {"accountId": "00000000-0000-0000-0000-000000000000"},
+        ],
         "text": "Hello from letmepost.dev",
     },
 )
 res.raise_for_status()
-print(res.json()["uri"])
+print(res.json()["results"][0]["uri"])
 ```
 
 ```go Go
@@ -111,9 +107,8 @@ import (
 
 func main() {
   body, _ := json.Marshal(map[string]any{
-    "account": map[string]string{
-      "platform": "bluesky",
-      "id":       "00000000-0000-0000-0000-000000000000",
+    "targets": []map[string]string{
+      {"accountId": "00000000-0000-0000-0000-000000000000"},
     },
     "text": "Hello from letmepost.dev",
   })
@@ -131,59 +126,88 @@ func main() {
 
 </CodeGroup>
 
-Replace the `id` with the account id you got back from the connect flow. The active language tab is sticky — picking TypeScript here will follow you across every code sample on this site.
+Replace the `accountId` with the id you copied from the dashboard. The active language tab is sticky — picking TypeScript here will follow you across every code sample on this site.
 
 ## 4. Read the response
 
-A successful immediate publish returns `201 Created`:
+A successful immediate publish returns `200 OK` with a batch envelope:
 
-```json 201.json
+```json 200.json
 {
-  "id": "post_01HY6X4AWBJM2K9F2PTQMRD9JQ",
-  "platform": "bluesky",
+  "id": "batch_01HY6X4AWBJM2K9F2PTQMRD9JQ",
   "status": "published",
-  "uri": "at://did:plc:abc/app.bsky.feed.post/3kr...",
-  "cid": "bafyrei...",
-  "createdAt": "2026-05-04T12:00:00.000Z"
+  "createdAt": "2026-05-16T12:00:00.000Z",
+  "results": [
+    {
+      "accountId": "00000000-0000-0000-0000-000000000000",
+      "platform": "twitter",
+      "postId": "post_01HY6X4...",
+      "status": "published",
+      "uri": "https://x.com/yourhandle/status/1788..."
+    }
+  ]
 }
 ```
 
-The `uri` is Bluesky-native and resolves to the post on bsky.app. Save the `id` — that's how you'll fetch the record later via `GET /v1/posts/:id`.
+The `results[].uri` is the public URL of the tweet. Save `id` (the batch id) and `results[].postId` — that's how you fetch the record later via `GET /v1/posts/:id`.
 
-## 5. What happens when it fails
+## 5. Fan out to multiple platforms
 
-Send a 400-character post and you'll get this back instead:
+Same call, more `targets`. One request, N publishes, atomic shape preflight, structured per-target results:
+
+```bash
+curl -X POST https://api.letmepost.dev/v1/posts \
+  -H "Authorization: Bearer $LMP_KEY" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  --data @- <<EOF
+{
+  "targets": [
+    { "accountId": "<twitter_account_id>" },
+    { "accountId": "<linkedin_account_id>" },
+    { "accountId": "<bluesky_account_id>" }
+  ],
+  "text": "Hello from three platforms at once"
+}
+EOF
+```
+
+The batch `status` summarizes the outcomes: `published` when every target succeeded, `partial_failed` on mixed outcomes, `failed` when none did. Each `results[]` entry tells you what happened on that platform.
+
+## 6. What happens when it fails
+
+Send a 400-character tweet and you'll get this back instead:
 
 ```json 400.json
 {
   "error": {
     "code": "preflight_failed",
-    "rule": "bluesky.text.max_graphemes",
-    "platform": "bluesky",
-    "message": "Post text is 400 graphemes; Bluesky allows at most 300.",
-    "remediation": "Shorten the post to 300 graphemes or fewer.",
+    "rule": "twitter.text.max_graphemes",
+    "platform": "twitter",
+    "message": "Post text is 400 graphemes; Twitter (free tier) allows at most 280.",
+    "remediation": "Shorten the post to 280 graphemes, or switch to a Premium-tier account (25,000 cap).",
+    "docUrl": "https://docs.letmepost.dev/errors/preflight_failed",
+    "ruleUrl": "https://docs.letmepost.dev/preflight/twitter-text-max_graphemes",
     "requestId": "req_01HY6X4AWBJM2K9F2PTQMRD9JQ"
   }
 }
 ```
 
-Notice the rule id (`bluesky.text.max_graphemes`) — that's the canonical link to the [preflight rule page](/preflight/bluesky-text-max_graphemes) explaining what it checks and where the constraint comes from.
-
-This is the contract for every error. Stable code, rule that fired, remediation, request id you can grep. Always. See [errors](/errors) for the full catalog.
+Every error carries the same envelope: stable `code`, the `rule` that fired, a `remediation`, a `requestId` you can grep, and `docUrl` / `ruleUrl` links straight to the right docs page. See [errors](/errors) for the full catalog and [error best practices](/errors#best-practices) for the contract.
 
 ## Next
 
 <CardGroup cols={2}>
+  <Card title="Platforms" icon="layer-group" href="/platforms-overview">
+    Twitter, Instagram, LinkedIn, Facebook, Threads, Pinterest, Bluesky — caps, scope sets, and per-platform wisdom.
+  </Card>
   <Card title="Idempotency" icon="repeat" href="/idempotency">
     Why every retry is safe.
   </Card>
   <Card title="Errors" icon="circle-exclamation" href="/errors">
-    The eleven codes.
+    The eleven codes and the rule catalog.
   </Card>
-  <Card title="Bluesky platform" icon="butterfly" href="/platforms/bluesky">
-    Bluesky's payload, scope set, and rule list.
-  </Card>
-  <Card title="API reference" icon="code" href="/api-reference">
+  <Card title="API reference" icon="brackets-curly" href="/api-reference">
     `POST /v1/posts` parameter by parameter.
   </Card>
 </CardGroup>

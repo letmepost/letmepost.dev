@@ -4,42 +4,43 @@ description: Seven networks, one API. Status, features, and connect flow per pla
 icon: network-wired
 ---
 
-Every platform letmepost.dev supports goes through the same API surface — `POST /v1/posts` with the right `account` reference. Per-platform quirks (caps, mime types, OAuth shapes) live in [preflight rules](/preflight) so failures surface locally with a rule id instead of an opaque upstream error.
+Every platform letmepost.dev supports goes through the same API surface — `POST /v1/posts` with `targets: [...]`. Per-platform quirks (caps, mime types, OAuth shapes) live in [preflight rules](/preflight) so failures surface locally with a rule id instead of an opaque upstream error.
 
-## Status
-
-Bluesky is live for everyone today. The rest are review-gated and ship as approvals clear. Live status updates appear here and in `GET /v1/platform-versions`.
+<Note>
+**Approval-gated platforms ship as their reviews clear.** Each platform's developer portal runs its own approval queue and the rate varies — the API surface is identical regardless of when a specific platform turns on. Bluesky is the exception: AT Proto has no review gate so it works for every signup today. Live status is also queryable at `GET /v1/platform-versions`.
+</Note>
 
 <CardGroup cols={2}>
-  <Card title="Bluesky" icon="bluesky" iconType="brands" href="/platforms/bluesky">
-    **Live** · AT Proto · App-password connect (no OAuth) · Text + media + first comment.
-  </Card>
-  <Card title="Pinterest" icon="pinterest" iconType="brands" href="/platforms/pinterest">
-    **Under review** · v5 API · Image + video pins · Cover image required for video.
-  </Card>
   <Card title="Twitter / X" icon="x-twitter" iconType="brands" href="/platforms/twitter">
-    **Under review** · v2 API · OAuth 2.0 PKCE · 4-up images, video, reply chains, quote tweets.
-  </Card>
-  <Card title="LinkedIn" icon="linkedin" iconType="brands" href="/platforms/linkedin">
-    **Under review** · Versioned REST · Personal posting in v1; org posting needs MDP.
-  </Card>
-  <Card title="Threads" icon="threads" iconType="brands" href="/platforms/threads">
-    **Under review** · Threads Graph API · Standalone OAuth at threads.net · 2–20 carousel.
+    v2 API · OAuth 2.0 PKCE · 4-up images, video, reply chains, quote tweets, Premium 25k chars.
   </Card>
   <Card title="Instagram" icon="instagram" iconType="brands" href="/platforms/instagram">
-    **Under review** · Meta Graph · Connected via Facebook OAuth (one consent, two platforms).
+    Meta Graph · Standalone Instagram Login · Photos, Reels, carousels (≤10) for Business/Creator.
+  </Card>
+  <Card title="LinkedIn" icon="linkedin" iconType="brands" href="/platforms/linkedin">
+    Versioned REST · Personal posting in v1; org posting needs Marketing Developer Platform.
   </Card>
   <Card title="Facebook Pages" icon="facebook" iconType="brands" href="/platforms/facebook">
-    **Under review** · Meta Graph · Single OAuth grants both Pages + linked IG Business.
+    Meta Graph · Facebook Login for Business · Page text, photos, videos.
+  </Card>
+  <Card title="Threads" icon="threads" iconType="brands" href="/platforms/threads">
+    Threads Graph · Standalone OAuth at threads.net · Text + carousel (2–20, mixed image/video).
+  </Card>
+  <Card title="Pinterest" icon="pinterest" iconType="brands" href="/platforms/pinterest">
+    v5 API · OAuth 2.0 · Image + video pins · Cover image required for video.
+  </Card>
+  <Card title="Bluesky" icon="bluesky" iconType="brands" href="/platforms/bluesky">
+    AT Proto · App-password connect (no OAuth) · Text + media + first comment.
   </Card>
 </CardGroup>
 
 ## What's the same everywhere
 
-- **One request shape.** `POST /v1/posts` with `{ account, text, media?, scheduledAt?, ... }`.
-- **One error envelope.** `code` + `rule` + `platformResponse` + `remediation` — no per-platform `body: {}` surprises.
+- **One request shape.** `POST /v1/posts` with `targets: [{ accountId, ... }]`, optional `media`, optional `scheduledAt`.
+- **One error envelope.** `code` + `rule` + `platformResponse` + `remediation` + `docUrl` + `ruleUrl` — no per-platform `body: {}` surprises.
 - **Idempotency keys.** Every write accepts `Idempotency-Key`; replays return the original response.
 - **Preflight, not postflight.** Documented platform rules run locally before the upstream call.
+- **Multi-target fan-out.** One request can publish to N targets in parallel with per-target overrides.
 
 ## What's different per platform
 

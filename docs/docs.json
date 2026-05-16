@@ -24,8 +24,8 @@
   "navigation": {
     "tabs": [
       {
-        "tab": "Overview",
-        "icon": "book-open",
+        "tab": "Quickstart",
+        "icon": "rocket",
         "groups": [
           {
             "group": "Get started",
@@ -48,52 +48,51 @@
               "guides/migrate-from-ayrshare",
               "guides/migrate-from-buffer"
             ]
-          },
-          {
-            "group": "Webhooks",
-            "pages": [
-              "webhooks/index",
-              "webhooks/post-queued",
-              "webhooks/post-validated",
-              "webhooks/post-published",
-              "webhooks/post-rejected",
-              "webhooks/post-failed",
-              "webhooks/token-expiring",
-              "webhooks/token-revoked",
-              "webhooks/version-deprecated"
-            ]
-          },
-          {
-            "group": "SDKs",
-            "pages": ["sdks/typescript", "sdks/python", "sdks/go"]
-          },
-          {
-            "group": "Tools",
-            "pages": ["cli", "mcp"]
-          },
-          {
-            "group": "Reference",
-            "pages": ["pricing", "changelog"]
           }
         ]
       },
       {
         "tab": "Platforms",
-        "icon": "layers",
+        "icon": "layer-group",
         "pages": [
           "platforms-overview",
-          "platforms/bluesky",
-          "platforms/threads",
+          "platforms/twitter",
           "platforms/instagram",
-          "platforms/facebook",
           "platforms/linkedin",
+          "platforms/facebook",
+          "platforms/threads",
           "platforms/pinterest",
-          "platforms/twitter"
+          "platforms/bluesky"
+        ]
+      },
+      {
+        "tab": "SDKs",
+        "icon": "code",
+        "pages": ["sdks/typescript", "sdks/python", "sdks/go"]
+      },
+      {
+        "tab": "Tools",
+        "icon": "terminal",
+        "pages": ["cli", "mcp"]
+      },
+      {
+        "tab": "Webhooks",
+        "icon": "webhook",
+        "pages": [
+          "webhooks/index",
+          "webhooks/post-queued",
+          "webhooks/post-validated",
+          "webhooks/post-published",
+          "webhooks/post-rejected",
+          "webhooks/post-failed",
+          "webhooks/token-expiring",
+          "webhooks/token-revoked",
+          "webhooks/version-deprecated"
         ]
       },
       {
         "tab": "API Reference",
-        "icon": "code",
+        "icon": "brackets-curly",
         "openapi": {
           "source": "/api-reference/openapi.json",
           "directory": "api-reference"
@@ -103,6 +102,10 @@
         "tab": "Resources",
         "icon": "book",
         "groups": [
+          {
+            "group": "Reference",
+            "pages": ["pricing", "changelog"]
+          },
           {
             "group": "Errors",
             "pages": [

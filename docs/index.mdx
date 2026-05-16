@@ -4,11 +4,11 @@ description: Open-source social media publishing API. Preflight validation, tran
 mode: wide
 ---
 
-A single HTTP API for publishing to Bluesky, Facebook Pages, Instagram Business, LinkedIn, Pinterest, Threads, and Twitter / X. Every post runs through a preflight validator before the upstream call, every error response carries the rule that fired, and every write accepts an idempotency key.
+A single HTTP API for publishing to X (Twitter), Instagram, LinkedIn, Facebook Pages, Threads, Pinterest, and Bluesky. Every post runs through a preflight validator before the upstream call, every error response carries the rule that fired, and every write accepts an idempotency key.
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Publish your first Bluesky post via curl in 90 seconds.
+    Publish your first tweet via curl in 90 seconds.
   </Card>
   <Card title="Authentication" icon="key" href="/authentication">
     Bearer keys, scoping, rotation.
@@ -79,4 +79,4 @@ These are non-negotiable. If a feature breaks one of them, the feature loses.
 
 ## Status
 
-Bluesky publishes end-to-end today. Pinterest and Twitter/X are built and waiting on platform review. LinkedIn, Facebook, Instagram, and Threads are review-gated; we ship them as approval clears. Watch the [changelog](/changelog) and the public version tracker at `GET /v1/platform-versions`.
+The API surface is identical across every platform — same `POST /v1/posts`, same error envelope, same idempotency contract. Each platform's launch is gated on its own developer-portal review; approvals clear at different rates. Bluesky is live for everyone today (no platform review). The rest ship as approvals clear — track [the changelog](/changelog) and the public version tracker at `GET /v1/platform-versions`.
