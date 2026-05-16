@@ -43,6 +43,20 @@ export type UpdatePlatformTokenInput = {
   tokenExpiresAt?: Date | null;
 };
 
+/**
+ * Result of `findUniqueAccountForPlatform`. Callers branch on `kind`:
+ *   - `none`     → org has zero accounts for the platform; tell the caller to
+ *                  connect one.
+ *   - `unique`   → exactly one account; auto-resolution succeeded.
+ *   - `ambiguous` → two or more; caller must disambiguate by passing an
+ *                  explicit accountId. Candidate ids surface in the error so
+ *                  the caller can echo them back.
+ */
+export type UniqueAccountLookup =
+  | { kind: "none" }
+  | { kind: "unique"; account: DecryptedPlatformAccount }
+  | { kind: "ambiguous"; candidateIds: string[] };
+
 export interface PlatformAccountsRepository {
   create(
     input: CreatePlatformAccountInput,
@@ -53,6 +67,16 @@ export interface PlatformAccountsRepository {
     platform: Platform,
     platformAccountId: string,
   ): Promise<DecryptedPlatformAccount | null>;
+  /**
+   * Resolve a target that named a platform but not a specific account.
+   * Returns `none` / `unique` / `ambiguous` so the route can produce the
+   * right `validation_failed` rule (or proceed with the resolved account).
+   */
+  findUniqueAccountForPlatform(
+    organizationId: string,
+    platform: Platform,
+    profileId: string | null,
+  ): Promise<UniqueAccountLookup>;
   listByOrg(organizationId: string): Promise<DecryptedPlatformAccount[]>;
   /**
    * Same as listByOrg but additionally narrows to a single profile —
@@ -138,6 +162,40 @@ export class DrizzlePlatformAccountsRepository
       .limit(1);
     const row = rows[0];
     return row ? hydrate(row) : null;
+  }
+
+  async findUniqueAccountForPlatform(
+    organizationId: string,
+    platform: Platform,
+    profileId: string | null,
+  ): Promise<UniqueAccountLookup> {
+    // Profile scope: when the api key is profile-scoped, only that profile's
+    // accounts are visible. A null profileId means the key is org-wide and
+    // sees every account in the org regardless of profile. Without this
+    // filter a profile-scoped key could enumerate sibling-profile accounts
+    // via the `ambiguous` error's `candidates` payload.
+    const scope = and(
+      eq(platformAccounts.organizationId, organizationId),
+      eq(platformAccounts.platform, platform),
+      ...(profileId === null
+        ? []
+        : [eq(platformAccounts.profileId, profileId)]),
+    );
+
+    const rows = await this.db
+      .select()
+      .from(platformAccounts)
+      .where(scope)
+      .limit(2);
+    if (rows.length === 0) return { kind: "none" };
+    if (rows.length === 1) return { kind: "unique", account: hydrate(rows[0]!) };
+    // Two rows came back from a LIMIT 2 → there are ≥2; fetch all ids so the
+    // caller can echo them in `platformResponse.candidates`.
+    const allIds = await this.db
+      .select({ id: platformAccounts.id })
+      .from(platformAccounts)
+      .where(scope);
+    return { kind: "ambiguous", candidateIds: allIds.map((r) => r.id) };
   }
 
   async findByOrgAndPlatform(

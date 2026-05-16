@@ -4,6 +4,7 @@ import { requestId } from "hono/request-id";
 import type { DrizzleClient } from "./db/index.js";
 import { db as defaultDb } from "./db/instance.js";
 import { onError } from "./errors.js";
+import { rateLimitHeaders } from "./middleware/rate-limit-headers.js";
 import type { SessionContext } from "./middleware/session.js";
 // Side-effect import: registers every v1 platform's AccountProvider so
 // `/v1/accounts/:platform` can look them up by name.
@@ -95,10 +96,15 @@ export function createApp(options: AppOptions = {}) {
         "RateLimit-Limit",
         "RateLimit-Remaining",
         "RateLimit-Reset",
+        "X-RateLimit-Limit",
       ],
       maxAge: 600,
     }),
   );
+
+  // Emit X-RateLimit-* headers on every response (success AND error). Runs
+  // before any auth so even an unauthenticated 401 surfaces the contract.
+  app.use("*", rateLimitHeaders());
 
   // Make shared deps available to every downstream route / middleware.
   app.use("*", async (c, next) => {

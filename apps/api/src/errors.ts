@@ -1,7 +1,23 @@
 import type { Context, ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { ZodError } from "zod";
-import type { ErrorCode, ErrorResponse } from "@letmepost/schemas";
+import { slugifyRule, type ErrorCode, type ErrorResponse } from "@letmepost/schemas";
+
+/**
+ * Base URL for the public docs. Overridable via `DOCS_BASE_URL` so staging /
+ * preview deploys can point at a docs branch without rebuilding the API.
+ */
+function docsBase(): string {
+  return process.env.DOCS_BASE_URL ?? "https://docs.letmepost.dev";
+}
+
+function docUrlFor(code: ErrorCode): string {
+  return `${docsBase()}/errors/${code}`;
+}
+
+function ruleUrlFor(rule: string): string {
+  return `${docsBase()}/preflight/${slugifyRule(rule)}`;
+}
 
 export class LetmepostError extends Error {
   readonly code: ErrorCode;
@@ -49,6 +65,11 @@ function toResponseBody(
   if (err.platformVersion) body.error.platformVersion = err.platformVersion;
   if (err.platformResponse !== undefined) body.error.platformResponse = err.platformResponse;
   if (err.remediation) body.error.remediation = err.remediation;
+  // Always emit docUrl; emit ruleUrl whenever the error pinned a specific rule.
+  // If the docs page is missing the dev gets a 404 — acceptable for v1, the
+  // contract is that the link is always present.
+  body.error.docUrl = docUrlFor(err.code);
+  if (err.rule) body.error.ruleUrl = ruleUrlFor(err.rule);
   if (ctx.requestId) body.error.requestId = ctx.requestId;
   if (ctx.traceId) body.error.traceId = ctx.traceId;
   return body;
