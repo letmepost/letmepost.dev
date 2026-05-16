@@ -107,7 +107,7 @@ const allGraphs: JsonLdGraph[] = [...defaultGraphs, ...jsonLd];
     <meta name="theme-color" content="#171411" media="(prefers-color-scheme: dark)" />
     <meta name="msapplication-TileColor" content="#F2EDE3" />
 
-    <!-- Pre-paint theme bootstrap — runs synchronously before <body> renders
+    <!-- Pre-paint theme bootstrap. Runs synchronously before <body> renders
          to avoid a flash of the wrong theme. Reads stored preference (or
          falls back to system) and sets data-theme on <html>.
          `data-astro-rerun` re-executes this on every ClientRouter view
@@ -145,7 +145,7 @@ const allGraphs: JsonLdGraph[] = [...defaultGraphs, ...jsonLd];
     <link
       rel="alternate"
       type="application/rss+xml"
-      title="letmepost.dev — Blog"
+      title="letmepost.dev Blog"
       href="/rss.xml"
     />
 
@@ -161,7 +161,7 @@ const allGraphs: JsonLdGraph[] = [...defaultGraphs, ...jsonLd];
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="letmepost.dev — social media publishing that fails loudly."
+      content="letmepost.dev. Social media publishing that fails loudly."
     />
     <meta property="og:locale" content="en_US" />
 
@@ -174,7 +174,7 @@ const allGraphs: JsonLdGraph[] = [...defaultGraphs, ...jsonLd];
     <meta name="twitter:image" content={ogImageUrl} />
     <meta
       name="twitter:image:alt"
-      content="letmepost.dev — social media publishing that fails loudly."
+      content="letmepost.dev. Social media publishing that fails loudly."
     />
 
     {/*

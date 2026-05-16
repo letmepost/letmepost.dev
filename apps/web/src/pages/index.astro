@@ -53,7 +53,7 @@ const endpoints = [
   {
     method: "POST",
     path: "/v1/posts",
-    desc: "One call. Seven platforms at v1. Text, images, video, carousels — scheduled or now.",
+    desc: "One call. Eight platforms at v1. Text, images, video, carousels, scheduled or now.",
   },
   {
     method: "POST",
@@ -92,23 +92,23 @@ const methodClasses: Record<string, string> = {
 const faqs = [
   {
     q: "What actually works today?",
-    a: 'Bluesky is live end-to-end — connect an account, send a post, get a webhook back, attach images or video (videos route through the dedicated transcoding service, transparently). Pinterest and Twitter/X publishers are built and tested but waiting on platform review (Pinterest Standard access; X is on the Pay Per Use tier). Meta (Instagram / Facebook / Threads), LinkedIn, and YouTube are review-gated and typically clear 3–12 weeks from submission (YouTube via the CASA verification track). See the <a href="https://github.com/rosekamallove/letmepost.dev/blob/main/plan.md">plan</a> for dates.',
+    a: 'Bluesky is live end-to-end. You can connect an account, send a post, attach images or video, and get a webhook back. Videos route through the transcoding service automatically. Pinterest and X publishers are built and tested but waiting on platform review (Pinterest Standard access and X Pay Per Use). Meta (Instagram, Facebook, Threads), LinkedIn, and YouTube are review-gated and usually clear in 3 to 12 weeks. YouTube goes through the CASA verification track. See the <a href="https://github.com/letmepost/letmepost.dev/blob/main/plan.md">plan</a> for dates.',
   },
   {
     q: "Why another social media API?",
-    a: 'Because every existing one fails silently and charges per-profile. 2025–26 research across 150+ citations: LinkedIn sunset five API versions in six months; Postiz shipped infinite double-posting bugs; Ayrshare\'s own docs admit error 138 "masks multiple underlying causes." We fix all three. <a href="https://github.com/rosekamallove/letmepost.dev/blob/main/PRODUCT.md">Read the brief</a>.',
+    a: 'Because every existing one fails silently and charges per-profile. From 2025 to 2026, across 150+ citations: LinkedIn sunset five API versions in six months. Postiz shipped infinite double-posting bugs. Ayrshare\'s own docs admit their error 138 "masks multiple underlying causes." We fix all three. <a href="https://github.com/letmepost/letmepost.dev/blob/main/PRODUCT.md">Read the brief</a>.',
   },
   {
     q: "How much does it cost?",
-    a: "Free during alpha. When hosted billing turns on, it's flat-rate with a real free tier — no per-profile tax, no per-seat lock-in. Self-host stays free forever.",
+    a: "Free during alpha. When hosted billing turns on, it's flat-rate with a real free tier. No per-profile tax, no per-seat lock-in. Self-host stays free forever.",
   },
   {
     q: "Is it really open source?",
     a: "Apache 2.0 from day one. Same code runs the hosted SaaS and the self-host Docker Compose. No feature gate, no open-core trick.",
   },
   {
-    q: "Postiz, Zernio, Ayrshare — what's the difference?",
-    a: "Postiz is OSS but known for silent-failure bugs. Zernio is closed-source (rebranded from Late in late 2025). Ayrshare charges per-profile and returns opaque errors. We ship OSS + transparent errors + flat pricing — nobody else has all three.",
+    q: "Postiz, Zernio, Ayrshare. What's the difference?",
+    a: 'Postiz is OSS but known for silent-failure bugs. Zernio is closed-source (rebranded from "Late" in late 2025). Ayrshare charges per-profile and returns opaque errors. We ship OSS, transparent errors, and flat pricing. Nobody else has all three.',
   },
   {
     q: "Can I self-host it?",
@@ -159,7 +159,7 @@ const faqJsonLd = {
           element instead of a stranded label. */}
       <div class="flex items-center gap-3 mb-8 text-[0.85rem] text-text-muted">
         <a
-          href="https://github.com/rosekamallove/letmepost.dev"
+          href="https://github.com/letmepost/letmepost.dev"
           target="_blank"
           rel="noopener"
           class="inline-flex items-center gap-1.5 no-underline text-text hover:text-accent transition-colors"
@@ -184,9 +184,10 @@ const faqJsonLd = {
       </h1>
 
       <p class="text-[1.2rem] leading-[1.65] mt-7 mb-11 text-text-secondary">
-        Bluesky, X, LinkedIn, Threads, Pinterest, Instagram, Facebook, YouTube —
-        through one POST endpoint. When a post breaks, you get the rule that
-        failed, the raw platform response, and a remediation. Never an empty body.
+        One POST endpoint that posts to Bluesky, X, LinkedIn, Threads,
+        Pinterest, Instagram, Facebook, and YouTube. When something breaks,
+        you get the rule that failed, the raw platform response, and how to
+        fix it. Never an empty body.
       </p>
 
       <div class="flex gap-[0.7rem] flex-wrap">
@@ -230,10 +231,10 @@ const faqJsonLd = {
     <div class="container">
       <h2 class="!mt-0">One endpoint. Any platform.</h2>
       <p class="text-text-muted">
-        <code>POST /v1/posts</code> routes to the right platform and runs every
-        documented rule locally before the upstream call. One request shape,
-        one error shape, same contract whether you&apos;re posting to Bluesky
-        today or LinkedIn next month.
+        <code>POST /v1/posts</code> routes to the platform you name and runs
+        every documented rule locally before sending the request. The request
+        and response shapes are identical for every platform. The same code
+        works for Bluesky today and LinkedIn next month.
       </p>
 
       <div class="border border-border my-6 bg-code-bg">
@@ -261,11 +262,11 @@ const faqJsonLd = {
     class="section"
   >
     <div class="container">
-      <h2 class="!mt-0">When it fails, you get something you can act on.</h2>
+      <h2 class="!mt-0">When it fails, you can act on it.</h2>
       <p class="text-text-muted">
-        Every failure response is the same shape. Stable code, the rule that
-        fired, the upstream platform version we tried, a remediation hint, a
-        request id you can grep.
+        Every failure response uses the same shape. A stable code, the rule
+        that fired, the platform version we tried, a remediation hint, and a
+        request id you can grep for.
       </p>
 
       <div class="border border-border my-6 bg-code-bg">
@@ -327,8 +328,8 @@ const faqJsonLd = {
             </h3>
             <p class="text-text-muted m-0 text-[0.92rem]">
               <code>POST /v1/posts</code> with an Idempotency-Key. Preflight rules
-              run locally before the upstream call. If anything fails, you get
-              a rule id and a remediation hint — not a <code
+              run locally before the upstream call. If something fails, you get
+              a rule id and a remediation hint, not a <code
                 >body:&nbsp;{}</code
               >.
             </p>
@@ -371,8 +372,9 @@ const faqJsonLd = {
           01 · Preflight, not postflight
         </div>
         <p class="text-text-muted m-0">
-          Every documented rule — character counts, media formats, audit states,
-          URN patterns — runs locally before the platform sees the request.
+          Every documented rule runs locally before the platform sees the
+          request. That covers character counts, media formats, audit states,
+          and URN patterns.
         </p>
       </div>
 
@@ -423,7 +425,7 @@ const faqJsonLd = {
     <div class="container">
       <h2 class="!mt-0">What you can do.</h2>
       <p class="text-text-muted">
-        The v1 API surface. Small on purpose — one primitive, done well.
+        The v1 API surface. Small on purpose. One primitive, done well.
       </p>
 
       <ul class="list-none p-0 mt-6 mb-4">
@@ -458,9 +460,9 @@ const faqJsonLd = {
     <div class="container">
       <h2 class="!mt-0">Platform support.</h2>
       <p class="text-text-muted">
-        Bluesky is live. Everything else is either built and awaiting platform
-        approval, or approvals are in flight while we build. We'll flip each
-        row to live the moment review clears.
+        Bluesky is live. Everything else is either built and waiting on
+        platform approval, or being built while approval is in flight. Each
+        row flips to live the moment review clears.
       </p>
 
       <ul class="list-none p-0 mt-6 mb-5">
@@ -491,10 +493,10 @@ const faqJsonLd = {
         }
       </ul>
       <p class="text-[0.8rem] mt-4 text-text-muted">
-        TikTok is deferred to v2 — DB enum + schemas keep it reserved for an
-        additive add later. Reddit, Telegram, Discord, Snapchat, Google
-        Business, and WhatsApp are deliberately cut from v1. See the roadmap
-        for the reasoning.
+        TikTok is deferred to v2. The DB enum and schemas keep it reserved
+        for a later add. Reddit, Telegram, Discord, Snapchat, Google
+        Business, and WhatsApp are cut from v1. See the roadmap for the
+        reasoning.
       </p>
     </div>
   </section>
@@ -539,7 +541,7 @@ const faqJsonLd = {
       <div class="flex gap-[0.6rem] flex-wrap">
         <a
           class="btn btn-primary"
-          href="https://github.com/rosekamallove/letmepost.dev"
+          href="https://github.com/letmepost/letmepost.dev"
           target="_blank"
           rel="noopener"
           data-analytics-event="external.github_clicked"
