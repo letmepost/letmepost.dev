@@ -28,7 +28,9 @@ We can't verify URL reachability without an HTTP request — and we don't HEAD t
 
 ```json reproduce.json
 {
-  "account": { "platform": "instagram", "id": "..." },
+  "targets": [
+    { "accountId": "00000000-0000-0000-0000-000000000000" }
+  ],
   "text": "this will fail",
   "media": [
     { "kind": "image", "url": "https://drive.google.com/file/d/.../view" }
@@ -46,6 +48,8 @@ Response:
     "platform": "instagram",
     "message": "Instagram couldn't fetch the media URL. Most often this is a Google Drive 'share' link, a Dropbox preview URL, or an S3 object with restricted ACLs.",
     "remediation": "Instagram fetches media URLs from its own servers. The URL must be on a public CDN — not Google Drive, Dropbox 'share' links, S3 with object ACLs locked, or any auth-gated host. Upload via POST /v1/media first, then reference the returned id.",
+    "docUrl": "https://docs.letmepost.dev/errors/preflight_failed",
+    "ruleUrl": "https://docs.letmepost.dev/preflight/instagram-media-reachable",
     "requestId": "req_..."
   }
 }
@@ -68,7 +72,7 @@ curl -X POST https://api.letmepost.dev/v1/posts \\
   -H "Idempotency-Key: $(uuidgen)" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "account": { "platform": "instagram", "id": "..." },
+    "targets": [{ "accountId": "00000000-0000-0000-0000-000000000000" }],
     "text": "shipped",
     "media": [{ "kind": "image", "mediaId": "med_a1b2c3d4..." }]
   }'
