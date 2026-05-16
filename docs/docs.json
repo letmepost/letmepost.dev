@@ -17,8 +17,8 @@
   },
   "css": "/style.css",
   "logo": {
-    "light": "/images/logo-light.svg",
-    "dark": "/images/logo-dark.svg",
+    "light": "https://letmepost.dev/logo.svg",
+    "dark": "https://letmepost.dev/logo-dark.svg",
     "href": "https://letmepost.dev"
   },
   "seo": {
