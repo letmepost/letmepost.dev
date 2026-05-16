@@ -31,6 +31,13 @@ function getOrgId(c: Context): string | null {
  * We only store 2xx and 4xx responses — 5xx should be retried, not replayed.
  *
  * Must run after auth middleware so we can scope records per organization.
+ *
+ * Batch semantics (multi-target /v1/posts): the key is applied to the WHOLE
+ * batch body. Replaying a retried fan-out request returns the original
+ * CreatePostResponse — same batch id, same per-target results — rather than
+ * re-publishing. Body-hash inclusion of `targets[]` means a retry that
+ * mutates even one target re-keys as a conflict, which is the correct
+ * fail-loud signal: changing targets mid-retry is almost always a bug.
  */
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 

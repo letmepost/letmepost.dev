@@ -1,4 +1,4 @@
-import type { CreatePostResponse, MediaInput } from "@letmepost/schemas";
+import type { PublishResult, MediaInput } from "@letmepost/schemas";
 import {
   loadMediaItem as sharedLoadMediaItem,
   type LoadedMediaItem as SharedLoadedMediaItem,
@@ -111,7 +111,7 @@ async function publishFirstComment(
 }
 
 export const blueskyPublisher: Publisher<BlueskyCredentials, BlueskyPublishInput> = {
-  async publish(creds, input): Promise<CreatePostResponse> {
+  async publish(creds, input): Promise<PublishResult> {
     const { text, media = [], firstComment, mediaContext } = input;
 
     validateBlueskyText(text);
@@ -219,7 +219,7 @@ export const blueskyPublisher: Publisher<BlueskyCredentials, BlueskyPublishInput
       : { text };
     const main = await client.createPost(session, mainInput);
 
-    const response: CreatePostResponse = {
+    const response: PublishResult = {
       id: main.cid,
       platform: "bluesky",
       uri: main.uri,

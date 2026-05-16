@@ -1,4 +1,4 @@
-import type { CreatePostResponse, MediaInput } from "@letmepost/schemas";
+import type { PublishResult, MediaInput } from "@letmepost/schemas";
 import { LetmepostError } from "../../errors.js";
 import {
   resolveMediaToUrl,
@@ -158,7 +158,7 @@ export const threadsPublisher: Publisher<
   ThreadsCredentials,
   ThreadsPublishInput
 > = {
-  async publish(creds, input): Promise<CreatePostResponse> {
+  async publish(creds, input): Promise<PublishResult> {
     const { text, media = [], replyToId, mediaContext } = input;
 
     // Cheap shape checks first — count + alt-text length. Bails out
@@ -268,13 +268,13 @@ async function finalizePublish(
   creds: ThreadsCredentials,
   creationId: string,
   text: string,
-): Promise<CreatePostResponse> {
+): Promise<PublishResult> {
   const published = await client.publishContainer(creds.userId, creationId);
 
   // Permalink fetch is best-effort. The dashboard's Post Log surfaces
   // platformUri when present, and falls back to the post id otherwise.
   const detail = await client.getPost(published.id);
-  const response: CreatePostResponse = {
+  const response: PublishResult = {
     id: published.id,
     platform: "threads",
     createdAt: new Date().toISOString(),

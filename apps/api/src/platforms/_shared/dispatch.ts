@@ -1,22 +1,38 @@
-import type {
-  CreatePostResponse,
-  PinterestPostOverrides,
-  ThreadsPostOverrides,
-  TwitterPostOverrides,
-} from "@letmepost/schemas";
+import type { MediaInput, PublishResult } from "@letmepost/schemas";
 import { LetmepostError } from "../../errors.js";
 import type { DecryptedPlatformAccount } from "../../repositories/platform-accounts.js";
 import { blueskyPublisher } from "../bluesky/publisher.js";
+import {
+  validateBlueskyMediaShape,
+  validateBlueskyText,
+} from "../bluesky/preflight.js";
 import { facebookPublisher } from "../facebook/publisher.js";
+import {
+  validateFacebookMediaShape,
+  validateFacebookText,
+} from "../facebook/preflight.js";
 import { instagramPublisher } from "../instagram/publisher.js";
+import {
+  validateInstagramMediaShape,
+  validateInstagramText,
+} from "../instagram/preflight.js";
 import { linkedinPublisher } from "../linkedin/publisher.js";
+import { validateLinkedInText } from "../linkedin/preflight.js";
 import { PinterestClient } from "../pinterest/client.js";
 import { pinterestPublisher } from "../pinterest/publisher.js";
 import type { PinterestTokenMetadata } from "../pinterest/provider.js";
 import { threadsPublisher } from "../threads/publisher.js";
+import {
+  validateThreadsMediaShape,
+  validateThreadsText,
+} from "../threads/preflight.js";
 import type { ThreadsTokenMetadata } from "../threads/provider.js";
 import { assertTwitterLaunchCap } from "../twitter/launch-cap.js";
 import { twitterPublisher } from "../twitter/publisher.js";
+import {
+  validateTwitterMediaShape,
+  validateTwitterText,
+} from "../twitter/preflight.js";
 import type { DrizzleClient } from "../../db/index.js";
 import type { MediaResolverContext } from "./media.js";
 
@@ -47,11 +63,16 @@ export type PublishInput = {
    */
   mediaContext?: MediaResolverContext;
   /** Pinterest-specific per-post overrides (board, destination URL, title). */
-  pinterest?: PinterestPostOverrides;
+  pinterest?: {
+    boardId?: string;
+    destinationUrl?: string;
+    title?: string;
+    coverImageUrl?: string;
+  };
   /** Threads-specific per-post overrides (replyToId). */
-  threads?: ThreadsPostOverrides;
+  threads?: { replyToId?: string };
   /** X / Twitter-specific overrides (replyToTweetId, quoteTweetId). */
-  twitter?: TwitterPostOverrides;
+  twitter?: { replyToTweetId?: string; quoteTweetId?: string };
 };
 
 /**
@@ -65,11 +86,123 @@ export type PublishContext =
   | { db: DrizzleClient; skipGates?: false }
   | { skipGates: true; db?: DrizzleClient };
 
+/**
+ * Hard cap on per-batch fan-out concurrency. Matches MAX_TARGETS_PER_REQUEST
+ * (7) so by construction a single request can never exceed this limit — but
+ * we keep the check here for callers (e.g. workers) that fan out from
+ * outside the route boundary.
+ */
+export const MAX_FANOUT_CONCURRENCY = 7;
+
+/**
+ * Run `publishForAccount` across N (account, input) pairs concurrently.
+ * Order of results matches input order so callers can correlate by index.
+ *
+ * Parallelism is capped at MAX_FANOUT_CONCURRENCY. The cap matches the
+ * route-level target cap today, so for an in-route call this is effectively
+ * "all at once" — but keeping the chunk loop here means a future caller
+ * (e.g. a worker batch retry) that fans out beyond seven won't hammer
+ * upstream APIs all at once.
+ */
+export async function publishAcrossTargets(
+  items: ReadonlyArray<{
+    account: DecryptedPlatformAccount;
+    input: PublishInput;
+  }>,
+  ctx: PublishContext,
+): Promise<PromiseSettledResult<PublishResult>[]> {
+  const results: PromiseSettledResult<PublishResult>[] = new Array(items.length);
+  for (let i = 0; i < items.length; i += MAX_FANOUT_CONCURRENCY) {
+    const slice = items.slice(i, i + MAX_FANOUT_CONCURRENCY);
+    const settled = await Promise.allSettled(
+      slice.map(({ account, input }) => publishForAccount(account, input, ctx)),
+    );
+    for (let j = 0; j < settled.length; j++) {
+      results[i + j] = settled[j]!;
+    }
+  }
+  return results;
+}
+
+/**
+ * Cheap, synchronous-ish preflight — runs the shape checks each publisher
+ * would do at the top of its publish() before any network I/O. Used by the
+ * multi-target route to enforce atomic preflight: if any target's preflight
+ * fails the whole batch is rejected BEFORE any publish side effects.
+ *
+ * Deep checks that need resolved media bytes (size limits, MIME sniffing,
+ * URL reachability) still live inside the per-publisher publish(); those
+ * failures surface as per-target errors in the response rather than batch
+ * rejections.
+ *
+ * Throws LetmepostError with `code: "preflight_failed"` on failure.
+ */
+export function preflightForAccount(
+  account: DecryptedPlatformAccount,
+  input: PublishInput,
+): void {
+  const media = (input.media ?? []) as ReadonlyArray<MediaInput>;
+  const shapeItems = media.map((m) => ({
+    kind: m.kind,
+    ...(m.altText !== undefined ? { altText: m.altText } : {}),
+  }));
+
+  switch (account.platform) {
+    case "bluesky":
+      validateBlueskyText(input.text);
+      validateBlueskyMediaShape(shapeItems);
+      return;
+    case "linkedin":
+      validateLinkedInText(input.text);
+      return;
+    case "twitter":
+      validateTwitterText(input.text);
+      validateTwitterMediaShape(shapeItems);
+      return;
+    case "facebook":
+      validateFacebookText(input.text, shapeItems.length);
+      validateFacebookMediaShape(shapeItems);
+      return;
+    case "instagram":
+      validateInstagramText(input.text, shapeItems.length);
+      validateInstagramMediaShape(shapeItems);
+      return;
+    case "threads":
+      validateThreadsText(input.text, shapeItems.length);
+      validateThreadsMediaShape(shapeItems);
+      return;
+    case "pinterest": {
+      // Pinterest's hard preflight rule is "media required" — the board
+      // requirement is checked in publishForAccount because surfacing
+      // availableBoards needs a network call we don't want during a fan-out
+      // preflight pass.
+      if (media.length === 0) {
+        throw new LetmepostError({
+          code: "preflight_failed",
+          status: 400,
+          platform: "pinterest",
+          message: "Pinterest posts require a media item.",
+          rule: "pinterest.media.required",
+          remediation:
+            'Pass `media: [{ kind: "image", url | mediaId }]` on the request body.',
+        });
+      }
+      return;
+    }
+    default:
+      throw new LetmepostError({
+        code: "validation_failed",
+        status: 400,
+        message: `Unknown platform: ${account.platform}.`,
+      });
+  }
+}
+
 export async function publishForAccount(
   account: DecryptedPlatformAccount,
   input: PublishInput,
   ctx: PublishContext,
-): Promise<CreatePostResponse> {
+): Promise<PublishResult> {
   switch (account.platform) {
     case "bluesky": {
       const blueskyInput: Parameters<typeof blueskyPublisher.publish>[1] = {

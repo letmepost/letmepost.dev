@@ -1,4 +1,4 @@
-import type { CreatePostResponse, MediaInput } from "@letmepost/schemas";
+import type { PublishResult, MediaInput } from "@letmepost/schemas";
 import { LetmepostError } from "../../errors.js";
 import {
   resolveMediaToUrl,
@@ -177,10 +177,10 @@ function carouselTimeoutFor(items: ResolvedMediaUrl[]): number {
 async function finalizePublish(
   client: InstagramClient,
   creationId: string,
-): Promise<CreatePostResponse> {
+): Promise<PublishResult> {
   const published = await client.publishContainer(creationId);
   const permalink = await client.getPermalink(published.id);
-  const response: CreatePostResponse = {
+  const response: PublishResult = {
     id: published.id,
     platform: "instagram",
     createdAt: new Date().toISOString(),
@@ -193,7 +193,7 @@ export const instagramPublisher: Publisher<
   InstagramCredentials,
   InstagramPublishInput
 > = {
-  async publish(creds, input): Promise<CreatePostResponse> {
+  async publish(creds, input): Promise<PublishResult> {
     const { text, media = [], mediaContext } = input;
 
     validateInstagramText(text, media.length);

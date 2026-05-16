@@ -1,4 +1,4 @@
-import type { CreatePostResponse, MediaInput } from "@letmepost/schemas";
+import type { PublishResult, MediaInput } from "@letmepost/schemas";
 import {
   resolveMediaToUrl,
   type MediaResolverContext,
@@ -73,7 +73,7 @@ export const facebookPublisher: Publisher<
   FacebookCredentials,
   FacebookPublishInput
 > = {
-  async publish(creds, input): Promise<CreatePostResponse> {
+  async publish(creds, input): Promise<PublishResult> {
     const { text, media = [], link, mediaContext } = input;
 
     validateFacebookText(text, media.length);

@@ -1,4 +1,4 @@
-import type { CreatePostResponse } from "@letmepost/schemas";
+import type { PublishResult } from "@letmepost/schemas";
 import { LetmepostError } from "../../errors.js";
 import {
   loadMediaItem,
@@ -30,7 +30,7 @@ export const pinterestPublisher: Publisher<
   PinterestCredentials,
   PinterestPublishInput & { mediaContext?: MediaResolverContext }
 > = {
-  async publish(creds, input): Promise<CreatePostResponse> {
+  async publish(creds, input): Promise<PublishResult> {
     // Pure preflight (board / media presence / kind / cover-required for
     // video) before any network round-trip.
     validatePinterestInput(input);
@@ -136,7 +136,7 @@ export const pinterestPublisher: Publisher<
       });
     }
 
-    const response: CreatePostResponse = {
+    const response: PublishResult = {
       id: pin.id,
       platform: "pinterest",
       uri: pin.link ?? `https://www.pinterest.com/pin/${pin.id}/`,

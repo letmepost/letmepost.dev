@@ -1,4 +1,4 @@
-import type { CreatePostResponse } from "@letmepost/schemas";
+import type { PublishResult } from "@letmepost/schemas";
 import { LetmepostError } from "../../errors.js";
 import type { Publisher } from "../_shared/publisher.js";
 import { LINKEDIN_DEFAULT_VERSION, LinkedInClient } from "./client.js";
@@ -29,7 +29,7 @@ export const linkedinPublisher: Publisher<
   LinkedInCredentials,
   LinkedInPublishInput
 > = {
-  async publish(creds, input): Promise<CreatePostResponse> {
+  async publish(creds, input): Promise<PublishResult> {
     if (!creds.authorUrn) {
       throw new LetmepostError({
         code: "platform_auth_failed",

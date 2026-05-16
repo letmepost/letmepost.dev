@@ -1,12 +1,17 @@
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import {
   CreatePostRequest,
+  MAX_TARGETS_PER_REQUEST,
   Platform,
   PostStatus,
   type CreatePostResponse,
+  type MediaInput,
+  type PostTarget,
+  type PostTargetResult,
+  type PublishResult,
   type WebhookEventType,
 } from "@letmepost/schemas";
 import { posts as postsTable, type Post } from "../db/schema/posts.js";
@@ -16,8 +21,15 @@ import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
 import { idempotency } from "../middleware/idempotency.js";
 import { assertKeyCanAccessProfile } from "../middleware/profile-scope.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { publishForAccount } from "../platforms/_shared/dispatch.js";
-import { DrizzlePlatformAccountsRepository } from "../repositories/platform-accounts.js";
+import {
+  preflightForAccount,
+  publishAcrossTargets,
+  type PublishInput,
+} from "../platforms/_shared/dispatch.js";
+import {
+  DrizzlePlatformAccountsRepository,
+  type DecryptedPlatformAccount,
+} from "../repositories/platform-accounts.js";
 import {
   DrizzlePostsReadRepository,
   type PostListFilters,
@@ -43,11 +55,26 @@ const MIN_FUTURE_DELAY_MS = 1_000;
 
 /**
  * Hybrid publish contract:
- *   - Immediate posts (no `scheduledAt`): synchronous publish, returns 201
- *     with the platform result. Matches the pre-Phase-4 contract.
- *   - Scheduled posts (`scheduledAt` set in the future): persisted with
- *     status="queued", delayed job enqueued on the `publish` queue, returns
- *     202 with the post id + echoed scheduledAt.
+ *   - Immediate publish (no `scheduledAt`, or `publishNow: true`):
+ *     synchronous fan-out across every target. Returns 200 with a per-target
+ *     `results` array; the batch `status` is "published" when every target
+ *     succeeded, "partial_failed" on mixed outcomes, "failed" when none did.
+ *   - Scheduled publish (`scheduledAt` set in the future): each target is
+ *     persisted with status="queued", a delayed job is enqueued per row,
+ *     and the endpoint returns 202.
+ *
+ * Both the new multi-target body and the legacy single-target body
+ * (`account: {...}, text, ...`) are accepted. Legacy bodies are transparently
+ * rewritten into the multi-target shape immediately after validation so the
+ * rest of the handler only has to think about `targets[]`. We DON'T tag
+ * legacy results with `legacy_shape: true` — silent rewrite keeps the API
+ * surface honest about what we returned, and the body-hash idempotency
+ * record already disambiguates retry shapes.
+ *
+ * Idempotency-Key applies to the whole batch — see middleware/idempotency.ts.
+ * A retried fan-out replays the original CreatePostResponse (same batch id,
+ * same per-target results) instead of re-publishing; changing any target
+ * mid-retry surfaces as a 409 idempotency_conflict.
  *
  * Scheduled posts currently accept text only. Media and first-comment on
  * scheduled posts need persistent media storage (R2) and a dedicated
@@ -58,59 +85,116 @@ posts.post(
   apiKeyAuth(),
   rateLimit(),
   idempotency(),
-  zValidator("json", CreatePostRequest, (result) => {
-    if (!result.success) {
-      const issue = result.error.issues[0];
+  async (c) => {
+    const raw: unknown = await c.req.json().catch(() => undefined);
+    if (raw === undefined) {
       throw new LetmepostError({
         code: "validation_failed",
         status: 400,
-        message: issue?.message ?? "Request body failed validation.",
-        rule: issue?.path.join(".") || "body",
-        platformResponse: result.error.issues,
-        remediation: "Check the request body matches the documented schema.",
+        message: "Request body must be JSON.",
+        rule: "body.json",
       });
     }
-  }),
-  async (c) => {
-    const {
-      account: accountRef,
-      text,
-      media,
-      firstComment,
-      scheduledAt,
-      pinterest,
-      threads,
-      twitter,
-    } = c.req.valid("json");
+
+    const parsed = CreatePostRequest.safeParse(raw);
+    if (!parsed.success) {
+      throwZodValidationError(parsed.error);
+    }
+    const multi = parsed.data;
+
     const { organizationId } = c.var.apiKey;
     const repo = new DrizzlePlatformAccountsRepository(c.var.db);
 
-    const account = await repo.findById(accountRef.id);
-    if (!account || account.organizationId !== organizationId) {
-      throw new LetmepostError({
-        code: "not_found",
-        status: 404,
-        message: "Platform account not found.",
-        remediation:
-          "Verify the account id and that it belongs to your organization.",
-      });
-    }
-
-    // Enforce the api-key's profile scope. Cross-profile keys 404 here so we
-    // don't leak the account's existence to a caller that shouldn't see it.
-    assertKeyCanAccessProfile(c.var.apiKey, account);
-
-    if (account.platform !== accountRef.platform) {
+    if (multi.targets.length === 0) {
       throw new LetmepostError({
         code: "validation_failed",
         status: 400,
-        message: `Platform mismatch: account is ${account.platform} but request specified ${accountRef.platform}.`,
+        message: "Send at least one target on `targets[]`.",
+        rule: "targets.required",
+        remediation: "Pass `targets: [{ accountId, ... }]`.",
+      });
+    }
+    if (multi.targets.length > MAX_TARGETS_PER_REQUEST) {
+      throw new LetmepostError({
+        code: "validation_failed",
+        status: 400,
+        message: `A single request may not fan out to more than ${MAX_TARGETS_PER_REQUEST} targets.`,
+        rule: "targets.max",
+        remediation: `Split the publish into batches of at most ${MAX_TARGETS_PER_REQUEST} targets.`,
+      });
+    }
+    if (multi.publishNow === true && multi.scheduledAt) {
+      throw new LetmepostError({
+        code: "validation_failed",
+        status: 400,
+        message:
+          "Pass either `publishNow: true` or `scheduledAt`, not both.",
+        rule: "mode_conflict",
+        remediation:
+          "Drop `scheduledAt` to publish immediately, or drop `publishNow` to schedule.",
       });
     }
 
-    // ─── Scheduled path ─────────────────────────────────────────────────────
-    if (scheduledAt) {
-      const when = new Date(scheduledAt);
+    // ─── Resolve accounts in parallel ────────────────────────────────────────
+    // Each target carries either accountId, platform, or both. accountId →
+    // direct lookup; platform-only → unique-account-for-platform within the
+    // org+profile scope; both → lookup by id, verify platform agrees.
+    const profileId = c.var.apiKey.profileId ?? null;
+    const resolutions = await Promise.all(
+      multi.targets.map((t) =>
+        resolveTargetAccount(repo, organizationId, profileId, t),
+      ),
+    );
+
+    const resolved: Array<{
+      target: PostTarget;
+      account: DecryptedPlatformAccount;
+      input: PublishInput;
+    }> = [];
+    for (let i = 0; i < multi.targets.length; i++) {
+      const target = multi.targets[i]!;
+      const account = resolutions[i]!;
+      // Profile-scope enforcement applies to every target. We 404 on
+      // out-of-scope accounts so a profile-scoped key can't enumerate
+      // accounts under sibling profiles.
+      assertKeyCanAccessProfile(c.var.apiKey, account);
+
+      // Per-target options must match the account's platform. Catching it
+      // here yields a clean validation error vs. surfacing as garbage deep
+      // in a publisher.
+      if (
+        target.options &&
+        target.options.platform !== account.platform
+      ) {
+        throw new LetmepostError({
+          code: "validation_failed",
+          status: 400,
+          message: `Target options carry platform "${target.options.platform}" but the resolved account ${account.id} is a ${account.platform} account.`,
+          rule: "targets.options.platform_mismatch",
+          remediation:
+            "Drop `options` or set `options.platform` to match the target's account platform.",
+        });
+      }
+
+      const input = buildPublishInputForTarget(target, multi, account, c);
+      resolved.push({ target, account, input });
+    }
+
+    // ─── Cheap preflight (atomic) ───────────────────────────────────────────
+    // Synchronous shape-level checks (text length, media count + exclusivity,
+    // alt-text length, platform-options sanity). If ANY target fails this
+    // pass the whole batch is rejected — no posts row created, no upstream
+    // call made. Deeper checks (URL reachability, MIME sniffing, byte caps)
+    // happen inside each publisher and surface in `results[i].error`, which
+    // means a batch can land as `partial_failed` if a per-target deep check
+    // fails after persistence.
+    for (const { account, input } of resolved) {
+      preflightForAccount(account, input);
+    }
+
+    // ─── Scheduled path ──────────────────────────────────────────────────────
+    if (multi.scheduledAt) {
+      const when = new Date(multi.scheduledAt);
       const delayMs = when.getTime() - Date.now();
       if (delayMs < MIN_FUTURE_DELAY_MS) {
         throw new LetmepostError({
@@ -122,180 +206,428 @@ posts.post(
             "Send a timestamp at least 1 second ahead of now, or omit scheduledAt to publish immediately.",
         });
       }
-      if (media || firstComment) {
-        throw new LetmepostError({
-          code: "validation_failed",
-          status: 400,
-          message:
-            "Scheduled posts do not yet support media or firstComment — publish immediately or wait for the scheduled-media slice.",
-          rule: "scheduledAt.text_only",
-          remediation:
-            "Drop media/firstComment from this request, or omit scheduledAt to publish synchronously.",
+      for (const { input } of resolved) {
+        if (input.media || input.firstComment) {
+          throw new LetmepostError({
+            code: "validation_failed",
+            status: 400,
+            message:
+              "Scheduled posts do not yet support media or firstComment — publish immediately or wait for the scheduled-media slice.",
+            rule: "scheduledAt.text_only",
+            remediation:
+              "Drop media/firstComment from this request, or omit scheduledAt to publish synchronously.",
+          });
+        }
+      }
+
+      const batchId = randomUUID();
+      const results: PostTargetResult[] = [];
+      const createdAt = new Date();
+      for (const { account, input } of resolved) {
+        const [row] = await c.var.db
+          .insert(postsTable)
+          .values({
+            organizationId,
+            accountId: account.id,
+            status: "queued",
+            text: input.text,
+            scheduledAt: when,
+          })
+          .returning();
+        if (!row) {
+          throw new LetmepostError({
+            code: "internal_error",
+            status: 500,
+            message: "Failed to persist a scheduled post.",
+          });
+        }
+
+        await c.var.publishEnqueuer.enqueue(
+          {
+            postId: row.id,
+            organizationId,
+            ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+          },
+          { delayMs },
+        );
+
+        await c.var.webhookDispatcher.dispatch({
+          organizationId,
+          type: "post.queued",
+          data: {
+            id: row.id,
+            platform: account.platform,
+            accountId: account.id,
+            profileId: account.profileId,
+            scheduledAt: when.toISOString(),
+            queuedAt: row.createdAt.toISOString(),
+          },
+          ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+        });
+
+        results.push({
+          accountId: account.id,
+          platform: account.platform,
+          postId: row.id,
+          status: "queued",
         });
       }
 
+      const body: CreatePostResponse = {
+        id: batchId,
+        status: "queued",
+        createdAt: createdAt.toISOString(),
+        scheduledAt: when.toISOString(),
+        results,
+      };
+      return c.json(body, 202);
+    }
+
+    // ─── Immediate path — fan out across targets ────────────────────────────
+    // Persist a `publishing` row per target up front so the post log shows
+    // the in-flight state even mid-fan-out. Each target's outcome is
+    // collected into the per-target result array.
+    const persisted: Array<{
+      account: DecryptedPlatformAccount;
+      input: PublishInput;
+      rowId: string;
+    }> = [];
+    for (const { account, input } of resolved) {
       const [row] = await c.var.db
         .insert(postsTable)
         .values({
           organizationId,
           accountId: account.id,
-          status: "queued",
-          text,
-          scheduledAt: when,
+          status: "publishing",
+          text: input.text,
+          mediaRefs: input.media ? [...input.media] : [],
         })
         .returning();
       if (!row) {
         throw new LetmepostError({
           code: "internal_error",
           status: 500,
-          message: "Failed to persist the scheduled post.",
+          message: "Failed to persist a post row.",
         });
       }
-
-      await c.var.publishEnqueuer.enqueue(
-        {
-          postId: row.id,
-          organizationId,
-          ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-        },
-        { delayMs },
-      );
-
-      await c.var.webhookDispatcher.dispatch({
-        organizationId,
-        type: "post.queued",
-        data: {
-          id: row.id,
-          platform: account.platform,
-          accountId: account.id,
-          profileId: account.profileId,
-          scheduledAt: when.toISOString(),
-          queuedAt: row.createdAt.toISOString(),
-        },
-        ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-      });
-
-      const body: CreatePostResponse = {
-        id: row.id,
-        platform: account.platform,
-        status: "queued",
-        scheduledAt: when.toISOString(),
-        createdAt: row.createdAt.toISOString(),
-      };
-      return c.json(body, 202);
+      persisted.push({ account, input, rowId: row.id });
     }
 
-    // ─── Immediate path ─────────────────────────────────────────────────────
-    const [row] = await c.var.db
-      .insert(postsTable)
-      .values({
-        organizationId,
-        accountId: account.id,
-        status: "publishing",
-        text,
-        mediaRefs: media ? [...media] : [],
-      })
-      .returning();
-    if (!row) {
-      throw new LetmepostError({
-        code: "internal_error",
-        status: 500,
-        message: "Failed to persist the post.",
-      });
-    }
+    const batchId = randomUUID();
+    const createdAt = new Date();
+    const settled = await publishAcrossTargets(
+      persisted.map(({ account, input }) => ({ account, input })),
+      { db: c.var.db },
+    );
 
-    try {
-      const result = await publishForAccount(
-        account,
-        {
-          text,
-          ...(media !== undefined ? { media } : {}),
-          ...(firstComment !== undefined ? { firstComment } : {}),
-          ...(pinterest !== undefined ? { pinterest } : {}),
-          ...(threads !== undefined ? { threads } : {}),
-          ...(twitter !== undefined ? { twitter } : {}),
-          mediaContext: {
-            db: c.var.db,
-            organizationId,
-            profileId: account.profileId,
-          },
-        },
-        { db: c.var.db },
-      );
-
-      const publishedAt = new Date();
-      await c.var.db
-        .update(postsTable)
-        .set({
-          status: "published",
-          platformUri: result.uri ?? null,
-          platformCid: result.cid ?? null,
-          publishedAt,
-        })
-        .where(eq(postsTable.id, row.id));
-
-      await c.var.webhookDispatcher.dispatch({
-        organizationId,
-        type: "post.published",
-        data: {
-          id: row.id,
-          platform: account.platform,
-          accountId: account.id,
-          profileId: account.profileId,
-          uri: result.uri,
-          cid: result.cid,
-          firstCommentUri: result.firstCommentUri,
-          firstCommentCid: result.firstCommentCid,
-          publishedAt: publishedAt.toISOString(),
-          warnings: result.warnings,
-        },
-        ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-      });
-
-      const body: CreatePostResponse = {
-        ...result,
-        id: row.id,
-        status: "published",
-      };
-      return c.json(body, 201);
-    } catch (err) {
-      const { status, eventType } = classifyError(err);
-      await c.var.db
-        .update(postsTable)
-        .set({
-          status,
-          error: letmepostErrorToRecord(err),
-        })
-        .where(eq(postsTable.id, row.id));
-
-      if (eventType) {
-        await c.var.webhookDispatcher
-          .dispatch({
-            organizationId,
-            type: eventType,
-            data: {
-              id: row.id,
-              platform: account.platform,
-              accountId: account.id,
-              profileId: account.profileId,
-              error: letmepostErrorToRecord(err),
-              rejectedAt: new Date().toISOString(),
-            },
-            ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+    const results: PostTargetResult[] = [];
+    let successCount = 0;
+    let failCount = 0;
+    for (let i = 0; i < persisted.length; i++) {
+      const { account, rowId } = persisted[i]!;
+      const outcome = settled[i]!;
+      if (outcome.status === "fulfilled") {
+        const result = outcome.value;
+        successCount++;
+        const publishedAt = new Date();
+        await c.var.db
+          .update(postsTable)
+          .set({
+            status: "published",
+            platformUri: result.uri ?? null,
+            platformCid: result.cid ?? null,
+            publishedAt,
           })
-          .catch((dispatchErr: unknown) => {
-            // Don't swallow the publish error — just log the dispatch miss.
-            console.error(
-              "[posts] webhook dispatch failed after publish error",
-              dispatchErr,
-            );
-          });
-      }
+          .where(eq(postsTable.id, rowId));
 
-      throw err;
+        await c.var.webhookDispatcher.dispatch({
+          organizationId,
+          type: "post.published",
+          data: {
+            id: rowId,
+            platform: account.platform,
+            accountId: account.id,
+            profileId: account.profileId,
+            uri: result.uri,
+            cid: result.cid,
+            firstCommentUri: result.firstCommentUri,
+            firstCommentCid: result.firstCommentCid,
+            publishedAt: publishedAt.toISOString(),
+            warnings: result.warnings,
+          },
+          ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+        });
+
+        results.push(buildSuccessResult(account, rowId, result));
+      } else {
+        failCount++;
+        const err = outcome.reason;
+        const { status, eventType } = classifyError(err);
+        await c.var.db
+          .update(postsTable)
+          .set({
+            status,
+            error: letmepostErrorToRecord(err),
+          })
+          .where(eq(postsTable.id, rowId));
+
+        if (eventType) {
+          await c.var.webhookDispatcher
+            .dispatch({
+              organizationId,
+              type: eventType,
+              data: {
+                id: rowId,
+                platform: account.platform,
+                accountId: account.id,
+                profileId: account.profileId,
+                error: letmepostErrorToRecord(err),
+                rejectedAt: new Date().toISOString(),
+              },
+              ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+            })
+            .catch((dispatchErr: unknown) => {
+              console.error(
+                "[posts] webhook dispatch failed after publish error",
+                dispatchErr,
+              );
+            });
+        }
+
+        results.push(buildFailureResult(account, rowId, status, err));
+      }
     }
+
+    const batchStatus: CreatePostResponse["status"] =
+      failCount === 0
+        ? "published"
+        : successCount === 0
+          ? "failed"
+          : "partial_failed";
+
+    const body: CreatePostResponse = {
+      id: batchId,
+      status: batchStatus,
+      createdAt: createdAt.toISOString(),
+      results,
+    };
+    // 200 for the multi-target envelope regardless of mixed outcomes — the
+    // batch itself completed; per-target errors are inside `results[]`. This
+    // matches stripe-style "batch ack" semantics and keeps callers off the
+    // exception path for the common partial-failure case.
+    return c.json(body, 200);
   },
 );
+
+function throwZodValidationError(err: z.ZodError): never {
+  const issue = err.issues[0];
+  throw new LetmepostError({
+    code: "validation_failed",
+    status: 400,
+    message: issue?.message ?? "Request body failed validation.",
+    rule: issue?.path.join(".") || "body",
+    platformResponse: err.issues,
+    remediation: "Check the request body matches the documented schema.",
+  });
+}
+
+/**
+ * Resolve a target to its underlying platform account. The target may carry:
+ *   - `accountId` alone: direct lookup.
+ *   - `platform` alone: unique-account-for-platform lookup, scoped to the
+ *     api key's profile. 0 matches → `target.account.not_connected`; 2+ →
+ *     `target.account.ambiguous` with candidate ids.
+ *   - Both: direct lookup, but verify the account's platform agrees with
+ *     the hint — disagreement is `targets.account.platform_mismatch`.
+ *
+ * Cross-org and out-of-profile-scope accounts surface as 404 so a key
+ * can't probe for account existence outside its blast radius.
+ */
+async function resolveTargetAccount(
+  repo: DrizzlePlatformAccountsRepository,
+  organizationId: string,
+  profileId: string | null,
+  target: PostTarget,
+): Promise<DecryptedPlatformAccount> {
+  if (target.accountId) {
+    const account = await repo.findById(target.accountId);
+    if (!account || account.organizationId !== organizationId) {
+      throw new LetmepostError({
+        code: "not_found",
+        status: 404,
+        message: `Platform account not found: ${target.accountId}.`,
+        remediation:
+          "Verify each `targets[].accountId` belongs to your organization.",
+      });
+    }
+    if (target.platform && target.platform !== account.platform) {
+      throw new LetmepostError({
+        code: "validation_failed",
+        status: 400,
+        message: `Target carries platform "${target.platform}" but accountId ${target.accountId} is a ${account.platform} account.`,
+        rule: "targets.account.platform_mismatch",
+        remediation:
+          "Drop `platform` or set it to match the account's platform.",
+      });
+    }
+    return account;
+  }
+
+  // platform-only auto-resolution — scoped by profile so a profile-scoped
+  // key can't probe sibling-profile accounts via the ambiguity error.
+  const platform = target.platform!;
+  const lookup = await repo.findUniqueAccountForPlatform(
+    organizationId,
+    platform,
+    profileId,
+  );
+  if (lookup.kind === "none") {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: `No connected ${platform} account in scope for this api key.`,
+      rule: "target.account.not_connected",
+      remediation: `Connect a ${platform} account via POST /v1/accounts/connect/${platform}, then retry.`,
+    });
+  }
+  if (lookup.kind === "ambiguous") {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: `Multiple connected ${platform} accounts in scope — specify which one in targets[i].accountId.`,
+      rule: "target.account.ambiguous",
+      platformResponse: { candidates: lookup.candidateIds },
+      remediation: `Pass one of the candidate ids on targets[i].accountId: ${lookup.candidateIds.join(", ")}.`,
+    });
+  }
+  return lookup.account;
+}
+
+/**
+ * Resolve a target's effective PublishInput by collapsing per-target
+ * overrides over the request-level defaults. `options` is split back into
+ * the per-platform fields the dispatcher already understands.
+ */
+function buildPublishInputForTarget(
+  target: PostTarget,
+  multi: CreatePostRequest,
+  account: DecryptedPlatformAccount,
+  c: { var: { db: unknown } },
+): PublishInput {
+  const text = target.text ?? multi.text;
+  if (text === undefined) {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: `Target for account ${account.id} has no text and no top-level default text.`,
+      rule: "targets.text.required",
+      remediation:
+        "Set `text` at the top level, or on each target that needs distinct copy.",
+    });
+  }
+  const media: MediaInput[] | undefined = target.media ?? multi.media;
+  const firstComment = target.firstComment ?? multi.firstComment;
+
+  const input: PublishInput = {
+    text,
+    mediaContext: {
+      // c.var.db is a DrizzleClient — the runtime context type is opaque
+      // at this helper boundary, hence the type narrowing.
+      db: (c.var as { db: unknown }).db as never,
+      organizationId: account.organizationId,
+      profileId: account.profileId,
+    },
+  };
+  if (media !== undefined) input.media = media;
+  if (firstComment !== undefined) input.firstComment = firstComment;
+
+  if (target.options) {
+    if (target.options.platform === "twitter") {
+      const tw: NonNullable<PublishInput["twitter"]> = {};
+      if (target.options.replyToTweetId !== undefined) {
+        tw.replyToTweetId = target.options.replyToTweetId;
+      }
+      if (target.options.quoteTweetId !== undefined) {
+        tw.quoteTweetId = target.options.quoteTweetId;
+      }
+      input.twitter = tw;
+    } else if (target.options.platform === "pinterest") {
+      const pin: NonNullable<PublishInput["pinterest"]> = {};
+      if (target.options.boardId !== undefined) pin.boardId = target.options.boardId;
+      if (target.options.destinationUrl !== undefined) {
+        pin.destinationUrl = target.options.destinationUrl;
+      }
+      if (target.options.title !== undefined) pin.title = target.options.title;
+      if (target.options.coverImageUrl !== undefined) {
+        pin.coverImageUrl = target.options.coverImageUrl;
+      }
+      input.pinterest = pin;
+    } else if (target.options.platform === "threads") {
+      const thr: NonNullable<PublishInput["threads"]> = {};
+      if (target.options.replyToId !== undefined) {
+        thr.replyToId = target.options.replyToId;
+      }
+      input.threads = thr;
+    }
+  }
+
+  return input;
+}
+
+function buildSuccessResult(
+  account: DecryptedPlatformAccount,
+  postId: string,
+  result: PublishResult,
+): PostTargetResult {
+  const out: PostTargetResult = {
+    accountId: account.id,
+    platform: account.platform,
+    postId,
+    status: "published",
+  };
+  if (result.uri !== undefined) out.uri = result.uri;
+  if (result.cid !== undefined) out.cid = result.cid;
+  if (result.firstCommentUri !== undefined) {
+    out.firstCommentUri = result.firstCommentUri;
+  }
+  if (result.firstCommentCid !== undefined) {
+    out.firstCommentCid = result.firstCommentCid;
+  }
+  if (result.warnings !== undefined) out.warnings = result.warnings;
+  return out;
+}
+
+function buildFailureResult(
+  account: DecryptedPlatformAccount,
+  postId: string,
+  status: "rejected" | "failed",
+  err: unknown,
+): PostTargetResult {
+  const out: PostTargetResult = {
+    accountId: account.id,
+    platform: account.platform,
+    postId,
+    status,
+  };
+  if (err instanceof LetmepostError) {
+    const errObj: PostTargetResult["error"] = {
+      code: err.code,
+      message: err.message,
+    };
+    if (err.rule !== undefined) errObj.rule = err.rule;
+    if (err.remediation !== undefined) errObj.remediation = err.remediation;
+    if (err.platformResponse !== undefined) {
+      errObj.platformResponse = err.platformResponse;
+    }
+    out.error = errObj;
+  } else {
+    out.error = {
+      code: "internal_error",
+      message: err instanceof Error ? err.message : String(err),
+    };
+  }
+  return out;
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
  * Post Log — read endpoints

@@ -1,4 +1,4 @@
-import type { CreatePostResponse, MediaInput } from "@letmepost/schemas";
+import type { PublishResult, MediaInput } from "@letmepost/schemas";
 import {
   loadMediaItem as sharedLoadMediaItem,
   type MediaResolverContext,
@@ -56,7 +56,7 @@ export const twitterPublisher: Publisher<
   TwitterCredentials,
   TwitterPublishInput
 > = {
-  async publish(creds, input): Promise<CreatePostResponse> {
+  async publish(creds, input): Promise<PublishResult> {
     const { text, media = [], mediaContext, replyToTweetId, quoteTweetId } =
       input;
 
@@ -126,7 +126,7 @@ export const twitterPublisher: Publisher<
     if (quoteTweetId !== undefined) createArgs.quoteTweetId = quoteTweetId;
     const tweet = await client.createTweet(createArgs);
 
-    const response: CreatePostResponse = {
+    const response: PublishResult = {
       id: tweet.id,
       platform: "twitter",
       uri: creds.userId
