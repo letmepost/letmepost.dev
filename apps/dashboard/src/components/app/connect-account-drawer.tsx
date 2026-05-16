@@ -37,9 +37,9 @@ export function ConnectAccountDrawer({
         <SheetHeader className="border-b">
           <SheetTitle className="text-base">Connect account</SheetTitle>
           <SheetDescription>
-            We&apos;ll walk you through whatever auth flow the platform
-            requires — OAuth redirect, app password, or anything else.
-            Tokens land encrypted at rest with per-row data-keys.
+            We&apos;ll handle the OAuth redirect, app password, or whatever
+            else the platform requires. Tokens land encrypted at rest with
+            per-row data-keys.
           </SheetDescription>
         </SheetHeader>
         <div className="p-4">

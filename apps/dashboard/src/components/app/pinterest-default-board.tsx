@@ -259,13 +259,13 @@ function CreateBoardDialog({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="PUBLIC">
-                  Public — anyone can see this board
+                  Public, anyone can see this board
                 </SelectItem>
                 <SelectItem value="PROTECTED">
-                  Protected — only you and collaborators
+                  Protected, only you and collaborators
                 </SelectItem>
                 <SelectItem value="SECRET">
-                  Secret — only you
+                  Secret, only you
                 </SelectItem>
               </SelectContent>
             </Select>

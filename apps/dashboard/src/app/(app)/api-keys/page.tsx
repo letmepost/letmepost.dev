@@ -167,7 +167,7 @@ export default function ApiKeysPage() {
       <FadeIn>
         <h1 className="text-lg font-semibold">API keys</h1>
         <p className="text-xs text-muted-foreground">
-          Bearer tokens. Plaintext is shown once, right after creation — store
+          Bearer tokens. Plaintext is shown once, right after creation. Store
           it somewhere safe.
         </p>
       </FadeIn>

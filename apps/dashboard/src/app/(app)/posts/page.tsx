@@ -403,7 +403,7 @@ export default function PostsPage() {
             <CardDescription>
               {hasActiveFilters
                 ? "Nothing matches the current filters. Widen the range or clear the filter chips."
-                : "Once you publish a post via the API, it shows up here — including the failures."}
+                : "Once you publish a post via the API, it shows up here, including the failures."}
             </CardDescription>
           </CardHeader>
         </Card>

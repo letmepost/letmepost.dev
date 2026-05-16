@@ -153,7 +153,7 @@ export default function MediaListPage() {
                 : "Drop a file here, or click to browse"}
             </div>
             <div className="text-[11px] text-muted-foreground">
-              Images (jpg / png / webp / gif) and video (mp4 / mov / webm) — up
+              Images (jpg / png / webp / gif) and video (mp4 / mov / webm). Up
               to 200 MB.
             </div>
           </div>

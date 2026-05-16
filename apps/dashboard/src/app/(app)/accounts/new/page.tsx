@@ -149,8 +149,8 @@ export default function NewAccountPage() {
       <div>
         <h1 className="text-lg font-semibold">Connect account</h1>
         <p className="text-xs text-muted-foreground">
-          Choose a platform. We'll walk you through the exact auth flow it
-          needs — OAuth redirect, app password, whatever.
+          Choose a platform. We'll handle OAuth redirects, app passwords, and
+          any other auth flow it needs.
         </p>
       </div>
 
@@ -259,7 +259,7 @@ export default function NewAccountPage() {
                   descriptorPlatform}
               </CardTitle>
               <CardDescription>
-                Credentials-based auth — submit the fields below to complete
+                Credentials-based auth. Submit the fields below to complete
                 the connection.
               </CardDescription>
             </CardHeader>

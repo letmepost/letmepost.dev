@@ -164,8 +164,8 @@ export default function WebhooksPage() {
       <FadeIn>
         <h1 className="text-lg font-semibold">Webhooks</h1>
         <p className="text-xs text-muted-foreground">
-          Subscribe to post lifecycle events. Payloads are HMAC-SHA256 signed
-          with a per-endpoint secret shown once at creation.
+          Subscribe to post lifecycle events. Payloads are HMAC-SHA256 signed.
+          The signing secret is shown once at creation.
         </p>
       </FadeIn>
 

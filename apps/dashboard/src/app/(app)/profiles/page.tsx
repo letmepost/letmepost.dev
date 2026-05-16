@@ -90,7 +90,7 @@ export default function ProfilesPage() {
           <h1 className="text-lg font-semibold">Profiles</h1>
           <p className="text-xs text-muted-foreground">
             Sub-workspaces inside this org. Group platform accounts by client
-            or brand; scope API keys and posts to any one of them.
+            or brand. API keys and posts can scope to any one of them.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -194,7 +194,7 @@ export default function ProfilesPage() {
                 {pendingDelete.name}
               </span>{" "}
               will be removed. The API will refuse if any platform accounts
-              still attach to it — disconnect or move them first.
+              still attach to it. Disconnect or move them first.
             </>
           ) : null
         }
@@ -262,7 +262,7 @@ function CreateProfileDialog({
             <DialogTitle>New profile</DialogTitle>
             <DialogDescription>
               Profiles group platform accounts. Use them per-client or
-              per-brand; API keys and posts can scope to any one of them.
+              per-brand. API keys and posts can scope to any one of them.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -356,7 +356,7 @@ function RenameProfileDialog({
           <DialogHeader>
             <DialogTitle>Rename profile</DialogTitle>
             <DialogDescription>
-              The slug stays put — rename is name-only here. To change the
+              The slug stays put. Rename is name-only here. To change the
               slug, edit it via the API.
             </DialogDescription>
           </DialogHeader>

@@ -79,7 +79,7 @@ export default function SignUpPage() {
       try {
         await authClient.organization.setActive({ organizationId: org.id });
       } catch {
-        toast.error("Created your org but couldn't activate it — pick it now.");
+        toast.error("Created your org but couldn't activate it. Pick it now.");
         router.push("/onboarding");
         return;
       }

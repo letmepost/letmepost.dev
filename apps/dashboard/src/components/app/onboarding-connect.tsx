@@ -163,7 +163,7 @@ export function OnboardingConnect({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Pick a platform. Bluesky uses an app password; the others go through
+        Pick a platform. Bluesky uses an app password. The others go through
         OAuth. Tokens are encrypted at rest with per-row data-keys.
       </p>
 
@@ -293,7 +293,7 @@ export function OnboardingConnect({
                   aria-disabled={pending}
                   title={
                     pending
-                      ? `${b.label} is pending platform approval — coming soon.`
+                      ? `${b.label} is pending platform approval. Coming soon.`
                       : undefined
                   }
                   className={cn(
@@ -307,7 +307,7 @@ export function OnboardingConnect({
                   {state === "trial" ? (
                     <span
                       className="absolute top-1 right-1 text-[9px] uppercase tracking-wider px-1 py-px ring-1 ring-foreground/20 text-muted-foreground"
-                      aria-label="Trial — limited access"
+                      aria-label="Trial, limited access"
                     >
                       trial
                     </span>
