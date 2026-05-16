@@ -3,7 +3,7 @@ title: Idempotency
 description: Every write accepts an Idempotency-Key. Retries are safe. No double-posting.
 ---
 
-Sending the same `POST /v1/posts` request twice should publish exactly one post. That's what the `Idempotency-Key` header buys you.
+Sending the same `POST /v1/posts` request twice should publish exactly one post per target. That's what the `Idempotency-Key` header buys you — and on multi-target batches it covers every target in the batch, not just the first.
 
 ## How it works
 
@@ -13,9 +13,35 @@ Pass a unique key — typically a UUID v4 — on every write:
 Idempotency-Key: 01HY6X4AWBJM2K9F2PTQMRD9JQ
 ```
 
-The first request with that key executes normally. Any subsequent request with the same key, the same route, and a matching body hash returns the **first response** verbatim — same status code, same body. The platform call doesn't run a second time.
+The first request with that key executes normally. Any subsequent request with the same key, the same route, and a matching body hash returns the **first response** verbatim — same status code, same batch envelope, same per-target `results[]`. None of the underlying platform calls run a second time.
 
 If the body hash differs from the first request, you get back [`idempotency_conflict`](/errors/idempotency_conflict) so you don't accidentally publish two different posts under one key.
+
+## Multi-target batches
+
+The key applies to the whole batch. If you send a request with `targets: [A, B, C]` and retry with the same key, you replay the same batch response — A, B, and C each publish at most once, even if the first call partially succeeded. Change any target (add D, remove C, swap an `accountId`) and the body hash changes; you'll get `idempotency_conflict` on the retry.
+
+```bash retry-safe.sh
+# First call — fans out to three targets.
+curl -X POST https://api.letmepost.dev/v1/posts \
+  -H "Authorization: Bearer $LMP_KEY" \
+  -H "Idempotency-Key: 01HY6X4AWBJM2K9F2PTQMRD9JQ" \
+  -H "Content-Type: application/json" \
+  --data @- <<EOF
+{
+  "targets": [
+    { "accountId": "<twitter_account_id>" },
+    { "accountId": "<linkedin_account_id>" },
+    { "accountId": "<bluesky_account_id>" }
+  ],
+  "text": "shipped"
+}
+EOF
+
+# Network blew up before the response landed? Retry with the same key,
+# byte-identical body. You get back the original batch envelope; no
+# target publishes twice.
+```
 
 ## When to use a key
 

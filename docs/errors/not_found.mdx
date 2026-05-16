@@ -9,7 +9,7 @@ This is also the response for **scope mismatches**: a profile-scoped key request
 
 ## What triggers it
 
-- `POST /v1/posts` with an `account.id` that doesn't belong to your org.
+- `POST /v1/posts` with a `targets[].accountId` that doesn't belong to your org.
 - `GET /v1/posts/:id` with an id that's been deleted or belongs to another org.
 - `GET /v1/accounts/:id` against a profile-scoped key with a `profileId` mismatch.
 - A typo in any UUID parameter.
@@ -22,6 +22,7 @@ This is also the response for **scope mismatches**: a profile-scoped key request
     "code": "not_found",
     "message": "Platform account not found.",
     "remediation": "Verify the account id and that it belongs to your organization.",
+    "docUrl": "https://docs.letmepost.dev/errors/not_found",
     "requestId": "req_..."
   }
 }

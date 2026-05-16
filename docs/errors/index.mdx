@@ -15,6 +15,8 @@ Every failure response from the API uses the same envelope:
     "platformVersion": "atproto-2026-04",
     "platformResponse": null,
     "remediation": "Shorten the post to 300 graphemes or fewer.",
+    "docUrl": "https://docs.letmepost.dev/errors/preflight_failed",
+    "ruleUrl": "https://docs.letmepost.dev/preflight/bluesky-text-max_graphemes",
     "requestId": "req_01HY6X4AWBJM2K9F2PTQMRD9JQ"
   }
 }
@@ -29,6 +31,8 @@ Every failure response from the API uses the same envelope:
 | `platformVersion`  | when known | the pinned upstream API version we targeted              |
 | `platformResponse` | when known | raw upstream body, untouched                             |
 | `remediation`      | usually    | actionable next step                                     |
+| `docUrl`           | always     | absolute link to this code's docs page                   |
+| `ruleUrl`          | when `rule` is set | absolute link to the rule's preflight page       |
 | `requestId`        | always     | echoed in the `x-request-id` response header             |
 | `traceId`          | when on    | OTel trace id when tracing is active                     |
 
@@ -94,8 +98,8 @@ if (err.message.includes("Instagram requires media")) { /* … */ }
 ```
 </Step>
 
-<Step title="Respect `Retry-After` and the `RateLimit-*` headers">
-On `rate_limited` responses, the `Retry-After` header tells you how many seconds to wait. The per-route `RateLimit-Limit` / `RateLimit-Remaining` / `RateLimit-Reset` headers (IETF draft naming) show how much budget remains in the current window when present. The always-present `X-RateLimit-Limit` is the static ceiling for the route. Honor whichever is present — retrying earlier just burns budget.
+<Step title="Respect `Retry-After` and the `X-RateLimit-Limit` ceiling">
+On `rate_limited` responses, the `Retry-After` header tells you how many seconds to wait. The `X-RateLimit-Limit` header is on **every** response (not just 429s) and carries the static per-route ceiling — useful to size your client-side concurrency without first probing a 429. We deliberately do **not** publish `RateLimit-Remaining` or `RateLimit-Reset` in v1: until per-key counting lands, those values would be misleading across tenants. Honor `Retry-After` on 429 and you'll never need them.
 </Step>
 
 <Step title="Treat platform 4xx as caller-fixable, 5xx as platform-fault">

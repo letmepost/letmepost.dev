@@ -24,12 +24,14 @@ Anything in the [preflight rule catalog](/preflight). A few high-frequency examp
     "rule": "bluesky.text.max_graphemes",
     "platform": "bluesky",
     "remediation": "Shorten the post to 300 graphemes or fewer.",
+    "docUrl": "https://docs.letmepost.dev/errors/preflight_failed",
+    "ruleUrl": "https://docs.letmepost.dev/preflight/bluesky-text-max_graphemes",
     "requestId": "req_..."
   }
 }
 ```
 
-`rule` is always set on `preflight_failed`. Look it up at `/docs/preflight/<rule-with-dashes>/` for the full explainer + the upstream platform doc the constraint derives from.
+`rule` is always set on `preflight_failed`. The `ruleUrl` is the absolute link to that rule's docs page — same path as `/docs/preflight/<rule-with-dashes>/` — so a CLI can `open` it directly without parsing.
 
 ## Why preflight matters
 

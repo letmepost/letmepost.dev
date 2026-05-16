@@ -20,7 +20,10 @@ Pinterest mandates a still-frame URL on every video pin — it's the poster show
     "rule": "pinterest.video.cover_required",
     "platform": "pinterest",
     "message": "Pinterest video pins require a cover image — the still frame shown before play.",
-    "remediation": "Pass `pinterest: { coverImageUrl: '<public-https-url>' }` on the request body."
+    "remediation": "Pass `options.coverImageUrl` (with `options.platform: \"pinterest\"`) on the target.",
+    "docUrl": "https://docs.letmepost.dev/errors/preflight_failed",
+    "ruleUrl": "https://docs.letmepost.dev/preflight/pinterest-video-cover_required",
+    "requestId": "req_..."
   }
 }
 ```
@@ -37,13 +40,18 @@ Then upload the cover via `POST /v1/media` and reference its public URL — or p
 
 ```json video-pin.json
 {
-  "account": { "platform": "pinterest", "id": "..." },
+  "targets": [
+    {
+      "accountId": "00000000-0000-0000-0000-000000000000",
+      "options": {
+        "platform": "pinterest",
+        "boardId": "<board id>",
+        "coverImageUrl": "https://cdn.example.com/cover.jpg"
+      }
+    }
+  ],
   "text": "Walkthrough",
-  "media": [{ "kind": "video", "mediaId": "med_…" }],
-  "pinterest": {
-    "boardId": "<board id>",
-    "coverImageUrl": "https://cdn.example.com/cover.jpg"
-  }
+  "media": [{ "kind": "video", "mediaId": "med_…" }]
 }
 ```
 

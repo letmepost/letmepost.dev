@@ -3,7 +3,7 @@ title: Preflight
 description: Every documented platform constraint is checked locally before we touch the upstream API. Here are all the rules.
 ---
 
-Before the API forwards a post to a platform, it runs every documented constraint locally — character count, media format, alt-text length, URL reachability, scope checks. When something fails the response is an [`preflight_failed`](/errors/preflight_failed) error carrying the **rule id** that fired, so you can look it up by exact string.
+Before the API forwards a post to a platform, it runs every documented constraint locally — character count, media format, alt-text length, URL reachability, scope checks. When something fails the response is an [`preflight_failed`](/errors/preflight_failed) error carrying the **rule id** that fired, plus a `ruleUrl` field with the absolute link to *this* page set — so a client doesn't need to know the slug convention to deep-link a failure straight to its docs.
 
 ## Why preflight
 

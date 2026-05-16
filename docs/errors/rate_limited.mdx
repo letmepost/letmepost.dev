@@ -21,12 +21,15 @@ The exact limits aren't published as a contract — they're tuned by environment
     "code": "rate_limited",
     "message": "Rate limit exceeded.",
     "remediation": "Wait the number of seconds in the Retry-After header before retrying.",
+    "docUrl": "https://docs.letmepost.dev/errors/rate_limited",
     "requestId": "req_..."
   }
 }
 ```
 
 `Retry-After` is set on the response in seconds.
+
+Every response (not just 429s) also carries `X-RateLimit-Limit` — the static per-route ceiling — so a client can size concurrency without first probing a 429. We deliberately do not publish `Remaining` or `Reset` until per-key counting lands; those values would be misleading across tenants in v1.
 
 ## How to handle
 

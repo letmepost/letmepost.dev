@@ -4,67 +4,152 @@ description: From key to published — the synchronous path, the scheduled path,
 icon: send
 ---
 
-Publishing is one HTTP call. The same `POST /v1/posts` endpoint handles immediate and scheduled posts; the response status code and the lifecycle differ.
+Publishing is one HTTP call. The same `POST /v1/posts` endpoint handles immediate, scheduled, and multi-target publishes; the response status code and the lifecycle differ.
 
 ## Immediate publish
 
-A post body without `scheduledAt` runs synchronously. Preflight runs, the upstream platform call fires, and the response is `201` with the platform-native URI:
+A request body without `scheduledAt` runs synchronously. Preflight runs, the upstream platform call fires, and the response is `200` with a batch envelope:
 
 ```bash immediate.sh
 curl -X POST https://api.letmepost.dev/v1/posts \
   -H "Authorization: Bearer $LMP_KEY" \
   -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
-  -d '{
-    "account": { "platform": "bluesky", "id": "..." },
-    "text": "shipped"
-  }'
+  --data @- <<EOF
+{
+  "targets": [
+    { "accountId": "00000000-0000-0000-0000-000000000000" }
+  ],
+  "text": "shipped"
+}
+EOF
 ```
 
 Response:
 
-```json 201.json
+```json 200.json
 {
-  "id": "post_...",
-  "platform": "bluesky",
+  "id": "batch_01HY6X4AWBJM2K9F2PTQMRD9JQ",
   "status": "published",
-  "uri": "at://did:plc:abc/app.bsky.feed.post/3kr...",
-  "cid": "bafyrei...",
-  "createdAt": "2026-05-04T12:00:00Z"
+  "createdAt": "2026-05-16T12:00:00.000Z",
+  "results": [
+    {
+      "accountId": "00000000-0000-0000-0000-000000000000",
+      "platform": "bluesky",
+      "postId": "post_01HY6X4...",
+      "status": "published",
+      "uri": "at://did:plc:abc/app.bsky.feed.post/3kr...",
+      "cid": "bafyrei..."
+    }
+  ]
 }
 ```
 
-The `uri` field's shape is platform-native (AT Proto for Bluesky, Twitter snowflake id, LinkedIn URN, etc.). Save it if you need to deep-link to the post later.
+The top-level `id` is the batch id; each entry in `results[]` is one target's outcome. The `uri` shape is platform-native (AT Proto for Bluesky, Twitter snowflake id, LinkedIn URN, etc.) — save it to deep-link to the post later, or save `results[].postId` to fetch the record back via `GET /v1/posts/:id`.
+
+## Multi-target fan-out (the headline)
+
+Add more entries to `targets[]` and one request publishes to N accounts. The cap is 25 targets per request — beyond that you get `validation_failed` with `rule: "targets.max"`.
+
+```bash multi-target.sh
+curl -X POST https://api.letmepost.dev/v1/posts \
+  -H "Authorization: Bearer $LMP_KEY" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  --data @- <<EOF
+{
+  "targets": [
+    { "accountId": "<twitter_account_id>" },
+    { "accountId": "<linkedin_account_id>" },
+    { "accountId": "<bluesky_account_id>" }
+  ],
+  "text": "Hello from three platforms at once"
+}
+EOF
+```
+
+Each target can override `text`, `media`, `firstComment`, and per-platform `options` independently — anything you omit on a target inherits from the top-level defaults. Mix per-target overrides to send tailored copy in one call:
+
+```json per-target-overrides.json
+{
+  "targets": [
+    {
+      "accountId": "<twitter_account_id>",
+      "text": "shipped: 280-char version with emoji"
+    },
+    {
+      "accountId": "<linkedin_account_id>",
+      "text": "Shipped — the long-form version with paragraphs and a CTA."
+    },
+    { "accountId": "<bluesky_account_id>" }
+  ],
+  "text": "shipped — default that bluesky picks up"
+}
+```
+
+### Batch status semantics
+
+The top-level `status` summarizes the per-target outcomes:
+
+| `status` | when |
+|---|---|
+| `published` | every target succeeded |
+| `partial_failed` | at least one succeeded, at least one failed |
+| `failed` | every target failed |
+| `queued` | scheduled batch accepted (returned with `202`) |
+
+The batch itself returns `200` even on `partial_failed` — per-target errors live inside `results[].error`. Loop the array and branch on each entry's `status`; a mixed batch is a normal, expected shape, not an exception path.
+
+### Atomic shape preflight
+
+Cheap shape checks (text length, media counts + exclusivity, alt-text length, per-platform option sanity) run **atomically across the batch** before any persistence: if any target fails a shape rule the whole batch is rejected as `400 preflight_failed` and nothing is published. Deep checks (URL reachability, MIME sniffing, byte caps) run inside each publisher and surface per-target — a deep-check failure lands as `partial_failed`, not a `400`.
+
+### Auto-resolution by platform
+
+If your org has exactly one connected account for a platform, you can omit `accountId` and let the API resolve it:
+
+```json platform-only.json
+{
+  "targets": [{ "platform": "bluesky" }],
+  "text": "shipped"
+}
+```
+
+When two or more accounts match, you get `validation_failed` with `rule: "target.account.ambiguous"` and the candidate ids in `remediation` — pass an explicit `accountId` to disambiguate.
 
 ## Scheduled publish
 
-Add `scheduledAt` and the post goes onto the publish queue. Response is `202` with `status: "queued"`:
+Add `scheduledAt` and every target in the batch goes onto the publish queue. Response is `202 Accepted` with `status: "queued"`:
 
 ```bash scheduled.sh
 curl -X POST https://api.letmepost.dev/v1/posts \
   -H "Authorization: Bearer $LMP_KEY" \
   -H "Idempotency-Key: $(uuidgen)" \
   -H "Content-Type: application/json" \
-  -d '{
-    "account": { "platform": "bluesky", "id": "..." },
-    "text": "Friday at noon UTC",
-    "scheduledAt": "2026-05-08T12:00:00Z"
-  }'
+  --data @- <<EOF
+{
+  "targets": [
+    { "accountId": "<bluesky_account_id>" }
+  ],
+  "text": "Friday at noon UTC",
+  "scheduledAt": "2026-05-08T12:00:00Z"
+}
+EOF
 ```
 
-See [schedule a post](/guides/schedule-post) for the full lifecycle and constraints.
+See [schedule a post](/guides/schedule-post) for the full lifecycle and the v1 text-only constraint.
 
 ## What to subscribe to
 
-A successful immediate publish fires `post.published`. A scheduled publish fires `post.queued` immediately and then `post.published` (or `post.rejected` / `post.failed`) when the worker runs. Subscribe via [`POST /v1/webhook-endpoints`](/api-reference/webhooks/create) and verify signatures per [webhooks](/webhooks).
+Webhooks fire **per target**, not per batch. A successful immediate publish on three targets fires three `post.published` events. A scheduled batch fires `post.queued` per target on accept, then `post.published` / `post.rejected` / `post.failed` per target when the worker runs. Subscribe via [`POST /v1/webhook-endpoints`](/api-reference/webhooks/create) and verify signatures per [webhooks](/webhooks).
 
 ## Idempotency
 
-Every retry should reuse the same `Idempotency-Key`. Replays within 24 hours return the original response — same status code, same body. See [idempotency](/idempotency) for the full contract.
+`Idempotency-Key` applies to the whole batch. Reuse the same key on a retry and you get the original `CreatePostResponse` (same batch id, same per-target results) replayed verbatim — no double publishing on any target. Change any byte of the body (different `targets[]`, different `text`, anything) and you get `idempotency_conflict`. See [idempotency](/idempotency) for the full contract.
 
 ## When it fails
 
-The error envelope is the same shape across every failure mode — `code`, `message`, `rule`, `platformResponse`, `remediation`, `requestId`. See [errors](/errors) for the eleven codes.
+The error envelope is the same shape across every failure mode — `code`, `message`, `rule`, `platformResponse`, `remediation`, `docUrl`, `ruleUrl`, `requestId`. See [errors](/errors) for the eleven codes.
 
 ## See also
 
