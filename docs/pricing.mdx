@@ -5,16 +5,16 @@ icon: tag
 ---
 
 <Note>
-letmepost.dev is in alpha. The hosted SaaS is **free for everyone today** while we shake out platform-review timing and pricing shape. This page exists so the answer to "what'll it cost?" is in writing.
+letmepost.dev is in alpha. The hosted SaaS is **free for everyone today** while we shake out platform-review timing and the pricing shape. This page exists so the answer to "what'll it cost?" is in writing.
 </Note>
 
 ## Pricing principles
 
 The model is decided in spirit; the exact dollar amounts ship with billing.
 
-- **Flat rate, not per-profile.** The most-cited complaint about every incumbent (Buffer, Ayrshare, Hootsuite, Sprout) is per-profile or per-seat pricing. We don't.
+- **Flat rate, not per-profile.** The most-cited complaint about every incumbent is per-profile or per-seat pricing. We don't tax you for connecting more accounts.
 - **Real free tier.** Generous enough to evaluate against a real workflow without a credit card.
-- **Self-host stays free, forever.** The OSS image is the same code as the hosted SaaS. No feature gate, no open-core trick.
+- **Self-host stays free, forever.** The OSS image is the same code as the hosted SaaS. No feature gate, no open-core trick. [Self-host docs](/self-host/quick-start).
 - **No contracts, no auto-renewal abuse.** Month-to-month, cancel anytime, downgrade anytime.
 
 ## What you'll likely pay
@@ -22,12 +22,18 @@ The model is decided in spirit; the exact dollar amounts ship with billing.
 Until billing turns on, here's the shape we're targeting:
 
 | tier | what you get |
-|------|------|
-| **Free** | A meaningful monthly post quota. Every platform we support. Webhooks. The full API surface. No credit card. |
+|---|---|
+| **Free** | A meaningful monthly post quota. Every platform we support. Multi-target fan-out (one request → N platforms). Webhooks. The full API surface. No credit card. |
 | **Pro** *(planned)* | Higher quota, priority webhook delivery, the right SLAs for production workloads. Flat rate. |
-| **Self-host** | Always free. Bring your own infrastructure + platform credentials. |
+| **Self-host** | Always free. Bring your own infrastructure + platform credentials. Apache 2.0. |
 
 Posts are the natural unit of measurement. Profiles, accounts, and team members are not.
+
+## What's actually live
+
+- **Twitter / X** and **Bluesky** are live for every signup today.
+- **Instagram, LinkedIn, Facebook Pages, Threads, Pinterest** are gated on per-platform developer-portal reviews. Each ships as the review clears. Same API, same error envelope.
+- Live status is queryable at `GET /v1/platform-versions` and tracked in the [changelog](/changelog).
 
 ## What's free during alpha
 
@@ -35,9 +41,18 @@ Everything. While we're in alpha, the hosted SaaS is free for everyone — there
 
 In return, you should expect:
 
-- **Bluesky-only end-to-end** today. Other platforms ship as approvals clear (see [platforms](/platforms/bluesky) for live status per platform).
-- **No SLA**. We're stable enough for production workflows but not promising one.
+- **No SLA** today. We're stable enough for production workflows but not promising one.
 - **Migration help when billing turns on.** You'll know the prices, get advance notice, and have time to decide.
+- **Approval timing is upstream.** Most of our platforms gate launch on their own developer-portal reviews. If your business depends on a specific platform that's still in review, self-host with your own credentials is the immediate path.
+
+## What we don't charge for
+
+- **Connected accounts.** Connect every platform, every account, every Page — no per-row tax.
+- **Profiles.** A single org can carve into N profiles for per-client isolation; profiles are free.
+- **Team members.** No per-seat ladder.
+- **Webhook endpoints.** Register as many as you need; we'll deliver to all of them.
+- **API keys.** Mint a key per service / per script / per cron. Keys are free.
+- **Webhook deliveries / retries.** Built into the contract, not a billable line item.
 
 ## Updates
 

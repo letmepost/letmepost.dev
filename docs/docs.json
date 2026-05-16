@@ -69,6 +69,10 @@
               "guides/migrate-from-ayrshare",
               "guides/migrate-from-buffer"
             ]
+          },
+          {
+            "group": "Reference",
+            "pages": ["pricing", "changelog"]
           }
         ]
       },
@@ -113,10 +117,6 @@
         "tab": "Resources",
         "icon": "book",
         "groups": [
-          {
-            "group": "Reference",
-            "pages": ["pricing", "changelog"]
-          },
           {
             "group": "Errors",
             "pages": [

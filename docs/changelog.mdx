@@ -1,18 +1,106 @@
 ---
 title: Changelog
-description: Reverse-chronological release notes. API surface, schema, breaking changes.
+description: Reverse-chronological release notes — API surface, schema, breaking changes, new platforms.
 icon: clock-rotate-left
 ---
 
-The canonical record lives in the git history; this page summarizes notable additions, breakings, and platform-version pin upgrades.
+The canonical record lives in the git history; this page summarises the milestones a caller needs to know about. Subscribe to [GitHub releases](https://github.com/rosekamallove/letmepost.dev/releases) for tagged cuts, or follow [the open source repo](https://github.com/rosekamallove/letmepost.dev) for the running history.
 
-## 2026-05 — alpha
+## 2026-05
 
-- Bluesky publisher live end-to-end.
-- Threads, Facebook, and Instagram publishers built; Meta app review in flight.
-- Pinterest and Twitter/X publishers built; awaiting platform approval.
-- LinkedIn publisher behind product-tier review.
-- Webhook events: `post.queued`, `post.published`, `post.rejected`, `post.failed`, `token.expiring`, `token.revoked`, `version.deprecated`.
+### Changed — v1 wire shape
+
+- **`POST /v1/posts` is now multi-target.** Body shape: `{ targets: [{ accountId | platform, text?, media?, firstComment?, options? }], text?, media?, firstComment?, publishNow?, scheduledAt? }`. One request fans out to up to 25 connected accounts in parallel.
+- **Response is a batch envelope:** `{ id, status, createdAt, results: [{ accountId, platform, postId, status, uri?, cid?, error? }] }`. Batch `status` is `published`, `partial_failed`, `failed`, or `queued`.
+- **Explicit modes:** `publishNow: true` or `scheduledAt`. Mutually exclusive — the route returns `400 mode_conflict` if both are set.
+- **Atomic shape preflight:** if any target fails the synchronous shape checks (text length, media count, alt-text length, options sanity) the whole batch is rejected before any persistence. Deep preflight (URL reachability, MIME sniffing, byte caps) runs per-target inside the publisher and surfaces in `results[i].error`.
+- **Removed** the legacy single-target `{ account: { platform, id }, text, … }` body. Migration is a one-line rewrite to `{ targets: [{ accountId }], text, … }`.
+
+### Added — error envelope upgrades
+
+- Every error response now carries `docUrl` (always) and `ruleUrl` (when `rule` is set). Both are stable URLs that land directly on the canonical docs page for the code / rule.
+- New error code `platform_not_enabled` — surfaces when a platform isn't yet approved for the calling org (review pending, credentials missing, or admin-disabled).
+- New validation rules: `targets.required`, `targets.max`, `target.account.not_connected`, `target.account.ambiguous`, `targets.account.platform_mismatch`, `targets.options.platform_mismatch`.
+
+### Added — single-account auto-resolution
+
+- `targets[i]` may omit `accountId` when only `platform` is set; the API resolves the org's unique connected account for that platform (scoped to the api key's profile, so cross-profile leak is prevented). Ambiguous (2+) and not-connected (0) cases surface as structured 400s.
+
+### Added — rate-limit ceiling header
+
+- `X-RateLimit-Limit` on every response (per-route static ceiling). The IETF-draft `RateLimit-*` headers (no `X-` prefix) carry the real per-window state on routes that enforce it.
+
+### Added — Twitter / X live
+
+- Approval cleared; X is now connectable for every signup. Premium-tier 25,000-char support included. Token refresh and PKCE state are signed and survive the redirect.
+
+### Added — Instagram Login (standalone OAuth)
+
+- Instagram now has its own OAuth flow at `/v1/accounts/connect/instagram`, separate from the Facebook Login fan-out. Lets a user connect just their Instagram Business / Creator account without authoring a Page.
+
+### Added — docs surface
+
+- Mintlify docs site at [docs.letmepost.dev](https://docs.letmepost.dev) with 7 platform pages (each with Quick Reference, Common Errors, Wisdom callouts, "What you can't do"), the full preflight rule catalog, and a Best Practices guide for the error contract.
+- Migration guides for [Postiz](/guides/migrate-from-postiz), [Ayrshare](/guides/migrate-from-ayrshare), and [Buffer](/guides/migrate-from-buffer) — field rename tables + side-by-side curl + cutover playbook.
+- [Self-host section](/self-host/quick-start) with 5 detailed pages (quick-start, environment, platform-credentials, deploying, troubleshooting), written against the real `apps/api/.env.example`.
+- OpenAPI spec rewritten end-to-end to match the v1 wire shape. Spec size went from 1,413 lines to 3,313 lines — every error references a unified `ApiError` schema with `docUrl` / `ruleUrl`, every write documents the `Idempotency-Key` parameter, and the previously-undocumented Pinterest sub-resources and webhook endpoint detail routes are now in the spec.
+
+### Added — landing surface
+
+- Vercel Analytics on the landing alongside PostHog.
+- New free tools at [letmepost.dev/tools](https://letmepost.dev/tools): grapheme counter, idempotency-key generator, YouTube quota calculator, LinkedIn scope checker, LinkedIn API-version tracker, PKCE / OAuth scope debugger, cron expression builder.
+- Blog scaffold at [letmepost.dev/blog](https://letmepost.dev/blog).
+- Canonical logo SVG at `letmepost.dev/logo.svg` (text-as-paths, no font dependency) — referenced from both the landing and the docs.
+
+### Fixed
+
+- Instagram provider persists the IG-scoped user id from `GET /me?fields=id` instead of the token-response `user_id`. The token-response value isn't what the Content Publishing API expects in `/{ig-user-id}/media` — sending it produced an opaque `OAuthException code:2 is_transient:true` on every publish.
+- Dashboard QuickStart toast branches on the batch status (`published` / `partial_failed` / `failed` / `queued`) instead of always saying "Post queued."
+- Dashboard error toast now reads `body.error.message` (the real envelope path) instead of the always-undefined `body.message`.
+- Post detail error contract surfaces `docUrl` and `ruleUrl` as clickable links — same URLs the API stamps into live error responses.
+
+## 2026-04
+
+### Added — first wave of platforms
+
+- **Bluesky** publisher live end-to-end: text, single image + multi-image, video, alt text, first-comment reply.
+- **LinkedIn** MVP publisher (personal-only — `w_member_social`); org posting awaits the Marketing Developer Platform review.
+- **Pinterest** publisher: image + video pins, board picker, sandbox-flip via `PINTEREST_API_BASE` while Standard Access is in review.
+- **Twitter / X** publisher: text, 4-up images + alt-text, video chunked upload, reply chains, quote tweets, PKCE PKCE-state signing.
+- **Threads** publisher: text + image + multi-image + video + carousel up to 20 items, mixed image / video allowed.
+- **Facebook Pages + Instagram (FBLB fan-out)** publishers, one OAuth grant.
+
+### Added — primitives
+
+- **Posts**: hybrid sync + scheduled flow with lifecycle webhook events (`post.queued`, `post.validated`, `post.published`, `post.rejected`, `post.failed`).
+- **Media** service: `POST /v1/media` multipart streaming, `mediaId` resolver path on every publish.
+- **Webhooks**: HMAC-signed delivery, endpoint registration CRUD, synchronous test-event endpoint, event types `post.queued`, `post.validated`, `post.published`, `post.rejected`, `post.failed`, `token.expiring`, `token.revoked`, `version.deprecated`.
+- **API keys**: scoped Bearer tokens; per-profile scoping; rotation surface.
+- **Profiles**: workspace primitive inside an organization; api keys can be profile-scoped so a single org can isolate per-client publishing.
+- **Post log**: `GET /v1/posts` (filterable, cursor-paginated) and `GET /v1/posts/:id` (full record + attempts).
+- **Idempotency**: `Idempotency-Key` middleware on every write — body-hash dedupe, retries replay the original response.
+- **Rate limiting**: per-route middleware on `/v1/posts` and `/v1/api-keys`.
+- **Encryption at rest**: AES-256-GCM envelope encryption for every stored OAuth token; `KEK_MASTER` env-rotatable.
+- **Queue**: BullMQ worker for scheduled publishes + token refresh + webhook delivery.
+- **Auth**: better-auth integration with email/password + optional Google / GitHub OAuth.
+
+### Added — dashboard
+
+- Onboarding checklist: API key → connect platform → first post, with inline live-send.
+- Post log with TanStack-Table filters (time range, error code, status, platform).
+- Accounts page with per-platform brand styling.
+- Webhook endpoints page with test dialog (synthetic event, editable JSON, delivery result).
+- Profiles CRUD + profile switcher in sidebar.
+- TanStack-Query throughout for cache-shared lists, optimistic mutations, and refetch on focus.
+- Three-state theme picker (light / dark / system) aligned with the landing palette.
+
+## 2026-04 (early)
+
+- Project scaffolded. Bluesky integration as the first publisher.
+- Drizzle schemas + repositories.
+- DB integration test harness.
+- Initial migration.
+- API key auth + `/v1/api-keys`.
 
 ## How we communicate breaking changes
 
