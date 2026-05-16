@@ -49,8 +49,17 @@
               "guides/connect-account",
               "guides/publish-post",
               "guides/schedule-post",
-              "guides/upload-media",
-              "guides/self-host"
+              "guides/upload-media"
+            ]
+          },
+          {
+            "group": "Self-host",
+            "pages": [
+              "self-host/quick-start",
+              "self-host/environment",
+              "self-host/platform-credentials",
+              "self-host/deploying",
+              "self-host/troubleshooting"
             ]
           },
           {

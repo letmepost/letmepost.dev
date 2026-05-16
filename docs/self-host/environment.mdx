@@ -1,0 +1,99 @@
+---
+title: Environment variables
+description: Every variable the API reads, what defaults to what, and which ones are required to boot.
+icon: sliders
+---
+
+The canonical source is [`apps/api/.env.example`](https://github.com/rosekamallove/letmepost.dev/blob/main/apps/api/.env.example) in the repo — it's the file the API actually reads, with comments next to each variable. This page is the same set of variables organized by purpose so you can scan it before a deploy.
+
+## Core (required to boot)
+
+These four are non-negotiable. The API refuses to start without them.
+
+| Variable | What it is |
+|---|---|
+| `DATABASE_URL` | Postgres connection string. NeonDB pooler URL recommended for hosted use; local Postgres also works. |
+| `REDIS_URL` | Redis URL. Powers BullMQ (publish / validate / refresh-token / webhook-deliver queues) and the idempotency cache. |
+| `KEK_MASTER` | AES-256-GCM master key for the token envelope. Base64 of exactly 32 bytes. Generate with `openssl rand -base64 32`. Must be rotated via a re-wrap script — replacing the value locks every connected account. |
+| `BETTER_AUTH_SECRET` | better-auth signing secret. 32 bytes minimum. `openssl rand -base64 32`. |
+
+## HTTP server
+
+| Variable | Default | What it is |
+|---|---|---|
+| `PORT` | `3000` | HTTP port the API listens on. |
+| `HOST` | `0.0.0.0` | Bind address. The default is reachable from outside the container/host. Override to `127.0.0.1` if you only want local reads. |
+| `PUBLIC_API_BASE_URL` | `http://localhost:3000` | Public origin the API is reachable on. Used by platform providers to build OAuth redirect URIs at runtime. Must match exactly what each platform's developer portal has on file. |
+| `BETTER_AUTH_URL` | `http://localhost:3000` | Public origin where better-auth callbacks land. Must match the URL the dashboard hits. |
+| `CORS_ORIGINS` | _empty_ | Extra CORS origins, comma-separated. The dashboard at `http://localhost:3001` is always allowed. Add your prod dashboard origin here. |
+| `TRUSTED_ORIGINS` | _empty_ | Origins better-auth trusts for cross-origin auth flows. Local `:3001` is always allowed; add the prod dashboard origin. |
+| `DASHBOARD_URL` | `http://localhost:3001` | Where the OAuth callback redirects after a successful (or failed) connect — typically the dashboard's `/accounts` page. |
+| `COOKIE_DOMAIN` | _empty_ | Set in production when API and dashboard live on different subdomains of the same parent — e.g. `.letmepost.dev` (note the leading dot). Configures the session cookie with `Domain=<value>; SameSite=None; Secure`. Leave blank in dev. |
+
+## Documentation links
+
+| Variable | Default | What it is |
+|---|---|---|
+| `DOCS_BASE_URL` | `https://docs.letmepost.dev` | Stamped on every error envelope as `error.docUrl` (and `error.ruleUrl` when a preflight rule fires), so callers land on the canonical remediation page in one click. Override for staging or a self-hosted docs site. |
+
+If you mirror the docs at, say, `https://docs.example.internal`, set `DOCS_BASE_URL=https://docs.example.internal` and every error response will link there.
+
+## Media (S3)
+
+The API uses a **single bucket**, with environments separated by an in-bucket key prefix. The current build talks to AWS S3 directly — there is no endpoint override, so S3-compatible providers (R2, MinIO, Wasabi) need a follow-up PR to expose the AWS SDK's `endpoint` option. See [troubleshooting](/self-host/troubleshooting#s3-compatible-storage) for the workaround.
+
+| Variable | What it is |
+|---|---|
+| `AWS_REGION` | AWS region, e.g. `us-east-1`. |
+| `S3_BUCKET` | Bucket name. Layout: `${MEDIA_ENV_PREFIX}/${orgId}/${mediaId}.${ext}`. |
+| `S3_ACCESS_KEY_ID` | IAM access key id. |
+| `S3_SECRET_ACCESS_KEY` | IAM secret access key. |
+| `MEDIA_PUBLIC_BASE_URL` | Public URL prefix concatenated with the S3 key. Direct S3 in v1 (`https://<bucket>.s3.<region>.amazonaws.com`); swap to CloudFront / a custom CDN domain later without code changes. |
+| `MEDIA_ENV_PREFIX` | Key prefix that namespaces objects per environment (e.g. `prod`, `dev`). Keeps prod / dev objects in separate key namespaces while sharing a bucket. |
+
+The bucket itself needs **Block Public Access OFF** (objects are served by URL), **ACLs disabled** (Object Ownership: "Bucket owner enforced"), and an IAM user with `s3:PutObject`, `GetObject`, `DeleteObject`, `AbortMultipartUpload`, `ListMultipartUploadParts` on objects, plus `ListBucket` / `ListBucketMultipartUploads` on the bucket itself.
+
+## Optional dashboard sign-in providers
+
+Set both `*_CLIENT_ID` and `*_CLIENT_SECRET` to enable each provider; leave blank to disable. The default is email + password.
+
+| Variable pair | Portal | Authorized callback |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Cloud Console → Credentials | `${BETTER_AUTH_URL}/api/auth/callback/google` |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub → Developer settings → OAuth Apps | `${BETTER_AUTH_URL}/api/auth/callback/github` |
+
+## Platform OAuth credentials
+
+These are only required when you want users to connect that platform. The full per-platform setup (portal links, exact scope strings, app review status) lives in [platform credentials](/self-host/platform-credentials).
+
+| Platform | Required vars | Optional overrides |
+|---|---|---|
+| LinkedIn | `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` | — |
+| Twitter / X | `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET` | `TWITTER_LAUNCH_CAP_PER_ACCOUNT` (default `50`) |
+| Pinterest | `PINTEREST_CLIENT_ID`, `PINTEREST_CLIENT_SECRET` | `PINTEREST_API_BASE` (Trial Access sandbox) |
+| Facebook Pages | `META_APP_ID`, `META_APP_SECRET` | `META_GRAPH_VERSION` |
+| Instagram (IG Login) | `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET` | `INSTAGRAM_GRAPH_BASE`, `INSTAGRAM_OAUTH_AUTHORIZE_URL`, `INSTAGRAM_OAUTH_TOKEN_URL` (test-only) |
+| Threads | `THREADS_CLIENT_ID`, `THREADS_CLIENT_SECRET` | `THREADS_API_BASE`, `THREADS_API_VERSION` |
+| Bluesky | — (uses app passwords) | — |
+
+The Meta family runs on three independent OAuth apps in v1 — Facebook Pages, Instagram (Instagram API with Instagram Login), and Threads are all separate developer apps with separate client credentials. See [platform credentials](/self-host/platform-credentials#meta) for why.
+
+## Operational toggles
+
+| Variable | Default | What it is |
+|---|---|---|
+| `PLATFORM_STATE_OVERRIDES` | _empty_ | Override the launch state of a platform without redeploying. Comma-separated `platform:state` pairs (`live`, `trial`, `pending`). Example: `pinterest:live,linkedin:trial`. |
+| `TEST_DATABASE_URL` | _empty_ | Used only by the repository test suite (per-test transaction rollback). Point at a disposable local Postgres or a Neon preview branch. |
+
+## What's not in scope today
+
+Three names appear in the example file but are not yet read by the source code. Don't carry these into your `.env` expecting them to do anything in v1:
+
+- `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` — placeholders for a future YouTube provider.
+- `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` — deferred to v2.
+
+Likewise, three variables that older self-host docs referenced **do not exist** in the current build:
+
+- `MEDIA_S3_BUCKET`, `MEDIA_S3_REGION`, `MEDIA_S3_ENDPOINT`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY` — superseded by the `AWS_REGION` + `S3_*` + `MEDIA_*` set above.
+- `ENCRYPTION_KEY` — superseded by `KEK_MASTER` (AES-256-GCM, base64 of 32 bytes).
+- `WEBHOOK_SIGNING_SECRET` — there is no global signing secret. Each webhook endpoint generates its own signing secret at registration time and returns it once in the create response.

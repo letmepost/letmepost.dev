@@ -1,0 +1,119 @@
+---
+title: Quick start
+description: Get the API, worker, and dashboard running locally against a Postgres + Redis you control.
+icon: bolt
+---
+
+This is the fastest path from a fresh clone to publishing your first post against a self-hosted API. It uses Docker Compose for Postgres + Redis only — the API, worker, and dashboard run via `pnpm` so you keep watch mode, fast iteration, and stack traces in your terminal.
+
+For a production deploy (separate API + worker services, managed Postgres / Redis, custom domain), see [deploying](/self-host/deploying) once you've gotten this working locally.
+
+## Prerequisites
+
+- **Node** `>= 24`
+- **pnpm** `10.33.0+` — `corepack enable` if you haven't already
+- **Docker** + **Docker Compose** — only for the Postgres + Redis containers
+- An S3-compatible bucket for media (you can defer this if you only need text posts to start with)
+
+## 1. Clone and install
+
+```bash
+git clone https://github.com/rosekamallove/letmepost.dev
+cd letmepost.dev
+pnpm install
+```
+
+## 2. Start Postgres and Redis
+
+The repo ships a `docker-compose.dev.yml` that runs **only Postgres and Redis** — nothing else. The API, worker, and dashboard run from your shell via `pnpm`. This keeps reloads instant and stack traces native.
+
+```bash
+docker compose -f docker-compose.dev.yml up -d
+```
+
+Ports are deliberately non-standard so they don't collide with whatever you already have running:
+
+| Service  | Host port | Container port |
+|----------|-----------|----------------|
+| Postgres | `5433`    | `5432`         |
+| Redis    | `6380`    | `6379`         |
+
+The Postgres database is seeded with user `letmepost`, password `letmepost`, db `letmepost`.
+
+## 3. Configure environment
+
+Copy the example file and fill in the bare minimum to boot:
+
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+The minimum required to start the server is:
+
+```bash
+DATABASE_URL=postgres://letmepost:letmepost@localhost:5433/letmepost
+REDIS_URL=redis://localhost:6380
+KEK_MASTER=$(openssl rand -base64 32)
+BETTER_AUTH_SECRET=$(openssl rand -base64 32)
+```
+
+`KEK_MASTER` is the AES-256-GCM master key that wraps every encrypted token at rest. **Keep it.** Rotating it without a re-wrap script locks every connected account.
+
+Every other variable is either optional with a sensible default or only required when you connect a specific platform. See [environment](/self-host/environment) for the full list.
+
+## 4. Run database migrations
+
+```bash
+pnpm --filter @letmepost/api db:migrate
+```
+
+Schema lives in `apps/api/drizzle/`. Drizzle Kit applies the SQL files in order. Re-running is safe — already-applied migrations are skipped.
+
+## 5. Start the stack
+
+In separate terminal tabs:
+
+```bash
+pnpm --filter @letmepost/api dev        # API → http://localhost:3000
+pnpm --filter @letmepost/dashboard dev  # Dashboard → http://localhost:3001
+```
+
+Or run everything via Turbo from the repo root:
+
+```bash
+pnpm dev
+```
+
+The worker is bundled into the API process in dev mode, so the same `pnpm --filter @letmepost/api dev` command runs the HTTP server and the BullMQ consumer in one process. In production you split them — see [deploying](/self-host/deploying).
+
+## 6. Verify the API
+
+```bash
+curl http://localhost:3000/health
+# {"status":"ok"}
+```
+
+If you get `connection refused`, check that the Postgres and Redis containers are up: `docker compose -f docker-compose.dev.yml ps`.
+
+## 7. Sign in and connect Bluesky
+
+Open `http://localhost:3001` and sign up with email + password. Bluesky is the easiest platform to connect for a first smoke test — no OAuth app required, just an [app password](https://bsky.app/settings/app-passwords).
+
+Once the account is connected, copy its `id` from the **Accounts** page and follow [quickstart](/quickstart) — every example works against your local API once you swap `https://api.letmepost.dev` for `http://localhost:3000`.
+
+## Next
+
+<CardGroup cols={2}>
+  <Card title="Environment variables" icon="sliders" href="/self-host/environment">
+    Every var the API reads, what defaults to what, and which ones are optional.
+  </Card>
+  <Card title="Platform credentials" icon="key" href="/self-host/platform-credentials">
+    OAuth client setup for LinkedIn, X, Pinterest, Meta, Threads, Instagram.
+  </Card>
+  <Card title="Deploying to production" icon="ship" href="/self-host/deploying">
+    Two-service split, managed Postgres + Redis, custom domain.
+  </Card>
+  <Card title="Troubleshooting" icon="stethoscope" href="/self-host/troubleshooting">
+    Common boot failures and how to read them.
+  </Card>
+</CardGroup>
