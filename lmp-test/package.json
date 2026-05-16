@@ -1,0 +1,10 @@
+{
+  "name": "@letmepost/lmp-test",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Smoke tests against a deployed letmepost.dev API. Hits the live POST /v1/posts surface with both legacy and multi-target shapes.",
+  "scripts": {
+    "test": "node run.mjs"
+  }
+}
