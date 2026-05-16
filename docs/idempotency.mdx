@@ -1,6 +1,7 @@
 ---
 title: Idempotency
 description: Every write accepts an Idempotency-Key. Retries are safe. No double-posting.
+icon: repeat
 ---
 
 Sending the same `POST /v1/posts` request twice should publish exactly one post per target. That's what the `Idempotency-Key` header buys you — and on multi-target batches it covers every target in the batch, not just the first.

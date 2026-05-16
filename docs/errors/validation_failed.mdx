@@ -1,6 +1,7 @@
 ---
 title: validation_failed
 description: Request body or query failed schema or batch-level validation. The rule field carries the specific check that failed.
+icon: circle-xmark
 ---
 
 The request body, headers, or query parameters didn't match the documented schema, or the request violated a batch-level rule (target count, mode conflict, account resolution). This is rejection at the route boundary — platform-specific preflight (which checks platform constraints) only runs after validation passes.

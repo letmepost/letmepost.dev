@@ -1,6 +1,7 @@
 ---
 title: platform_unavailable
 description: Upstream is down, throttled, or returning 5xx. Transient — retry later.
+icon: cloud-slash
 ---
 
 The upstream platform is unreachable, throttled, or returning 5xx. Treat as transient. The post is **not** retried automatically by `POST /v1/posts` — that's the caller's job, with idempotency.
