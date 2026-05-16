@@ -155,7 +155,7 @@ export default function DashboardHome() {
         </div>
         <p className="text-xs text-muted-foreground">
           {setupComplete
-            ? "Your operator surface — connect accounts, mint API keys, subscribe to webhooks."
+            ? "Your operator surface. Connect accounts, mint API keys, subscribe to webhooks."
             : "A few quick steps and you're publishing."}
         </p>
       </FadeIn>
@@ -303,7 +303,7 @@ function ApiKeyStepBody({
     onSuccess: (res) => {
       onCreated(res.key);
       queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys.list() });
-      toast.success("Copy it now — we won't show it again.");
+      toast.success("Copy it now. We won't show it again.");
     },
     onError: (err: unknown) => {
       toast.error(
@@ -359,7 +359,7 @@ function ApiKeyStepBody({
     return (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Plaintext is only shown at creation — this is the masked form on
+          Plaintext is only shown at creation. This is the masked form on
           file. Rotate or add another from the API keys page.
         </p>
         <div className="break-all bg-muted px-3 py-2 font-mono text-xs min-h-[2rem]">
@@ -453,13 +453,37 @@ function QuickStartBody({
           text: "Hello from letmepost.dev",
         }),
       });
+      const body = (await res.json().catch(() => ({}))) as {
+        status?: "queued" | "published" | "partial_failed" | "failed";
+        results?: Array<{ platform: string }>;
+        error?: { code?: string; message?: string; rule?: string };
+      };
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        throw new Error(body.message ?? `Request failed (${res.status})`);
+        // The API returns `{ error: { code, message, rule, remediation, … } }`.
+        // Surface the rule when present so a preflight rejection reads as
+        // "preflight_failed: bluesky.text.max_graphemes — …" instead of the
+        // generic "Request failed (400)".
+        const code = body.error?.code;
+        const rule = body.error?.rule;
+        const detail = rule ? `${code}: ${rule}` : (code ?? "");
+        const msg = body.error?.message ?? `Request failed (${res.status})`;
+        throw new Error(detail ? `${detail} — ${msg}` : msg);
       }
-      toast.success("Post queued — opening the log.");
+      // 2xx batch envelope: branch on the per-batch status so a 200 with
+      // `failed` / `partial_failed` doesn't flow silently through the
+      // success path.
+      const platform = body.results?.[0]?.platform ?? "the platform";
+      if (body.status === "queued") {
+        toast.success("Post queued. Opening the log.");
+      } else if (body.status === "partial_failed") {
+        toast.warning("Some targets failed. Opening the log.");
+      } else if (body.status === "failed") {
+        toast.error("Publish failed. Opening the log.");
+      } else {
+        // published (default for an immediate send) or undefined (shouldn't
+        // happen but treat as success).
+        toast.success(`Posted to ${platform}. Opening the log.`);
+      }
       onSent();
       router.push("/posts");
     } catch (err) {
@@ -478,7 +502,7 @@ function QuickStartBody({
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
         Paste this into your terminal, or fire it now from this page. Either
-        way, the result lands in the post log — published or failed.
+        way, the result lands in the post log, published or failed.
       </p>
       <pre className="bg-muted px-3 py-3 text-xs font-mono overflow-x-auto whitespace-pre">
         {example}
@@ -614,7 +638,7 @@ function RecentActivitySection() {
           <div>
             <CardTitle>Recent activity</CardTitle>
             <CardDescription>
-              Last 5 posts — published or failed. Click for the full
+              Last 5 posts, published or failed. Click for the full
               record.
             </CardDescription>
           </div>

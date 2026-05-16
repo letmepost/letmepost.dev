@@ -99,7 +99,7 @@ export default function PostDetailPage() {
                 <CardTitle>Attempts</CardTitle>
                 <CardDescription>
                   Per-attempt history is captured for retried posts. This post
-                  hasn&apos;t recorded individual attempts yet — the canonical
+                  hasn&apos;t recorded individual attempts yet. The canonical
                   state above is what we have.
                 </CardDescription>
               </CardHeader>
@@ -143,7 +143,7 @@ function ErrorContract({ error }: { error: NonNullable<PostDetail["error"]> }) {
       <CardHeader>
         <CardTitle className="text-destructive">Error</CardTitle>
         <CardDescription>
-          The full error contract — code, rule, upstream response, remediation.
+          The full error contract. Code, rule, upstream response, remediation.
           Same shape your client SDK receives.
         </CardDescription>
       </CardHeader>
@@ -225,7 +225,7 @@ function Attempts({ attempts }: { attempts: PostDetail["attempts"] }) {
       <CardHeader>
         <CardTitle>Attempts</CardTitle>
         <CardDescription>
-          Per-attempt history — useful for debugging retried posts.
+          Per-attempt history. Useful for debugging retried posts.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -326,13 +326,9 @@ function CopyAsCurl({ post }: { post: PostDetail }) {
     : "lmp_live_…";
 
   const curl = useMemo(() => {
-    // Reconstruct what the original CreatePostRequest looked like as best
-    // as we can from what's stored. We always show the multi-target shape
-    // — even for posts that were originally sent with the legacy
-    // single-target body — because that's the canonical surface today.
-    // mediaRefs / scheduledAt round-trip because they're persisted on the
-    // row; firstComment and per-target options don't (not in the row today
-    // — Phase 11 follow-up).
+    // Reconstruct the CreatePostRequest from what's persisted on the row.
+    // mediaRefs / scheduledAt round-trip because they live on the row;
+    // firstComment and per-target options don't (Phase 11 follow-up).
     const body: Record<string, unknown> = {
       targets: [{ accountId: post.accountId }],
       text: post.text,
@@ -365,7 +361,7 @@ function CopyAsCurl({ post }: { post: PostDetail }) {
         <CardTitle>Reproduce</CardTitle>
         <CardDescription>
           Same request, ready to paste. The Authorization header carries a
-          masked form of one of your real keys — swap in the plaintext you
+          masked form of one of your real keys. Swap in the plaintext you
           stored at creation before running.
         </CardDescription>
       </CardHeader>
