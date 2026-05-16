@@ -25,8 +25,20 @@ export const ErrorResponse = z.object({
     platformVersion: z.string().optional().describe("Pinned upstream API version the call targeted"),
     platformResponse: z.unknown().optional().describe("Raw upstream platform response, when available"),
     remediation: z.string().optional().describe("Actionable next step for the caller"),
+    docUrl: z.string().optional().describe("Link to the docs page for this error code"),
+    ruleUrl: z.string().optional().describe("Link to the docs page for this preflight rule (set when `rule` is present)"),
     requestId: z.string().optional().describe("Per-request correlation id, echoed in the x-request-id response header"),
     traceId: z.string().optional().describe("OTel trace id, when tracing is active"),
   }),
 });
 export type ErrorResponse = z.infer<typeof ErrorResponse>;
+
+/**
+ * Convert a preflight rule id like `bluesky.text.max_graphemes` into the
+ * docs URL slug `bluesky-text-max_graphemes`. Dots map to hyphens; segment-
+ * internal underscores are preserved so the slug matches the on-disk
+ * filename in `docs/preflight/<slug>.mdx`.
+ */
+export function slugifyRule(rule: string): string {
+  return rule.replace(/\./g, "-").toLowerCase();
+}

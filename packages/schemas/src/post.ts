@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AccountRef } from "./platforms.js";
+import { Platform } from "./platforms.js";
 import { PostStatus } from "./post-status.js";
 
 export const BLUESKY_MAX_GRAPHEMES = 300;
@@ -139,102 +139,211 @@ export const FirstComment = z.object({
 export type FirstComment = z.infer<typeof FirstComment>;
 
 /**
- * Per-post Pinterest extension — the documented escape hatch for callers
- * who want to override the connected account's default board, set a
- * specific click-through URL, or stamp a pin title. All fields optional;
- * omit the whole object to publish to the account's `defaultBoardId` with
- * the image URL as the click-through.
+ * Hard cap on `targets[]` in a single CreatePostRequest. Sized for agency
+ * workloads (multiple Pages, multiple IG accounts, multiple LinkedIn pages
+ * across brands). Raise when a real caller hits it — the cap exists to
+ * prevent runaway fan-out from looping the same content across hundreds of
+ * accounts, not to gate real workloads.
  */
-export const PinterestPostOverrides = z.object({
-  boardId: z.string().min(1).optional(),
-  destinationUrl: z.string().url().optional(),
-  title: z.string().min(1).optional(),
-  /**
-   * REQUIRED when the pin's media is a video — Pinterest mandates a
-   * separate cover image URL on every video pin (the still frame shown
-   * before play). MVP: caller supplies a public URL; Phase 12 may add
-   * server-side first-frame extraction.
-   */
-  coverImageUrl: z.string().url().optional(),
-});
-export type PinterestPostOverrides = z.infer<typeof PinterestPostOverrides>;
+export const MAX_TARGETS_PER_REQUEST = 25;
 
 /**
- * Per-post Threads extension. `replyToId` is the platform thread id to
- * reply under (Threads's `reply_to_id` parameter). Threads doesn't have
- * scheduled-publish or first-comment, so the surface stays minimal.
- */
-export const ThreadsPostOverrides = z.object({
-  replyToId: z.string().min(1).optional(),
-});
-export type ThreadsPostOverrides = z.infer<typeof ThreadsPostOverrides>;
-
-/**
- * Per-post X / Twitter extension. Two compose-time options:
- *   - `replyToTweetId` builds a reply chain (X threads are reply chains).
- *     Pass the previous tweet id; the new tweet sets `reply.in_reply_to_tweet_id`.
- *   - `quoteTweetId` quote-tweets an existing tweet.
+ * Per-target option payload. Discriminated on `platform` so a request that
+ * sends e.g. a Twitter `replyToTweetId` to a Bluesky target is caught with a
+ * clean validation error at the route boundary (rule:
+ * `targets.options.platform_mismatch`) rather than failing deep in a publisher.
  *
- * These are mutually exclusive at the API level — X rejects a tweet that
- * sets both. Preflight enforces it locally so the user gets a clean
- * preflight_failed instead of a code-100 round-trip.
+ * Replaces the v0 top-level `pinterest` / `threads` / `twitter` keys.
  */
-export const TwitterPostOverrides = z
-  .object({
-    replyToTweetId: z.string().min(1).optional(),
-    quoteTweetId: z.string().min(1).optional(),
-  })
-  .refine(
-    (v) => !(v.replyToTweetId && v.quoteTweetId),
-    {
-      message:
-        "Pass either `replyToTweetId` or `quoteTweetId`, not both — X rejects tweets that combine the two.",
-      path: ["replyToTweetId"],
-    },
-  );
-export type TwitterPostOverrides = z.infer<typeof TwitterPostOverrides>;
+export const TargetOptions = z
+  .discriminatedUnion("platform", [
+    z.object({
+      platform: z.literal("twitter"),
+      replyToTweetId: z.string().min(1).optional(),
+      quoteTweetId: z.string().min(1).optional(),
+    }),
+    z.object({
+      platform: z.literal("pinterest"),
+      boardId: z.string().min(1).optional(),
+      destinationUrl: z.string().url().optional(),
+      title: z.string().min(1).optional(),
+      coverImageUrl: z.string().url().optional(),
+    }),
+    z.object({
+      platform: z.literal("threads"),
+      replyToId: z.string().min(1).optional(),
+    }),
+    // Empty-option platforms — included so callers get a clean
+    // `targets.options.platform_mismatch` rule on platform/account
+    // disagreement rather than an opaque `invalid discriminator value`.
+    z.object({ platform: z.literal("bluesky") }),
+    z.object({ platform: z.literal("facebook") }),
+    z.object({ platform: z.literal("instagram") }),
+    z.object({ platform: z.literal("linkedin") }),
+  ])
+  .superRefine((v, ctx) => {
+    if (
+      v.platform === "twitter" &&
+      v.replyToTweetId &&
+      v.quoteTweetId
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Pass either `replyToTweetId` or `quoteTweetId`, not both — X rejects tweets that combine the two.",
+        path: ["replyToTweetId"],
+      });
+    }
+  });
+export type TargetOptions = z.infer<typeof TargetOptions>;
 
-export const CreatePostRequest = z.object({
-  account: AccountRef,
-  text: z.string().min(1),
+/**
+ * One target on a multi-target publish request. Carries either an explicit
+ * accountId, an explicit platform (for single-account auto-resolution), or
+ * both (in which case they must agree). Plus optional per-target overrides
+ * for text / media / firstComment / options. When an override is absent the
+ * target inherits the top-level default.
+ */
+export const PostTarget = z
+  .object({
+    accountId: z.string().uuid().optional(),
+    platform: Platform.optional(),
+    text: z.string().min(1).optional(),
+    media: z.array(MediaInput).optional(),
+    firstComment: FirstComment.optional(),
+    options: TargetOptions.optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.accountId && !v.platform) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Each target must carry `accountId`, `platform`, or both. Pass `platform` alone when your org has exactly one connected account for that platform.",
+        path: ["accountId"],
+      });
+    }
+  });
+export type PostTarget = z.infer<typeof PostTarget>;
+
+/**
+ * Multi-target post request — fans a single body out to N accounts in one
+ * call. Validation rules:
+ *   - `targets[]` non-empty and ≤ MAX_TARGETS_PER_REQUEST (route enforces
+ *     these with rules `targets.required` and `targets.max`).
+ *   - `publishNow=true` AND `scheduledAt` set → `mode_conflict`.
+ *   - A target's `options.platform` must match the resolved account's
+ *     platform (rule `targets.options.platform_mismatch`).
+ *
+ * If neither `publishNow` nor `scheduledAt` is set the request defaults to
+ * immediate publish (preserves v0 semantics for the legacy shape).
+ */
+export const MultiTargetCreatePostRequest = z.object({
+  targets: z.array(PostTarget).min(1),
+  /** Default text — applied to any target that omits its own. */
+  text: z.string().min(1).optional(),
+  /** Default media — applied to any target that omits its own. */
   media: z.array(MediaInput).optional(),
+  /** Default firstComment — applied to any target that omits its own. */
   firstComment: FirstComment.optional(),
+  /** Explicit immediate publish. Mutually exclusive with `scheduledAt`. */
+  publishNow: z.boolean().optional(),
   /**
-   * ISO-8601 datetime. If set and in the future, the post is persisted with
-   * status="queued" and a delayed job is scheduled on the publish queue —
-   * the endpoint returns 202 immediately. If absent, the post runs
-   * synchronously and returns 201.
+   * ISO-8601 datetime. If set and in the future the whole batch is queued
+   * (each target's row persisted with status="queued"). Mutually exclusive
+   * with `publishNow=true`.
    */
   scheduledAt: z.string().datetime().optional(),
-  /** Pinterest-specific overrides — board, destination URL, title. */
-  pinterest: PinterestPostOverrides.optional(),
-  /** Threads-specific overrides — reply_to_id. */
-  threads: ThreadsPostOverrides.optional(),
-  /** X / Twitter overrides — reply chain + quote tweet. */
-  twitter: TwitterPostOverrides.optional(),
 });
+export type MultiTargetCreatePostRequest = z.infer<
+  typeof MultiTargetCreatePostRequest
+>;
+
+/**
+ * Public CreatePostRequest — the multi-target shape is the only supported
+ * shape in v1. A single-target publish is `targets: [{ accountId }]`.
+ */
+export const CreatePostRequest = MultiTargetCreatePostRequest;
 export type CreatePostRequest = z.infer<typeof CreatePostRequest>;
 
+/**
+ * Per-target result on a multi-target publish response. `postId` is the
+ * letmepost-side post row id for this target; `accountId` echoes the input
+ * so a caller can correlate by position OR by id.
+ */
+export const PostTargetResult = z.object({
+  accountId: z.string(),
+  platform: z.string(),
+  postId: z.string().optional(),
+  status: PostStatus,
+  uri: z.string().optional(),
+  cid: z.string().optional(),
+  firstCommentUri: z.string().optional(),
+  firstCommentCid: z.string().optional(),
+  warnings: z
+    .array(
+      z.object({
+        code: z.string(),
+        message: z.string(),
+      }),
+    )
+    .optional(),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+      rule: z.string().optional(),
+      remediation: z.string().optional(),
+      platformResponse: z.unknown().optional(),
+    })
+    .optional(),
+});
+export type PostTargetResult = z.infer<typeof PostTargetResult>;
+
+/**
+ * Top-level CreatePostResponse — one batch id plus per-target results.
+ *
+ * Batch `status` summarizes the per-target outcomes:
+ *   - "queued":          all targets queued for a scheduled publish (202)
+ *   - "published":       all targets published successfully (200)
+ *   - "partial_failed":  at least one target succeeded and at least one
+ *                        failed at publish time (200 with mixed results)
+ *   - "failed":          every target failed (200 with all-failure results)
+ *
+ * Cheap shape preflight is atomic: if any target fails the synchronous
+ * shape checks (text length, media count + exclusivity, alt-text length,
+ * platform-options sanity) the whole batch is rejected as 400
+ * validation_failed / preflight_failed before any persistence. Deep
+ * preflight (URL reachability, MIME sniffing, byte caps) runs inside each
+ * publisher and surfaces per-target — a batch with one deep-check failure
+ * will land as `partial_failed`, not as a 400.
+ */
 export const CreatePostResponse = z.object({
   id: z.string(),
+  status: z.enum(["queued", "published", "partial_failed", "failed"]),
+  createdAt: z.string(),
+  scheduledAt: z.string().optional(),
+  results: z.array(PostTargetResult),
+});
+export type CreatePostResponse = z.infer<typeof CreatePostResponse>;
+
+/**
+ * Per-platform publish result — what each publisher returns into the
+ * dispatcher. Distinct from `CreatePostResponse` (which is the public
+ * multi-target envelope) so a publisher's contract stays simple: "given
+ * an account + input, return the platform-level result for the one publish
+ * you just performed." The dispatcher / route handler is responsible for
+ * folding N PublishResults into a CreatePostResponse.
+ */
+export const PublishResult = z.object({
+  id: z.string(),
   platform: z.string(),
-  /**
-   * Lifecycle state — "queued" for scheduled posts (returned with 202),
-   * "published" for successful immediate posts (returned with 201).
-   */
   status: PostStatus.optional(),
   uri: z.string().optional(),
   cid: z.string().optional(),
   createdAt: z.string(),
-  /** Echoed back on scheduled posts so callers can confirm the parse. */
   scheduledAt: z.string().optional(),
   firstCommentUri: z.string().optional(),
   firstCommentCid: z.string().optional(),
-  /**
-   * Non-fatal warnings attached to an otherwise successful publish. Today,
-   * used when the main post succeeded but the first-comment reply failed —
-   * we surface a warning rather than fail the whole request.
-   */
   warnings: z
     .array(
       z.object({
@@ -244,4 +353,4 @@ export const CreatePostResponse = z.object({
     )
     .optional(),
 });
-export type CreatePostResponse = z.infer<typeof CreatePostResponse>;
+export type PublishResult = z.infer<typeof PublishResult>;
