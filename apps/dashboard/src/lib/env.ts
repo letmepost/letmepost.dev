@@ -6,3 +6,11 @@
  */
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+
+/**
+ * Public docs origin. Must match `DOCS_BASE_URL` on the API so dashboard-side
+ * computed `docUrl` / `ruleUrl` links land on the same pages the API references
+ * in its error envelope.
+ */
+export const DOCS_URL =
+  process.env.NEXT_PUBLIC_DOCS_URL ?? "https://docs.letmepost.dev";

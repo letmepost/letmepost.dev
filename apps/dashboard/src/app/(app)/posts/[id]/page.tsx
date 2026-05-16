@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Clipboard } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowSquareOut, Clipboard } from "@phosphor-icons/react";
 import { toast } from "sonner";
+import { slugifyRule } from "@letmepost/schemas";
 import { apiFetch, ApiRequestError } from "@/lib/api";
 import { getPost, statusTone, type PostDetail } from "@/lib/posts";
-import { API_URL } from "@/lib/env";
+import { API_URL, DOCS_URL } from "@/lib/env";
 import { queryKeys } from "@/lib/query-keys";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -138,6 +139,15 @@ function Header({ post }: { post: PostDetail }) {
 }
 
 function ErrorContract({ error }: { error: NonNullable<PostDetail["error"]> }) {
+  // The API stamps `docUrl` and `ruleUrl` onto live error responses but
+  // doesn't persist them on the row — they're computed from `code` and
+  // `rule` at response time. Mirror that computation here so the post-log
+  // surface carries the same links a live caller sees.
+  const docUrl = error.code ? `${DOCS_URL}/errors/${error.code}` : null;
+  const ruleUrl = error.rule
+    ? `${DOCS_URL}/preflight/${slugifyRule(error.rule)}`
+    : null;
+
   return (
     <Card>
       <CardHeader>
@@ -148,8 +158,20 @@ function ErrorContract({ error }: { error: NonNullable<PostDetail["error"]> }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <Field label="Code" value={error.code} mono />
-        {error.rule ? <Field label="Rule" value={error.rule} mono /> : null}
+        <LinkField
+          label="Code"
+          value={error.code}
+          href={docUrl}
+          description="Stable error code — links to the docs page."
+        />
+        {error.rule ? (
+          <LinkField
+            label="Rule"
+            value={error.rule}
+            href={ruleUrl}
+            description="Specific rule that fired — links to its preflight page."
+          />
+        ) : null}
         {error.platform ? (
           <Field label="Platform" value={error.platform} />
         ) : null}
@@ -178,6 +200,40 @@ function ErrorContract({ error }: { error: NonNullable<PostDetail["error"]> }) {
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+function LinkField({
+  label,
+  value,
+  href,
+  description,
+}: {
+  label: string;
+  value: string;
+  href: string | null;
+  description?: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 font-mono text-sm underline-offset-4 hover:underline"
+        >
+          {value}
+          <ArrowSquareOut className="size-3.5 opacity-70" weight="bold" />
+        </a>
+      ) : (
+        <div className="font-mono text-sm">{value}</div>
+      )}
+      {description ? (
+        <div className="text-xs text-muted-foreground">{description}</div>
+      ) : null}
+    </div>
   );
 }
 
