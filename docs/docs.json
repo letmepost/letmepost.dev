@@ -21,6 +21,18 @@
     "dark": "/images/logo-dark.svg",
     "href": "https://letmepost.dev"
   },
+  "seo": {
+    "indexing": "navigable",
+    "metatags": {
+      "og:site_name": "letmepost.dev",
+      "og:image": "https://letmepost.dev/og-image.png",
+      "og:type": "website",
+      "twitter:card": "summary_large_image",
+      "twitter:site": "@letmepostdotdev",
+      "twitter:creator": "@letmepostdotdev",
+      "twitter:image": "https://letmepost.dev/og-image.png"
+    }
+  },
   "navigation": {
     "tabs": [
       {
