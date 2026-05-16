@@ -3,7 +3,7 @@
   "info": {
     "title": "letmepost.dev API",
     "version": "v1",
-    "description": "Open-source social media publishing API. Preflight validation, transparent errors, idempotency, stable platform versions.\n\nThe full developer documentation lives at [letmepost.dev/docs/](https://letmepost.dev/docs/). This reference is auto-generated from the canonical Zod schemas at `packages/schemas/`.\n\n**Auth:** Bearer key in the `Authorization` header. See [Authentication](https://letmepost.dev/docs/authentication/).\n**Idempotency:** every write accepts `Idempotency-Key`. See [Idempotency](https://letmepost.dev/docs/idempotency/).\n**Errors:** stable envelope with `code`, `rule`, `platformResponse`, `remediation`. See [Errors](https://letmepost.dev/docs/errors/).",
+    "description": "Open-source social media publishing API. Preflight validation, transparent errors, idempotency, stable platform versions.\n\nThe full developer documentation lives at [letmepost.dev/docs/](https://letmepost.dev/docs/). This reference is generated from the canonical Zod schemas at `packages/schemas/`.\n\n**Auth:** Bearer key in the `Authorization` header. See [Authentication](https://letmepost.dev/docs/authentication/).\n**Idempotency:** every write accepts `Idempotency-Key`. See [Idempotency](https://letmepost.dev/docs/idempotency/).\n**Errors:** stable envelope with `code`, `rule`, `platformResponse`, `remediation`, `docUrl`, `ruleUrl`. See [Errors](https://letmepost.dev/docs/errors/).",
     "contact": {
       "name": "letmepost.dev",
       "url": "https://github.com/rosekamallove/letmepost.dev"
@@ -22,31 +22,28 @@
   "tags": [
     {
       "name": "Posts",
-      "description": "Publish and read posts."
+      "description": "Publish and read posts. Multi-target: a single `POST /v1/posts` fans out to up to 25 connected accounts."
     },
     {
       "name": "Media",
-      "description": "Upload and reference media."
+      "description": "Upload and reference media assets."
     },
     {
       "name": "Accounts",
-      "description": "Connect and manage platform accounts."
+      "description": "Connect, list, and disconnect platform accounts."
     },
     {
-      "name": "API keys",
-      "description": "Mint and revoke keys."
+      "name": "API Keys",
+      "description": "Mint and revoke API keys (dashboard session only)."
     },
     {
       "name": "Webhooks",
-      "description": "Register webhook endpoints."
-    },
+      "description": "Register, test, and manage outbound webhook endpoints."
+    }
+  ],
+  "security": [
     {
-      "name": "Profiles",
-      "description": "Profile-scoped key management."
-    },
-    {
-      "name": "Platform versions",
-      "description": "Public version tracker."
+      "bearer": []
     }
   ],
   "components": {
@@ -58,138 +55,38 @@
         "description": "Mint an API key in the dashboard. See https://letmepost.dev/docs/authentication/."
       }
     },
+    "headers": {
+      "X-RateLimit-Limit": {
+        "description": "Per-route request ceiling for this endpoint. A static contract — sliding-window remaining/reset live on the IETF-draft `RateLimit-*` headers (no prefix) when enforcement is active.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "example": 1000
+        }
+      },
+      "X-Request-Id": {
+        "description": "Per-request correlation id, also echoed inside the error envelope as `error.requestId`.",
+        "schema": {
+          "type": "string",
+          "example": "req_01HY6X4AWBJM2K9F2PTQMRD9JQ"
+        }
+      }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": false,
+        "description": "Recommended on every write. Replays within 24 hours return the original response; conflicting bodies surface as `409 idempotency_conflict`. See [Idempotency](https://letmepost.dev/docs/idempotency/).",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "example": "post-launch-2026-05-15-001"
+        }
+      }
+    },
     "schemas": {
-      "PostStatus": {
-        "type": "string",
-        "enum": [
-          "queued",
-          "validated",
-          "publishing",
-          "published",
-          "failed",
-          "rejected"
-        ]
-      },
-      "CreatePostResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "post_01HY6X4AWBJM2K9F2PTQMRD9JQ"
-          },
-          "platform": {
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/PostStatus"
-          },
-          "uri": {
-            "type": "string",
-            "description": "Platform-native URI (e.g., AT Proto for Bluesky, post URN for LinkedIn)."
-          },
-          "cid": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string"
-          },
-          "scheduledAt": {
-            "type": "string"
-          },
-          "firstCommentUri": {
-            "type": "string"
-          },
-          "firstCommentCid": {
-            "type": "string"
-          },
-          "warnings": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "code": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "code",
-                "message"
-              ]
-            }
-          }
-        },
-        "required": [
-          "id",
-          "platform",
-          "createdAt"
-        ]
-      },
-      "ErrorCode": {
-        "type": "string",
-        "enum": [
-          "validation_failed",
-          "preflight_failed",
-          "platform_auth_failed",
-          "platform_rejected",
-          "platform_unavailable",
-          "internal_error",
-          "unauthenticated",
-          "unauthorized",
-          "not_found",
-          "idempotency_conflict",
-          "rate_limited"
-        ],
-        "description": "The eleven canonical error codes. See https://letmepost.dev/docs/errors/ for per-code documentation."
-      },
-      "ErrorResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "object",
-            "properties": {
-              "code": {
-                "$ref": "#/components/schemas/ErrorCode"
-              },
-              "message": {
-                "type": "string"
-              },
-              "rule": {
-                "type": "string",
-                "description": "The preflight rule id or validation field path that failed. See https://letmepost.dev/docs/preflight/ for the rule catalog."
-              },
-              "platform": {
-                "type": "string"
-              },
-              "platformVersion": {
-                "type": "string",
-                "description": "Pinned upstream API version."
-              },
-              "platformResponse": {
-                "description": "Raw upstream response, when available."
-              },
-              "remediation": {
-                "type": "string"
-              },
-              "requestId": {
-                "type": "string"
-              },
-              "traceId": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "code",
-              "message"
-            ]
-          }
-        },
-        "required": [
-          "error"
-        ]
-      },
       "Platform": {
         "type": "string",
         "enum": [
@@ -203,26 +100,121 @@
         ],
         "description": "Supported platforms in v1."
       },
-      "AccountRef": {
+      "PostStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "validated",
+          "publishing",
+          "published",
+          "failed",
+          "rejected"
+        ],
+        "description": "Lifecycle state of a single per-target post row."
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "validation_failed",
+          "preflight_failed",
+          "platform_auth_failed",
+          "platform_rejected",
+          "platform_unavailable",
+          "platform_not_enabled",
+          "internal_error",
+          "unauthenticated",
+          "unauthorized",
+          "not_found",
+          "idempotency_conflict",
+          "rate_limited"
+        ],
+        "description": "Canonical error codes. See https://letmepost.dev/docs/errors/ for per-code documentation."
+      },
+      "ApiError": {
         "type": "object",
+        "description": "Stable error envelope. Every non-2xx response uses this shape. `docUrl` is always present; `ruleUrl` is present whenever `rule` is set.",
+        "required": [
+          "error"
+        ],
         "properties": {
-          "platform": {
-            "$ref": "#/components/schemas/Platform"
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "The letmepost platform_account id you got from connect.",
-            "example": "00000000-0000-0000-0000-000000000000"
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "docUrl",
+              "requestId"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable summary. Stable enough to log, not stable enough to switch on — switch on `code` and `rule`."
+              },
+              "rule": {
+                "type": "string",
+                "description": "The specific preflight rule or validator that failed (e.g. `bluesky.text.max_graphemes`, `targets.options.platform_mismatch`).",
+                "example": "bluesky.text.max_graphemes"
+              },
+              "platform": {
+                "$ref": "#/components/schemas/Platform"
+              },
+              "platformVersion": {
+                "type": "string",
+                "description": "Pinned upstream API version the call targeted (e.g. `graph-v23.0` for Facebook)."
+              },
+              "platformResponse": {
+                "description": "Raw upstream platform response, when available."
+              },
+              "remediation": {
+                "type": "string",
+                "description": "Actionable next step for the caller — short, imperative."
+              },
+              "docUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Link to the docs page for this `code`.",
+                "example": "https://docs.letmepost.dev/errors/preflight_failed"
+              },
+              "ruleUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Link to the docs page for this preflight `rule`. Present whenever `rule` is set.",
+                "example": "https://docs.letmepost.dev/preflight/bluesky-text-max_graphemes"
+              },
+              "requestId": {
+                "type": "string",
+                "description": "Per-request correlation id, also echoed in the `X-Request-Id` response header.",
+                "example": "req_01HY6X4AWBJM2K9F2PTQMRD9JQ"
+              },
+              "traceId": {
+                "type": "string",
+                "description": "OpenTelemetry trace id, when tracing is active."
+              }
+            }
           }
         },
-        "required": [
-          "platform",
-          "id"
-        ]
+        "example": {
+          "error": {
+            "code": "preflight_failed",
+            "message": "Bluesky posts are capped at 300 graphemes; this body is 312.",
+            "rule": "bluesky.text.max_graphemes",
+            "platform": "bluesky",
+            "remediation": "Trim 12 graphemes, or split into a thread.",
+            "docUrl": "https://docs.letmepost.dev/errors/preflight_failed",
+            "ruleUrl": "https://docs.letmepost.dev/preflight/bluesky-text-max_graphemes",
+            "requestId": "req_01HY6X4AWBJM2K9F2PTQMRD9JQ"
+          }
+        }
       },
-      "MediaItem": {
+      "MediaInput": {
         "type": "object",
+        "description": "A single media item attached to a post. Exactly one of `mediaId` / `url` / `bytesBase64` must be present.",
+        "required": [
+          "kind"
+        ],
         "properties": {
           "kind": {
             "type": "string",
@@ -232,108 +224,420 @@
             ]
           },
           "altText": {
-            "type": "string"
+            "type": "string",
+            "description": "Per-platform alt-text caps apply (e.g. Bluesky 2000, Twitter 1000)."
           },
           "mediaId": {
             "type": "string",
             "pattern": "^med_[0-9A-Za-z]{22}$",
-            "description": "References a previous POST /v1/media upload. Preferred for production."
+            "description": "References a previous `POST /v1/media` upload. Preferred for production — bytes already live on our CDN.",
+            "example": "med_01HY6X4AWBJM2K9F2PTQMR"
           },
           "url": {
             "type": "string",
             "format": "uri",
-            "description": "Public URL we fetch from your CDN. Must respond 200 to anonymous GET."
+            "description": "Public URL we fetch from your CDN at publish time. Must respond 200 to anonymous GET.",
+            "example": "https://cdn.example.com/launch.jpg"
           },
           "bytesBase64": {
             "type": "string",
-            "description": "Inline base64. Convenient for tests; use POST /v1/media for production."
+            "description": "Inline base64. Convenient for tiny images and tests; use `POST /v1/media` for anything substantial."
           }
-        },
-        "required": [
-          "kind"
-        ],
-        "description": "Exactly one of mediaId / url / bytesBase64 must be set per item."
+        }
       },
       "FirstComment": {
         "type": "object",
+        "description": "Auto-posted reply to the published post. Bluesky-only today; ignored on platforms that don't support it.",
+        "required": [
+          "text"
+        ],
         "properties": {
           "text": {
             "type": "string",
             "minLength": 1
           }
-        },
-        "required": [
-          "text"
-        ],
-        "description": "Bluesky-only today. Auto-replies to the parent post with this text after publish."
-      },
-      "PinterestPostOverrides": {
-        "type": "object",
-        "properties": {
-          "boardId": {
-            "type": "string",
-            "minLength": 1
-          },
-          "destinationUrl": {
-            "type": "string",
-            "format": "uri"
-          },
-          "title": {
-            "type": "string",
-            "minLength": 1
-          }
         }
       },
-      "ThreadsPostOverrides": {
+      "TargetOptions": {
+        "description": "Per-target platform options. Discriminated on `platform`; the discriminator must match the resolved account's platform or the request fails with `targets.options.platform_mismatch`. Replaces the v0 top-level `pinterest` / `threads` / `twitter` keys.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "platform"
+            ],
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "twitter"
+                ]
+              },
+              "replyToTweetId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Reply under this tweet id."
+              },
+              "quoteTweetId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Quote this tweet id. Mutually exclusive with `replyToTweetId` — X rejects tweets that combine the two."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "platform"
+            ],
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "pinterest"
+                ]
+              },
+              "boardId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Pinterest board to pin to. Falls back to the account's default board when omitted."
+              },
+              "destinationUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Outbound link attached to the pin."
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "coverImageUrl": {
+                "type": "string",
+                "format": "uri",
+                "description": "Cover image URL for video pins."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "platform"
+            ],
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "threads"
+                ]
+              },
+              "replyToId": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Threads thread id to reply under."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "platform"
+            ],
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "bluesky"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "platform"
+            ],
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "facebook"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "platform"
+            ],
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "instagram"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "platform"
+            ],
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
+                  "linkedin"
+                ]
+              }
+            }
+          }
+        ],
+        "discriminator": {
+          "propertyName": "platform"
+        }
+      },
+      "PostTarget": {
         "type": "object",
+        "description": "One target on a multi-target publish. Carries an `accountId`, a `platform` hint, or both (must agree). Per-target `text` / `media` / `firstComment` / `options` override the top-level defaults.",
         "properties": {
-          "replyToId": {
+          "accountId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "letmepost platform_account id. When omitted, `platform` must be set and the org must have exactly one connected account for that platform."
+          },
+          "platform": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Platform"
+              }
+            ],
+            "description": "Auto-resolve hint. Used alone when the org has exactly one connected account for the platform; combined with `accountId` it must agree (else `targets.account.platform_mismatch`)."
+          },
+          "text": {
             "type": "string",
             "minLength": 1,
-            "description": "Threads thread id to reply under (Threads's reply_to_id parameter)."
+            "description": "Per-target text override. Falls back to the top-level `text`."
+          },
+          "media": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaInput"
+            },
+            "description": "Per-target media override. Falls back to the top-level `media`."
+          },
+          "firstComment": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/FirstComment"
+              }
+            ],
+            "description": "Per-target first-comment override."
+          },
+          "options": {
+            "$ref": "#/components/schemas/TargetOptions"
           }
         }
       },
       "CreatePostRequest": {
         "type": "object",
+        "description": "Multi-target publish request — fans a single body out to up to 25 connected accounts in one call. The legacy single-target `account: {}` shape is no longer accepted.",
+        "required": [
+          "targets"
+        ],
         "properties": {
-          "account": {
-            "$ref": "#/components/schemas/AccountRef"
+          "targets": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 25,
+            "items": {
+              "$ref": "#/components/schemas/PostTarget"
+            }
           },
           "text": {
             "type": "string",
             "minLength": 1,
-            "example": "Hello from letmepost.dev"
+            "description": "Default text applied to any target that omits its own `text`."
           },
           "media": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/MediaItem"
-            }
+              "$ref": "#/components/schemas/MediaInput"
+            },
+            "description": "Default media applied to any target that omits its own `media`."
           },
           "firstComment": {
             "$ref": "#/components/schemas/FirstComment"
           },
+          "publishNow": {
+            "type": "boolean",
+            "description": "Explicit immediate-publish mode. Mutually exclusive with `scheduledAt` (`mode_conflict`). When neither is set the request publishes immediately."
+          },
           "scheduledAt": {
             "type": "string",
             "format": "date-time",
-            "description": "ISO-8601 timestamp at least 1 second in the future. When set, the post is queued and the response is 202.",
-            "example": "2026-05-08T12:00:00.000Z"
-          },
-          "pinterest": {
-            "$ref": "#/components/schemas/PinterestPostOverrides"
-          },
-          "threads": {
-            "$ref": "#/components/schemas/ThreadsPostOverrides"
+            "description": "ISO-8601 timestamp at least 1 second in the future. When set, every target row is queued and the response is 202. Scheduled posts currently accept text only — media and firstComment require an immediate publish.",
+            "example": "2026-06-01T12:00:00.000Z"
           }
         },
+        "example": {
+          "targets": [
+            {
+              "platform": "twitter"
+            },
+            {
+              "platform": "bluesky"
+            },
+            {
+              "platform": "linkedin",
+              "text": "Launching with deep links: https://letmepost.dev"
+            }
+          ],
+          "text": "Shipped multi-target publishing today."
+        }
+      },
+      "PostTargetResult": {
+        "type": "object",
+        "description": "Per-target outcome inside a `CreatePostResponse.results[]`. `error` is set when this target failed; otherwise `uri` / `cid` (when the platform exposes them) are set.",
         "required": [
-          "account",
-          "text"
-        ]
+          "accountId",
+          "platform",
+          "status"
+        ],
+        "properties": {
+          "accountId": {
+            "type": "string",
+            "description": "Echo of the resolved account id for this target."
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "postId": {
+            "type": "string",
+            "description": "letmepost-side post row id for this target. Use with `GET /v1/posts/{id}`."
+          },
+          "status": {
+            "$ref": "#/components/schemas/PostStatus"
+          },
+          "uri": {
+            "type": "string",
+            "description": "Platform-native URI (e.g. AT Proto `at://…` for Bluesky, post URN for LinkedIn)."
+          },
+          "cid": {
+            "type": "string",
+            "description": "Content id (Bluesky only)."
+          },
+          "firstCommentUri": {
+            "type": "string"
+          },
+          "firstCommentCid": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "error": {
+            "type": "object",
+            "description": "Per-target failure detail. Present only when `status` is `rejected` or `failed`.",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "$ref": "#/components/schemas/ErrorCode"
+              },
+              "message": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string"
+              },
+              "remediation": {
+                "type": "string"
+              },
+              "platformResponse": {}
+            }
+          }
+        }
+      },
+      "CreatePostResponse": {
+        "type": "object",
+        "description": "Batch envelope returned by `POST /v1/posts`. `status` summarizes the per-target outcomes.",
+        "required": [
+          "id",
+          "status",
+          "createdAt",
+          "results"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Batch id — unique per request, ties the per-target rows together for audit.",
+            "example": "00000000-0000-0000-0000-000000000000"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "published",
+              "partial_failed",
+              "failed"
+            ],
+            "description": "`queued`: all targets queued for a scheduled publish (202). `published`: every target succeeded. `partial_failed`: mixed outcomes. `failed`: every target failed."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scheduledAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Set when the batch was scheduled (202 responses)."
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PostTargetResult"
+            }
+          }
+        }
       },
       "Post": {
         "type": "object",
+        "description": "A single per-target post row from the post log.",
+        "required": [
+          "id",
+          "profileId",
+          "accountId",
+          "account",
+          "platform",
+          "status",
+          "text",
+          "mediaRefs",
+          "scheduledAt",
+          "publishedAt",
+          "platformUri",
+          "platformCid",
+          "createdAt",
+          "updatedAt"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -346,6 +650,12 @@
           },
           "account": {
             "type": "object",
+            "required": [
+              "id",
+              "platform",
+              "platformAccountId",
+              "displayName"
+            ],
             "properties": {
               "id": {
                 "type": "string"
@@ -362,13 +672,7 @@
                   "null"
                 ]
               }
-            },
-            "required": [
-              "id",
-              "platform",
-              "platformAccountId",
-              "displayName"
-            ]
+            }
           },
           "platform": {
             "$ref": "#/components/schemas/Platform"
@@ -387,13 +691,15 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "format": "date-time"
           },
           "publishedAt": {
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "format": "date-time"
           },
           "platformUri": {
             "type": [
@@ -409,31 +715,21 @@
           },
           "error": {},
           "createdAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           },
           "updatedAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           }
-        },
-        "required": [
-          "id",
-          "profileId",
-          "accountId",
-          "account",
-          "platform",
-          "status",
-          "text",
-          "mediaRefs",
-          "scheduledAt",
-          "publishedAt",
-          "platformUri",
-          "platformCid",
-          "createdAt",
-          "updatedAt"
-        ]
+        }
       },
       "PostListResponse": {
         "type": "object",
+        "required": [
+          "data",
+          "nextCursor"
+        ],
         "properties": {
           "data": {
             "type": "array",
@@ -447,25 +743,99 @@
               "null"
             ]
           }
-        },
+        }
+      },
+      "PostAttempt": {
+        "type": "object",
         "required": [
-          "data",
-          "nextCursor"
+          "id",
+          "attemptNumber",
+          "startedAt",
+          "finishedAt",
+          "succeeded"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "attemptNumber": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "succeeded": {
+            "type": "boolean"
+          },
+          "errorCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "errorMessage": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platformResponse": {}
+        }
+      },
+      "PostDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Post"
+          },
+          {
+            "type": "object",
+            "required": [
+              "attempts"
+            ],
+            "properties": {
+              "attempts": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/PostAttempt"
+                }
+              }
+            }
+          }
         ]
       },
       "CreateMediaResponse": {
         "type": "object",
+        "required": [
+          "id",
+          "url",
+          "contentType",
+          "sizeBytes",
+          "sha256",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
-            "pattern": "^med_[0-9A-Za-z]{22}$"
+            "pattern": "^med_[0-9A-Za-z]{22}$",
+            "example": "med_01HY6X4AWBJM2K9F2PTQMR"
           },
           "url": {
             "type": "string",
-            "format": "uri"
+            "format": "uri",
+            "example": "https://media.letmepost.dev/prod/orgs/.../med_01HY6X4AWBJM2K9F2PTQMR.jpg"
           },
           "contentType": {
-            "type": "string"
+            "type": "string",
+            "example": "image/jpeg"
           },
           "sizeBytes": {
             "type": "integer",
@@ -476,24 +846,753 @@
             "pattern": "^[0-9a-f]{64}$"
           },
           "createdAt": {
-            "type": "string"
+            "type": "string",
+            "format": "date-time"
           }
-        },
+        }
+      },
+      "MediaListResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/CreateMediaResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "profileId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Account": {
+        "type": "object",
+        "description": "A connected platform account. Secrets never leak — only display name, platform identifiers, and lifecycle timestamps. Platform-specific extension blocks (e.g. `pinterest`, `instagram`) carry non-sensitive metadata.",
+        "required": [
+          "id",
+          "profileId",
+          "platform",
+          "platformAccountId",
+          "displayName",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "profileId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "platformAccountId": {
+            "type": "string",
+            "description": "The platform's own user/account id (e.g. Twitter user id, IG Business id)."
+          },
+          "displayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tokenExpiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pinterest": {
+            "type": "object",
+            "description": "Pinterest-only metadata block.",
+            "properties": {
+              "defaultBoardId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "defaultBoardName": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "instagram": {
+            "type": "object",
+            "description": "Instagram-only metadata block. `accountType` and `grantedScopes` echo what Meta reports.",
+            "properties": {
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "accountType": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "grantedScopes": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "AccountListResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Account"
+            }
+          }
+        }
+      },
+      "ConnectDescriptorResponse": {
+        "type": "object",
+        "description": "Describes how to finish a connect for `:platform`. OAuth platforms return an `authorizationUrl`; Bluesky returns a form schema for the credentials surface.",
+        "required": [
+          "platform",
+          "state",
+          "descriptor"
+        ],
+        "properties": {
+          "platform": {
+            "$ref": "#/components/schemas/Platform"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "stable",
+              "trial",
+              "pending"
+            ],
+            "description": "Platform enablement state. `pending` rejects `connect` with `platform_not_enabled`."
+          },
+          "descriptor": {
+            "type": "object",
+            "description": "Provider-specific connect descriptor — OAuth URL for OAuth platforms, form schema for credential platforms."
+          }
+        }
+      },
+      "PinterestBoard": {
+        "type": "object",
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "privacy": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "PUBLIC",
+              "PROTECTED",
+              "SECRET",
+              null
+            ]
+          }
+        }
+      },
+      "CreateApiKeyRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "example": "ci-publish-key"
+          },
+          "prefix": {
+            "type": "string",
+            "enum": [
+              "lmp_live_",
+              "lmp_test_"
+            ],
+            "default": "lmp_live_"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "profileId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Optional profile scope. When set, the key only authenticates requests targeting that profile; cross-profile reads/writes 404."
+          }
+        }
+      },
+      "CreateApiKeyResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "last4",
+          "scopes",
+          "key",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "last4": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "profileId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "type": "string",
+            "description": "Plaintext key — returned **once** at creation and never again. Store it securely.",
+            "example": "lmp_live_AbC123…"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiKey": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "last4",
+          "scopes",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "last4": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "profileId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revokedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "ApiKeyListResponse": {
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiKey"
+            }
+          }
+        }
+      },
+      "WebhookEventType": {
+        "type": "string",
+        "enum": [
+          "post.queued",
+          "post.validated",
+          "post.published",
+          "post.rejected",
+          "post.failed",
+          "token.expiring",
+          "token.revoked",
+          "version.deprecated"
+        ]
+      },
+      "WebhookEndpoint": {
+        "type": "object",
         "required": [
           "id",
           "url",
-          "contentType",
-          "sizeBytes",
-          "sha256",
-          "createdAt"
+          "events",
+          "active",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEventType"
+            }
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "lastDeliveryAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastFailureReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WebhookEndpointWithSecret": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WebhookEndpoint"
+          },
+          {
+            "type": "object",
+            "required": [
+              "signingSecret"
+            ],
+            "properties": {
+              "signingSecret": {
+                "type": "string",
+                "description": "HMAC-SHA256 signing secret — returned **once** at creation. Used to verify every delivery's `X-Letmepost-Signature` header.",
+                "example": "whsec_…"
+              }
+            }
+          }
         ]
       },
-      "Empty": {
+      "WebhookEndpointListResponse": {
         "type": "object",
-        "properties": {}
+        "required": [
+          "data"
+        ],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEndpoint"
+            }
+          }
+        }
+      },
+      "CreateWebhookEndpointRequest": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://hooks.example.com/letmepost"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEventType"
+            },
+            "default": [],
+            "description": "Empty array subscribes the endpoint to every event type."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      },
+      "UpdateWebhookEndpointRequest": {
+        "type": "object",
+        "description": "Partial update. At least one field must be present.",
+        "minProperties": 1,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WebhookEventType"
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 500
+          }
+        }
+      },
+      "TestWebhookDeliveryRequest": {
+        "type": "object",
+        "description": "Default body sends a synthetic `post.published` event.",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/WebhookEventType"
+          },
+          "data": {}
+        }
+      },
+      "TestWebhookDeliveryResponse": {
+        "type": "object",
+        "required": [
+          "delivered",
+          "status",
+          "durationMs",
+          "deliveryId",
+          "sentEvent"
+        ],
+        "properties": {
+          "delivered": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "responseBody": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deliveryId": {
+            "type": "string"
+          },
+          "nonRetryable": {
+            "type": "boolean"
+          },
+          "errorName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sentEvent": {
+            "type": "object"
+          }
+        }
+      },
+      "DeletedResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "deleted"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deleted": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        }
       }
     },
-    "parameters": {}
+    "responses": {
+      "ValidationError": {
+        "description": "`validation_failed` — request body or query parameters didn't match the schema. Rules surfaced include `body.json`, `targets.required`, `targets.max`, `mode_conflict`, `targets.options.platform_mismatch`, `targets.account.platform_mismatch`, `target.account.not_connected`, `target.account.ambiguous`, `scheduledAt.future`, `scheduledAt.text_only`.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "PreflightError": {
+        "description": "`preflight_failed` — a documented platform constraint rejected the payload synchronously. `rule` identifies which constraint (e.g. `bluesky.text.max_graphemes`, `twitter.media.image_max_bytes`).",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "Unauthenticated": {
+        "description": "`unauthenticated` — missing or invalid Bearer key.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "`not_found` — the resource does not exist in the caller's organization (or, for profile-scoped keys, in the caller's profile).",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "IdempotencyConflict": {
+        "description": "`idempotency_conflict` — the same `Idempotency-Key` was used with a different request body. Use a new key, or retry with the original body.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "`rate_limited` — too many requests. Inspect `X-RateLimit-Limit` (static ceiling) and the IETF-draft `RateLimit-*` headers (sliding-window remaining/reset) before retrying.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "`validation_failed` with `rule: media.size_max` — upload exceeded the 200 MB per-file ceiling.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "PlatformError": {
+        "description": "`platform_auth_failed`, `platform_rejected`, `platform_unavailable`, or `platform_not_enabled` — the upstream platform refused the call. `platformResponse` carries the raw upstream payload when available.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "`internal_error` — something on our end failed unexpectedly. Quote the `requestId` when reporting.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      }
+    }
   },
   "paths": {
     "/v1/posts": {
@@ -501,8 +1600,8 @@
         "tags": [
           "Posts"
         ],
-        "summary": "Publish or schedule a post",
-        "description": "Publish to a connected account, or schedule for a future time when `scheduledAt` is set.\n\n- **Idempotent:** include an `Idempotency-Key` header. Replays within 24 hours return the original response.\n- **Preflight:** every documented platform constraint runs locally before the upstream call. See [/docs/preflight/](https://letmepost.dev/docs/preflight/).\n- **Errors:** failures use the [stable error envelope](https://letmepost.dev/docs/errors/) — `code`, `rule`, `platformResponse`, `remediation`.\n\nFor per-platform payload differences, see the [platforms guides](https://letmepost.dev/docs/platforms/bluesky/).",
+        "summary": "Publish or schedule a multi-target post",
+        "description": "Publish a single body to up to 25 connected accounts in one call, or schedule the whole batch for a future time.\n\n- **Multi-target only:** the v1 wire shape requires `targets[]`. The legacy `account: {}` single-target shape is no longer accepted.\n- **Idempotent:** include `Idempotency-Key`. Replays within 24 hours return the original response.\n- **Preflight:** every documented platform constraint runs locally before the upstream call. Cheap shape preflight is atomic across the batch — if any target fails the synchronous checks the whole call is rejected as `400 preflight_failed`. Deep checks (URL reachability, MIME sniffing, byte caps) run per target and surface inside `results[i].error`, producing a `partial_failed` batch rather than a 400.\n- **Errors:** failures use the [stable error envelope](https://letmepost.dev/docs/errors/) — `code`, `rule`, `platformResponse`, `remediation`, `docUrl`, `ruleUrl`.\n\nFor per-platform payload differences, see the [platforms guides](https://letmepost.dev/docs/platforms/bluesky/).",
         "security": [
           {
             "bearer": []
@@ -510,86 +1609,224 @@
         ],
         "parameters": [
           {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128,
-              "description": "Recommended on every write. See [Idempotency](https://letmepost.dev/docs/idempotency/)."
-            },
-            "required": false,
-            "name": "Idempotency-Key",
-            "in": "header"
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreatePostRequest"
+              },
+              "examples": {
+                "single-target-explicit-id": {
+                  "summary": "Single target by accountId",
+                  "value": {
+                    "targets": [
+                      {
+                        "accountId": "00000000-0000-0000-0000-000000000000"
+                      }
+                    ],
+                    "text": "Hello from letmepost.dev"
+                  }
+                },
+                "single-target-auto-resolve": {
+                  "summary": "Single target by platform (auto-resolved)",
+                  "value": {
+                    "targets": [
+                      {
+                        "platform": "bluesky"
+                      }
+                    ],
+                    "text": "Hello from letmepost.dev"
+                  }
+                },
+                "multi-target-fan-out": {
+                  "summary": "Three-platform fan-out with per-target overrides",
+                  "value": {
+                    "text": "Shipped multi-target publishing today.",
+                    "targets": [
+                      {
+                        "platform": "twitter"
+                      },
+                      {
+                        "platform": "bluesky"
+                      },
+                      {
+                        "platform": "linkedin",
+                        "text": "Launching multi-target publishing — read the deep dive at https://letmepost.dev/blog/multi-target."
+                      }
+                    ]
+                  }
+                },
+                "twitter-reply": {
+                  "summary": "Reply to a tweet via target options",
+                  "value": {
+                    "targets": [
+                      {
+                        "platform": "twitter",
+                        "options": {
+                          "platform": "twitter",
+                          "replyToTweetId": "1234567890"
+                        }
+                      }
+                    ],
+                    "text": "Following up on this."
+                  }
+                },
+                "scheduled-batch": {
+                  "summary": "Schedule a batch for the future",
+                  "value": {
+                    "scheduledAt": "2026-06-01T12:00:00.000Z",
+                    "text": "Scheduled drop.",
+                    "targets": [
+                      {
+                        "platform": "twitter"
+                      },
+                      {
+                        "platform": "bluesky"
+                      }
+                    ]
+                  }
+                }
               }
             }
           }
         },
         "responses": {
-          "201": {
-            "description": "Immediate publish succeeded.",
+          "200": {
+            "description": "Immediate publish completed. The batch envelope's `status` is `published` (all targets succeeded), `partial_failed` (mixed outcomes), or `failed` (every target failed). Per-target detail lives inside `results[]`.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreatePostResponse"
+                },
+                "examples": {
+                  "all-published": {
+                    "summary": "All targets succeeded",
+                    "value": {
+                      "id": "00000000-0000-0000-0000-000000000000",
+                      "status": "published",
+                      "createdAt": "2026-05-15T18:00:00.000Z",
+                      "results": [
+                        {
+                          "accountId": "11111111-1111-1111-1111-111111111111",
+                          "platform": "twitter",
+                          "postId": "22222222-2222-2222-2222-222222222222",
+                          "status": "published",
+                          "uri": "https://twitter.com/i/web/status/1798765432101234567"
+                        },
+                        {
+                          "accountId": "33333333-3333-3333-3333-333333333333",
+                          "platform": "bluesky",
+                          "postId": "44444444-4444-4444-4444-444444444444",
+                          "status": "published",
+                          "uri": "at://did:plc:example/app.bsky.feed.post/3kabc",
+                          "cid": "bafyreigh2akiscaildc..."
+                        }
+                      ]
+                    }
+                  },
+                  "partial-failed": {
+                    "summary": "Mixed outcome — one target rejected upstream",
+                    "value": {
+                      "id": "00000000-0000-0000-0000-000000000000",
+                      "status": "partial_failed",
+                      "createdAt": "2026-05-15T18:00:00.000Z",
+                      "results": [
+                        {
+                          "accountId": "11111111-1111-1111-1111-111111111111",
+                          "platform": "twitter",
+                          "postId": "22222222-2222-2222-2222-222222222222",
+                          "status": "published",
+                          "uri": "https://twitter.com/i/web/status/1798765432101234567"
+                        },
+                        {
+                          "accountId": "33333333-3333-3333-3333-333333333333",
+                          "platform": "instagram",
+                          "postId": "44444444-4444-4444-4444-444444444444",
+                          "status": "rejected",
+                          "error": {
+                            "code": "platform_rejected",
+                            "message": "Instagram rejected the media URL (OAuthException 2207052).",
+                            "rule": "instagram.media.url_unreachable",
+                            "remediation": "Confirm the URL responds 200 to an anonymous GET, or upload via POST /v1/media."
+                          }
+                        }
+                      ]
+                    }
+                  }
                 }
               }
             }
           },
           "202": {
-            "description": "Scheduled post accepted; published when scheduledAt fires.",
+            "description": "Scheduled batch accepted; every target row is queued and will publish at `scheduledAt`.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CreatePostResponse"
+                },
+                "example": {
+                  "id": "00000000-0000-0000-0000-000000000000",
+                  "status": "queued",
+                  "createdAt": "2026-05-15T18:00:00.000Z",
+                  "scheduledAt": "2026-06-01T12:00:00.000Z",
+                  "results": [
+                    {
+                      "accountId": "11111111-1111-1111-1111-111111111111",
+                      "platform": "twitter",
+                      "postId": "22222222-2222-2222-2222-222222222222",
+                      "status": "queued"
+                    },
+                    {
+                      "accountId": "33333333-3333-3333-3333-333333333333",
+                      "platform": "bluesky",
+                      "postId": "44444444-4444-4444-4444-444444444444",
+                      "status": "queued"
+                    }
+                  ]
                 }
               }
             }
           },
           "400": {
-            "description": "validation_failed or preflight_failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/ValidationError"
           },
           "401": {
-            "description": "unauthenticated or platform_auth_failed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "idempotency_conflict.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/IdempotencyConflict"
           },
           "429": {
-            "description": "rate_limited.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/PlatformError"
           }
         }
       },
@@ -597,8 +1834,8 @@
         "tags": [
           "Posts"
         ],
-        "summary": "List posts",
-        "description": "Cursor-paginated. Filter by `profileId`, `platform`, `status`, `errorCode`, `after`, `before`. Cursor pagination via `nextCursor` on responses.",
+        "summary": "List posts (post log)",
+        "description": "Cursor-paginated post log scoped to the caller's organization (and profile, when the key is profile-scoped). Filters compose. Array filters (`platform`, `status`, `errorCode`) accept either repeated query params or comma-separated single values.",
         "security": [
           {
             "bearer": []
@@ -606,87 +1843,101 @@
         ],
         "parameters": [
           {
+            "name": "profileId",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid"
-            },
-            "required": false,
-            "name": "profileId",
-            "in": "query"
+            }
           },
           {
+            "name": "platform",
+            "in": "query",
+            "required": false,
+            "explode": true,
             "schema": {
               "type": "array",
               "items": {
                 "$ref": "#/components/schemas/Platform"
               }
-            },
-            "required": false,
-            "name": "platform",
-            "in": "query"
+            }
           },
           {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "explode": true,
             "schema": {
               "type": "array",
               "items": {
                 "$ref": "#/components/schemas/PostStatus"
               }
-            },
-            "required": false,
-            "name": "status",
-            "in": "query"
+            }
           },
           {
+            "name": "errorCode",
+            "in": "query",
+            "required": false,
+            "explode": true,
             "schema": {
               "type": "array",
               "items": {
                 "type": "string"
               }
-            },
-            "required": false,
-            "name": "errorCode",
-            "in": "query"
+            }
           },
           {
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "required": false,
             "name": "after",
-            "in": "query"
-          },
-          {
+            "in": "query",
+            "required": false,
+            "description": "ISO-8601 lower bound on `createdAt` (exclusive).",
             "schema": {
               "type": "string",
               "format": "date-time"
-            },
-            "required": false,
-            "name": "before",
-            "in": "query"
+            }
           },
           {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "description": "ISO-8601 upper bound on `createdAt` (exclusive).",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 200
-            },
-            "required": false,
-            "name": "limit",
-            "in": "query"
+              "maximum": 200,
+              "default": 50
+            }
           },
           {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "string"
-            },
-            "required": false,
-            "name": "cursor",
-            "in": "query"
+            }
           }
         ],
         "responses": {
           "200": {
             "description": "Page of posts.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -695,15 +1946,17 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -713,8 +1966,8 @@
         "tags": [
           "Posts"
         ],
-        "summary": "Fetch a single post with attempts",
-        "description": "Returns the full post record including every publish attempt (timing, upstream response, error code).",
+        "summary": "Fetch a single post with its publish attempts",
+        "description": "Returns the post row plus every publish attempt (start/finish, success flag, upstream response, error code). Use the `postId` returned in `CreatePostResponse.results[]` as `{id}`.",
         "security": [
           {
             "bearer": []
@@ -722,34 +1975,41 @@
         ],
         "parameters": [
           {
+            "name": "id",
+            "in": "path",
+            "required": true,
             "schema": {
               "type": "string"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Post detail.",
+            "description": "Post detail with attempts.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Post"
+                  "$ref": "#/components/schemas/PostDetail"
                 }
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
           "404": {
-            "description": "not_found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -760,27 +2020,40 @@
           "Media"
         ],
         "summary": "Upload media (multipart)",
-        "description": "Upload a single file part named `file`. Returns a `med_…` id you reference from post bodies.\n\nThe 200 MB ceiling is conservative; larger uploads land in a follow-up slice. See [/docs/media/](https://letmepost.dev/docs/media/).",
+        "description": "Stream a single `file` part to S3 and get back a `med_…` id to reference from post bodies as `media: [{ kind, mediaId }]`.\n\nThe per-file ceiling is 200 MB. Optional `?profileId=` lands the media inside that profile (org-wide keys only — profile-scoped keys are pinned to their profile).",
         "security": [
           {
             "bearer": []
           }
         ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "query",
+            "required": false,
+            "description": "Place the upload under this profile. Org-wide keys only — profile-scoped keys must omit this and inherit their own profile.",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "type": "object",
+                "required": [
+                  "file"
+                ],
                 "properties": {
                   "file": {
                     "type": "string",
                     "format": "binary",
-                    "description": "The file part."
+                    "description": "The single file part. Multiple parts or any name other than `file` are rejected."
                   }
-                },
-                "required": [
-                  "file"
-                ]
+                }
               }
             }
           }
@@ -788,6 +2061,14 @@
         "responses": {
           "201": {
             "description": "Upload succeeded.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
@@ -797,24 +2078,22 @@
             }
           },
           "400": {
-            "description": "validation_failed (missing file, wrong content type).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "413": {
-            "description": "Payload too large.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       },
@@ -822,44 +2101,8 @@
         "tags": [
           "Media"
         ],
-        "summary": "List media uploads",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Empty"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/accounts/connect/{platform}": {
-      "post": {
-        "tags": [
-          "Accounts"
-        ],
-        "summary": "Start a connect flow",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
+        "summary": "List uploaded media",
+        "description": "Cursor-paginated. Scoped to the caller's organization, and (when the key is profile-scoped) to that profile. Org-wide keys may narrow with `?profileId=`.",
         "security": [
           {
             "bearer": []
@@ -867,80 +2110,62 @@
         ],
         "parameters": [
           {
+            "name": "profileId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
             "schema": {
               "type": "string"
-            },
-            "required": true,
-            "name": "platform",
-            "in": "path"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Empty"
-                }
+            "description": "Page of media uploads.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
               }
-            }
-          },
-          "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/accounts/connect/{platform}/complete": {
-      "post": {
-        "tags": [
-          "Accounts"
-        ],
-        "summary": "Complete a connect flow",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string"
             },
-            "required": true,
-            "name": "platform",
-            "in": "path"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/MediaListResponse"
                 }
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -951,32 +2176,47 @@
           "Accounts"
         ],
         "summary": "List connected accounts",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
+        "description": "Lists every connected platform account in the caller's organization. No secrets ever leak — display name, platform identifiers, and lifecycle timestamps only.",
         "security": [
           {
             "bearer": []
           }
         ],
+        "parameters": [
+          {
+            "name": "profileId",
+            "in": "query",
+            "required": false,
+            "description": "Narrow to a single profile. Malformed values match nothing rather than 400 (preserves the dashboard's profile-switcher contract).",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Connected accounts.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/AccountListResponse"
                 }
               }
             }
           },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -987,7 +2227,6 @@
           "Accounts"
         ],
         "summary": "Fetch a connected account",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
         "security": [
           {
             "bearer": []
@@ -995,34 +2234,42 @@
         ],
         "parameters": [
           {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
             "name": "id",
-            "in": "path"
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Account detail.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/Account"
                 }
               }
             }
           },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       },
@@ -1030,8 +2277,229 @@
         "tags": [
           "Accounts"
         ],
-        "summary": "Disconnect",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
+        "summary": "Disconnect (hard delete)",
+        "description": "Dashboard session only — programmatic keys cannot disconnect accounts. Hard delete: the platform_accounts row is removed and any persisted token is destroyed.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account disconnected.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeletedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/v1/accounts/connect/{platform}": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Start a connect flow",
+        "description": "Dashboard session only. Returns a `ConnectDescriptor` describing how to finish the connect — an OAuth authorization URL for OAuth platforms, or a credentials form schema for Bluesky. Programmatic API keys cannot mint OAuth state.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "profileId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Land the resulting account in this profile. Falls back to the org's default profile when omitted."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connect descriptor.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectDescriptorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PlatformError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/v1/accounts/connect/{platform}/complete": {
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Finish a connect flow",
+        "description": "Dashboard session only. Completes the handshake started by `POST /v1/accounts/connect/{platform}` — for OAuth platforms this is invoked from the redirect callback flow; for credentials platforms (Bluesky) it carries the credentials in the body. Upserts the platform_accounts row (re-connecting the same account rotates the stored token rather than 409-ing).",
+        "security": [],
+        "parameters": [
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Platform"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Provider-specific completion payload — see the platform's connect doc.",
+                "properties": {
+                  "profileId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Account re-connected (token rotated on an existing row).",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Account connected (new row created).",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/PlatformError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "$ref": "#/components/responses/PlatformError"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/pinterest/boards": {
+      "get": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "List Pinterest boards on a connected account",
+        "description": "Proxy to Pinterest's `/v5/boards` using the stored token. Used by the dashboard's default-board picker so a user can see their actual boards.",
         "security": [
           {
             "bearer": []
@@ -1039,34 +2507,313 @@
         ],
         "parameters": [
           {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
             "name": "id",
-            "in": "path"
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Boards on this account.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "type": "object",
+                  "required": [
+                    "data"
+                  ],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/PinterestBoard"
+                      }
+                    },
+                    "defaultBoardId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
                 }
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/PlatformError"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Create a Pinterest board",
+        "description": "Creates a board on the user's Pinterest account without sending them off-site. Optional `setAsDefault` lifts the new board id into the account's default in one round-trip. Optional `upsert: true` returns the existing board (with `existing: true`) on duplicate-name instead of 409-ing.",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 180
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  "privacy": {
+                    "type": "string",
+                    "enum": [
+                      "PUBLIC",
+                      "PROTECTED",
+                      "SECRET"
+                    ]
+                  },
+                  "setAsDefault": {
+                    "type": "boolean",
+                    "description": "Lift the new board id into `tokenMetadata.defaultBoardId`."
+                  },
+                  "upsert": {
+                    "type": "boolean",
+                    "description": "When true, a duplicate-name response from Pinterest resolves to a 200 with the existing board (`existing: true`) instead of a `platform_rejected` failure."
+                  }
                 }
               }
             }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing board returned (only when `upsert: true` matched).",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PinterestBoard"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "existing": {
+                          "type": "boolean"
+                        },
+                        "defaultBoardId": {
+                          "type": "string"
+                        },
+                        "defaultBoardName": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Board created.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/PinterestBoard"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "existing": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/PlatformError"
+          }
+        }
+      }
+    },
+    "/v1/accounts/{id}/pinterest/default-board": {
+      "patch": {
+        "tags": [
+          "Accounts"
+        ],
+        "summary": "Set the default Pinterest board for publishes",
+        "description": "Persists the supplied `boardId` as the account's default — used when a `POST /v1/posts` body omits `options.boardId` for a Pinterest target. The board is validated against the account's own boards list before persisting.",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "boardId"
+                ],
+                "properties": {
+                  "boardId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default board updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "defaultBoardId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "defaultBoardName": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/PlatformError"
           }
         }
       }
@@ -1074,69 +2821,101 @@
     "/v1/api-keys": {
       "post": {
         "tags": [
-          "API keys"
+          "API Keys"
         ],
         "summary": "Mint an API key",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
+        "description": "Dashboard session only. The plaintext `key` is returned **once** in this response and never again — store it securely. Optional `profileId` pins the key to a single profile; cross-profile reads/writes 404 under that key.",
+        "security": [],
+        "parameters": [
           {
-            "bearer": []
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateApiKeyRequest"
+              },
+              "example": {
+                "name": "ci-publish-key",
+                "prefix": "lmp_live_",
+                "scopes": []
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": "Success.",
+          "201": {
+            "description": "Key minted — plaintext shown once.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/CreateApiKeyResponse"
                 }
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       },
       "get": {
         "tags": [
-          "API keys"
+          "API Keys"
         ],
         "summary": "List API keys",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "description": "Dashboard session only. Plaintext is never returned again — only `last4` and metadata.",
+        "security": [],
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Active and revoked keys for the active org.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/ApiKeyListResponse"
                 }
               }
             }
           },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -1144,45 +2923,62 @@
     "/v1/api-keys/{id}": {
       "delete": {
         "tags": [
-          "API keys"
+          "API Keys"
         ],
         "summary": "Revoke an API key",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "description": "Soft-revoke. The key is invalidated immediately; the row stays for audit. Already-revoked keys 404.",
+        "security": [],
         "parameters": [
           {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
             "name": "id",
-            "in": "path"
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Key revoked.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "revokedAt"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "revokedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
                 }
               }
             }
           },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
@@ -1192,33 +2988,65 @@
         "tags": [
           "Webhooks"
         ],
-        "summary": "Register a webhook URL",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
+        "summary": "Register a webhook endpoint",
+        "description": "Dashboard session only. The `signingSecret` is returned **once** at creation — used to verify the HMAC-SHA256 `X-Letmepost-Signature` header on every delivery. An empty `events` array subscribes to every event type.",
+        "security": [],
+        "parameters": [
           {
-            "bearer": []
+            "$ref": "#/components/parameters/IdempotencyKey"
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookEndpointRequest"
+              },
+              "example": {
+                "url": "https://hooks.example.com/letmepost",
+                "events": [
+                  "post.published",
+                  "post.failed"
+                ],
+                "description": "Production publish notifications."
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
-            "description": "Success.",
+          "201": {
+            "description": "Endpoint created. `signingSecret` shown once.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/WebhookEndpointWithSecret"
                 }
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "409": {
+            "$ref": "#/components/responses/IdempotencyConflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
           }
         }
       },
@@ -1227,184 +3055,255 @@
           "Webhooks"
         ],
         "summary": "List webhook endpoints",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "security": [],
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Endpoints for the active org.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/WebhookEndpointListResponse"
                 }
               }
             }
           },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
     },
     "/v1/webhook-endpoints/{id}": {
+      "get": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Fetch a webhook endpoint",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Endpoint detail (no secret).",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpoint"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Update a webhook endpoint",
+        "description": "Partial update. Setting `active: false` pauses delivery without losing the endpoint; flipping back to `true` re-enables it.",
+        "security": [],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWebhookEndpointRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Endpoint updated.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookEndpoint"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
       "delete": {
         "tags": [
           "Webhooks"
         ],
         "summary": "Delete a webhook endpoint",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
+        "description": "Hard delete — the row is removed. Use `PATCH … { active: false }` instead if you want to pause delivery while preserving history.",
+        "security": [],
         "parameters": [
           {
-            "schema": {
-              "type": "string"
-            },
-            "required": true,
             "name": "id",
-            "in": "path"
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Endpoint deleted.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/DeletedResponse"
                 }
               }
             }
           },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
     },
-    "/v1/profiles": {
-      "get": {
-        "tags": [
-          "Profiles"
-        ],
-        "summary": "List profiles",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Empty"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
+    "/v1/webhook-endpoints/{id}/test": {
       "post": {
         "tags": [
-          "Profiles"
+          "Webhooks"
         ],
-        "summary": "Create a profile",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
+        "summary": "Send a synthetic test delivery",
+        "description": "Fires a synthetic event at the endpoint URL synchronously and returns what the consumer responded — bypasses the BullMQ delivery queue on purpose so operators get immediate feedback. The real signing secret is used; the consumer's HMAC verification path is identical to production.",
+        "security": [],
+        "parameters": [
           {
-            "bearer": []
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestWebhookDeliveryRequest"
+              },
+              "example": {
+                "type": "post.published"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
-            "description": "Success.",
+            "description": "Delivery completed (the consumer may still have returned a non-2xx — see `delivered` and `status`).",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Empty"
+                  "$ref": "#/components/schemas/TestWebhookDeliveryResponse"
                 }
               }
             }
           },
-          "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/platform-versions": {
-      "get": {
-        "tags": [
-          "Platform versions"
-        ],
-        "summary": "Public version tracker",
-        "description": "TODO: full schema. See https://letmepost.dev/docs/ for the surrounding context.",
-        "security": [
-          {
-            "bearer": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Empty"
-                }
-              }
-            }
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
           },
           "401": {
-            "description": "unauthenticated.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
           }
         }
       }
