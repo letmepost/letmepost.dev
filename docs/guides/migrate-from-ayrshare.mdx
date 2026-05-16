@@ -1,0 +1,125 @@
+---
+title: Migrate from Ayrshare
+description: Map your existing Ayrshare publishing flow to letmepost.dev.
+---
+
+## Why migrate
+
+[Ayrshare](https://ayrshare.com) is a closed-source SaaS social media API that has been around for years; it works well for plenty of teams. letmepost is an alternative for teams that want the same kind of API surface with three properties Ayrshare doesn't offer: open source under Apache-2.0 with a self-host path as an escape hatch, a structured error envelope with stable rule ids and remediation, and request-level idempotency. If those properties matter to you, the migration is mostly a field rename.
+
+## What changes
+
+Ayrshare's `POST /post` takes a `post` string, a `platforms` array, and per-platform options as siblings. letmepost takes a `targets` array of connected account ids, a top-level `text`, and a structured `media` array.
+
+| Ayrshare concept | letmepost concept | Notes |
+|---|---|---|
+| User Profile (multi-tenant) | API key per workspace | letmepost workspaces map to one set of accounts and one set of keys. |
+| `platforms: ["twitter", "instagram"]` | `targets[].accountId` | Ayrshare resolves the connected account from the profile; letmepost addresses it directly. |
+| `post` (string) | `text` (string) | Same content. |
+| `mediaUrls` (array of URLs) | `media[].url` | letmepost media also supports `mediaId` (server-side upload) and `bytesBase64` (inline). |
+| `scheduleDate` | `scheduledAt` | Both ISO-8601. letmepost requires the timezone offset (`Z` or `+HH:MM`). |
+| Per-platform `instagramOptions`, `twitterOptions`, etc. | per-target overrides on `targets[]` | letmepost places platform-specific fields on the target, not as top-level siblings. |
+| Error message string | Envelope: `code`, `rule`, `remediation`, `platformResponse`, `requestId` | See [errors](/errors). |
+
+## API shape side-by-side
+
+<Tabs>
+  <Tab title="Ayrshare">
+    ```bash
+    curl -X POST https://api.ayrshare.com/api/post \
+      -H "Authorization: Bearer $AYRSHARE_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "post": "Hello",
+        "platforms": ["twitter", "instagram"],
+        "mediaUrls": ["https://cdn.example.com/hero.jpg"],
+        "scheduleDate": "2026-05-20T12:00:00Z"
+      }'
+    ```
+  </Tab>
+  <Tab title="letmepost.dev">
+    ```bash
+    curl -s -X POST https://api.letmepost.dev/v1/posts \
+      -H "Authorization: Bearer $LMP_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: $(uuidgen)" \
+      --data @- <<EOF
+    {
+      "targets": [
+        { "accountId": "<twitter_account_id>" },
+        { "accountId": "<instagram_account_id>" }
+      ],
+      "text": "Hello",
+      "media": [{ "kind": "image", "url": "https://cdn.example.com/hero.jpg" }],
+      "scheduledAt": "2026-05-20T12:00:00Z"
+    }
+    EOF
+    ```
+  </Tab>
+</Tabs>
+
+The biggest shape difference: Ayrshare implicitly picks the right connected account from the profile based on the platform names you list. letmepost has you pass the account `id` directly. That's a deliberate choice — it makes one workspace with multiple accounts on the same platform (e.g. two Instagram Business accounts) addressable without ambiguity.
+
+## Cutover playbook
+
+<Steps>
+<Step title="Sign up and connect your accounts">
+- Create an account at [dashboard.letmepost.dev](https://dashboard.letmepost.dev). If you want a self-host escape hatch, see [self-host](/guides/self-host) — same image, same contracts.
+- Mint an API key (Settings → API keys).
+- Connect each platform you currently publish to. letmepost uses each platform's OAuth flow; you'll re-authorize the same accounts against the letmepost app.
+- Copy each connected account's `id` from the dashboard — these become your `targets[].accountId` values.
+</Step>
+
+<Step title="Map your existing payload">
+- Translate `platforms: ["twitter", "instagram"]` into `targets[]` with the corresponding account ids.
+- Rename `post` → `text`, `mediaUrls` → `media[].url` (with a `kind` of `"image"` or `"video"`).
+- Rename `scheduleDate` → `scheduledAt`. letmepost rejects naive datetimes — include the `Z` or an explicit offset.
+- Move per-platform options (Instagram captions, Twitter alt text, etc.) onto the matching `targets[]` entry. See [platforms](/platforms-overview) for the per-platform field set.
+- Run a few candidate posts through [preflight](/preflight) — letmepost catches platform-specific issues (grapheme caps, mime allow-lists, media counts, IG reachability) before the upstream call so you don't waste a publish attempt.
+</Step>
+
+<Step title="Add the idempotency header">
+letmepost dedupes retries via [`Idempotency-Key`](/idempotency) — generate one UUID per logical post and replay safely on network errors. The replay cache returns the original response (same status, same body) for 24 hours. Reusing the same key with a different body returns `idempotency_conflict`, which catches accidental drift in your client. Ayrshare does not document a request-level idempotency contract, so if you currently dedupe at all you're likely doing it in your own code — you can stop.
+</Step>
+
+<Step title="Handle errors with the new envelope">
+Every letmepost failure carries `code`, `message`, `rule`, `remediation`, `platformResponse`, `platformVersion`, and `requestId`. Branch on `code` and `rule`, not message text — they're stable. The raw upstream response is attached when the platform rejected the call, so you don't lose information when something goes wrong. See [errors](/errors) for the eleven codes and [preflight](/preflight) for the rule catalog.
+</Step>
+
+<Step title="Verify with one parallel post">
+- For about a week, publish each post through both Ayrshare and letmepost.
+- Reconcile: same content lands on the same platforms, with the same timestamps and the same media.
+- Watch `requestId` — every log line, webhook, and error envelope carries it, so a single id traces the whole pipeline end-to-end.
+- Once you're confident, switch traffic over.
+</Step>
+
+<Step title="Cancel Ayrshare">
+Cancel your Ayrshare plan once parallel runs match. We're glad to have you.
+</Step>
+</Steps>
+
+## Feature parity
+
+| Capability | Ayrshare | letmepost.dev |
+|---|---|---|
+| Hosted REST API | ✓ | ✓ |
+| Open source | — | ✓ (Apache-2.0) |
+| Self-hostable | — | ✓ ([guide](/guides/self-host)) |
+| Multi-target post in one request | ✓ (`platforms[]`) | ✓ (`targets[]`) |
+| Scheduled posts | ✓ | ✓ |
+| Preflight catalog with stable rule ids | — | ✓ ([preflight](/preflight)) |
+| Structured error envelope (raw `platformResponse` attached) | — | ✓ ([errors](/errors)) |
+| Request-level idempotency (`Idempotency-Key`, body-hash conflict) | — | ✓ ([idempotency](/idempotency)) |
+| Pinned platform versions, `version.deprecated` webhook | — | ✓ |
+| Webhooks for post lifecycle | ✓ | ✓ ([webhooks](/webhooks)) |
+| Analytics endpoints | ✓ | not in v1 |
+| Inbox / comments / DMs | ✓ | not in v1 (publisher only) |
+| AI content generation | ✓ | not in scope |
+| Official SDKs (TypeScript, Python, Go) | ✓ (varies) | ✓ ([SDKs](/sdks/typescript)) |
+| CLI + MCP server | — | ✓ ([CLI](/cli), [MCP](/mcp)) |
+
+letmepost is a publisher in v1 — analytics, inbox, and DMs are out of scope. If those are central to your Ayrshare usage, the migration won't be one-for-one yet. For pure publishing, the mapping above covers it. See [pricing](/pricing) for the current plan.
+
+## Need help
+
+Open an issue on [GitHub](https://github.com/letmepost/letmepost.dev) or email rose@letmepost.dev. If you're migrating from Ayrshare, we'll prioritize debugging help.

@@ -1,0 +1,135 @@
+---
+title: Migrate from Postiz
+description: Map your existing Postiz publishing flow to letmepost.dev.
+---
+
+## Why migrate
+
+[Postiz](https://postiz.com) and letmepost are both open-source (Postiz under AGPL-3.0, letmepost under Apache-2.0). The difference is shape: Postiz is a UI-first scheduling app that you self-host as a product for your team, while letmepost is an API-first publishing service for embedding into your own product or agent workflow. If what you actually want is `POST /v1/posts` with a stable contract, a preflight catalog, structured errors, and SDKs — that's the surface letmepost ships.
+
+Both can run on your own infrastructure. Hosted is available too, if you don't want to operate either.
+
+## What changes
+
+Postiz's data model is built around posts authored in its scheduler and dispatched to one or more "integrations" (connected accounts). letmepost's model is a single request that carries one or more `targets`.
+
+| Postiz concept | letmepost concept | Notes |
+|---|---|---|
+| Integration | Platform account | Connect via OAuth in the dashboard. Each account has a stable `id`. |
+| Post (UI-created) | `POST /v1/posts` request | The API is the primary surface; the dashboard is built on top of it. |
+| Selected integrations on a post | `targets[].accountId` | Multi-target in one request — same as picking multiple integrations in Postiz. |
+| Scheduled publish date | `scheduledAt` (ISO-8601) | Omit for immediate publish. |
+| Media library | `POST /v1/media` then `mediaId` | Upload once, reference on every post. |
+| Provider-level error in the UI | Structured envelope with `code`, `rule`, `remediation`, `platformResponse`, `requestId` | See [errors](/errors). |
+
+## API shape side-by-side
+
+Postiz exposes a public REST API for posts when you self-host or use their hosted tier. A typical create-post call schedules content across selected integrations.
+
+<Tabs>
+  <Tab title="Postiz">
+    ```bash
+    curl -X POST https://api.postiz.com/public/v1/posts \
+      -H "Authorization: $POSTIZ_API_KEY" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "type": "schedule",
+        "date": "2026-05-20T12:00:00Z",
+        "shortLink": false,
+        "posts": [
+          {
+            "integration": { "id": "<integration_id_1>" },
+            "value": [{ "content": "Hello", "image": [] }]
+          },
+          {
+            "integration": { "id": "<integration_id_2>" },
+            "value": [{ "content": "Hello", "image": [] }]
+          }
+        ]
+      }'
+    ```
+  </Tab>
+  <Tab title="letmepost.dev">
+    ```bash
+    curl -s -X POST https://api.letmepost.dev/v1/posts \
+      -H "Authorization: Bearer $LMP_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: $(uuidgen)" \
+      --data @- <<EOF
+    {
+      "targets": [
+        { "accountId": "<account_id_1>" },
+        { "accountId": "<account_id_2>" }
+      ],
+      "text": "Hello from letmepost.dev",
+      "media": [{ "kind": "image", "url": "https://cdn.example.com/hero.jpg" }],
+      "scheduledAt": "2026-05-20T12:00:00Z"
+    }
+    EOF
+    ```
+  </Tab>
+</Tabs>
+
+The shapes differ but the intent maps cleanly: Postiz's `posts[].integration.id` becomes a `targets[].accountId` entry on a single letmepost request.
+
+## Cutover playbook
+
+<Steps>
+<Step title="Sign up and connect your accounts">
+- Create an account at [dashboard.letmepost.dev](https://dashboard.letmepost.dev), or [self-host](/guides/self-host) the same image.
+- Mint an API key (Settings → API keys).
+- Connect each platform you currently publish to from Postiz. letmepost uses each platform's OAuth flow — same accounts, just re-authorized against letmepost's app.
+- Copy each connected account's `id` from the dashboard; these become your `targets[].accountId` values.
+</Step>
+
+<Step title="Map your existing payload">
+- For every Postiz post that fanned out to N integrations, send ONE letmepost request with N `targets` entries instead.
+- Replace `value[].content` with top-level `text`, and `value[].image` with `media[]`.
+- Move `date` to `scheduledAt`. Omit it for immediate publish.
+- Run the request through [preflight](/preflight) — letmepost checks platform-specific constraints (grapheme caps, mime allow-lists, media counts) before the upstream call.
+</Step>
+
+<Step title="Add the idempotency header">
+letmepost dedupes retries via [`Idempotency-Key`](/idempotency) — generate one UUID per logical post and replay safely on network errors. The replay cache returns the original response (same status, same body) for 24 hours. Reusing the same key with a different body returns `idempotency_conflict` so you catch accidental drift.
+</Step>
+
+<Step title="Handle errors with the new envelope">
+Postiz surfaces provider errors mostly as messages in the UI. letmepost returns a structured envelope on every failure with `code`, `message`, `rule`, `remediation`, `platformResponse`, `platformVersion`, and `requestId`. Branch on `code` and `rule`, not message text. See [errors](/errors) for the eleven codes and [preflight](/preflight) for the rule catalog.
+</Step>
+
+<Step title="Verify with one parallel post">
+- For about a week, publish each post through both Postiz and letmepost.
+- Reconcile: same content lands on the same platforms, with the same timestamps and the same media.
+- Once you're confident, switch traffic over.
+</Step>
+
+<Step title="Decommission your Postiz instance">
+If you were self-hosting Postiz, you can spin it down (or keep it running for the team's UI workflow alongside letmepost's API — they don't conflict). Both projects are open source; nothing is locked in either direction.
+</Step>
+</Steps>
+
+## Feature parity
+
+| Capability | Postiz | letmepost.dev |
+|---|---|---|
+| Open source | ✓ (AGPL-3.0) | ✓ (Apache-2.0) |
+| Self-hostable | ✓ | ✓ ([guide](/guides/self-host)) |
+| Hosted option | ✓ | ✓ |
+| Scheduling UI | ✓ | dashboard ships scheduling; UI is intentionally minimal |
+| Public REST API | ✓ | ✓ (the primary surface) |
+| Preflight catalog with stable rule ids | — | ✓ ([preflight](/preflight)) |
+| Structured error envelope (`code` / `rule` / `remediation` / raw `platformResponse`) | — | ✓ ([errors](/errors)) |
+| Request-level idempotency (`Idempotency-Key`, body-hash conflict) | — | ✓ ([idempotency](/idempotency)) |
+| Pinned platform versions (e.g. `Linkedin-Version` header, `version.deprecated` webhook) | — | ✓ |
+| Multi-target post in one request | ✓ (multiple integrations on one post) | ✓ (`targets[]`) |
+| Official SDKs (TypeScript, Python, Go) | community | ✓ ([SDKs](/sdks/typescript)) |
+| CLI + MCP server | — | ✓ ([CLI](/cli), [MCP](/mcp)) |
+| Built-in AI assistance for drafting | ✓ | not in scope for v1 |
+| Team/workspace UI features | ✓ | minimal — v1 is API-first |
+| Analytics dashboards | ✓ | not in v1 |
+
+Postiz is a strong fit if you want an end-user scheduling product. letmepost is a fit if you're shipping publishing as a capability inside your own app or agent. Many teams will run both.
+
+## Need help
+
+Open an issue on [GitHub](https://github.com/letmepost/letmepost.dev) or email rose@letmepost.dev. If you're migrating from Postiz, we'll prioritize debugging help.

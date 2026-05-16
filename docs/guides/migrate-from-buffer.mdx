@@ -1,0 +1,133 @@
+---
+title: Migrate from Buffer
+description: Map your existing Buffer publishing flow to letmepost.dev.
+---
+
+## Why migrate
+
+[Buffer](https://buffer.com) is a UI-first scheduling product with a long history. Its public API exists but is a secondary surface — limited in scope, with channel-by-channel publish semantics. letmepost is API-first by design: one HTTP call publishes to one or many platforms, errors are structured, idempotency is built in, and the API is the same contract that powers the dashboard. If you're building publishing into your own product or agent and Buffer's API has been the bottleneck, the move is a good fit. If you're a content team that lives in Buffer's UI, the migration story is weaker — letmepost's dashboard is intentionally minimal.
+
+## What changes
+
+Buffer's model is channel-centric: you create an update against one connected channel at a time. letmepost lets you express the same idea — same content, multiple destinations — in a single request with a `targets[]` array.
+
+| Buffer concept | letmepost concept | Notes |
+|---|---|---|
+| Channel | Platform account | Connect via OAuth. Each has a stable `id`. |
+| Update | `POST /v1/posts` request | One request, one or many targets. |
+| One update per channel | One request with multiple `targets[]` | This is the headline change. N Buffer calls collapse into 1. |
+| Scheduled time on an update | `scheduledAt` (ISO-8601) | Omit for immediate publish. |
+| Channel-specific overrides | per-target overrides on `targets[]` | Platform-specific fields live on the target entry. |
+| Error message string | Envelope: `code`, `rule`, `remediation`, `platformResponse`, `requestId` | See [errors](/errors). |
+
+## API shape side-by-side
+
+Buffer's API creates an update against a specific connected channel ("profile"). To post the same content to three channels, you make three calls.
+
+<Tabs>
+  <Tab title="Buffer">
+    ```bash
+    # One call per channel — repeat for each profile_id you want to publish to.
+    curl -X POST https://api.bufferapp.com/1/updates/create.json \
+      -H "Authorization: Bearer $BUFFER_ACCESS_TOKEN" \
+      --data-urlencode "profile_ids[]=<profile_id_1>" \
+      --data-urlencode "text=Hello" \
+      --data-urlencode "scheduled_at=2026-05-20T12:00:00Z"
+    ```
+  </Tab>
+  <Tab title="letmepost.dev">
+    ```bash
+    # One call, multiple targets.
+    curl -s -X POST https://api.letmepost.dev/v1/posts \
+      -H "Authorization: Bearer $LMP_KEY" \
+      -H "Content-Type: application/json" \
+      -H "Idempotency-Key: $(uuidgen)" \
+      --data @- <<EOF
+    {
+      "targets": [
+        { "accountId": "<account_id_1>" },
+        { "accountId": "<account_id_2>" },
+        { "accountId": "<account_id_3>" }
+      ],
+      "text": "Hello",
+      "media": [{ "kind": "image", "url": "https://cdn.example.com/hero.jpg" }],
+      "scheduledAt": "2026-05-20T12:00:00Z"
+    }
+    EOF
+    ```
+  </Tab>
+</Tabs>
+
+Buffer's `profile_ids[]` parameter does accept multiple ids in a single create call, so a fan-out is possible there too. The bigger difference is what comes back: letmepost returns one consolidated response with per-target outcomes, the same `requestId` traces the whole pipeline (preflight, publish, webhook), and any failure is the same envelope shape regardless of which platform rejected it.
+
+## Cutover playbook
+
+<Steps>
+<Step title="Sign up and connect your accounts">
+- Create an account at [dashboard.letmepost.dev](https://dashboard.letmepost.dev), or [self-host](/guides/self-host).
+- Mint an API key (Settings → API keys).
+- Connect each platform you currently publish to from Buffer. letmepost uses each platform's OAuth flow — re-authorize the same accounts against the letmepost app.
+- Copy each connected account's `id` from the dashboard — these become your `targets[].accountId` values.
+</Step>
+
+<Step title="Collapse N calls into 1">
+If your current Buffer integration loops over channels and calls `updates/create.json` per channel, that loop goes away. Build a single request body with one entry in `targets[]` per channel and send once. Same content, one network round-trip, one response to reconcile.
+</Step>
+
+<Step title="Map your existing payload">
+- Rename `text` → `text` (same).
+- Rename `scheduled_at` → `scheduledAt`. Include the `Z` or an explicit offset; naive datetimes are rejected.
+- Translate channel-specific overrides into per-target fields. See [platforms](/platforms-overview) for the field set per platform.
+- For media, prefer [`POST /v1/media`](/guides/upload-media) once, then reference by `mediaId` on every post. URL passthrough and inline base64 are also supported.
+- Run a few candidate posts through [preflight](/preflight) — letmepost catches platform-specific issues (grapheme caps, mime allow-lists, media counts) before the upstream call.
+</Step>
+
+<Step title="Add the idempotency header">
+letmepost dedupes retries via [`Idempotency-Key`](/idempotency) — generate one UUID per logical post and replay safely on network errors. The replay cache returns the original response (same status, same body) for 24 hours. Reusing the same key with a different body returns `idempotency_conflict`, which catches accidental drift in your client. Buffer does not document a request-level idempotency contract, so anything you'd been doing in your own code to dedupe retries can move to the header.
+</Step>
+
+<Step title="Handle errors with the new envelope">
+Every letmepost failure carries `code`, `message`, `rule`, `remediation`, `platformResponse`, `platformVersion`, and `requestId`. Branch on `code` and `rule`, not message text. The raw upstream response is attached when the platform rejected the call, so you keep the original signal instead of a flattened message string. See [errors](/errors) for the eleven codes and [preflight](/preflight) for the rule catalog.
+</Step>
+
+<Step title="Pin platform versions explicitly">
+letmepost pins each upstream platform to a known API version (e.g. `Linkedin-Version` for LinkedIn). When a platform deprecates the version we're on, you get a [`version.deprecated`](/webhooks/version-deprecated) webhook with a window to migrate — your live traffic doesn't break silently. This is the kind of platform-churn buffering that Buffer's API doesn't expose to callers.
+</Step>
+
+<Step title="Verify with one parallel post">
+- For about a week, publish each post through both Buffer and letmepost.
+- Reconcile: same content lands on the same platforms, with the same timestamps and the same media.
+- Once you're confident, switch traffic over.
+</Step>
+
+<Step title="Decide what to keep">
+Many teams will keep Buffer for the human scheduling workflow and use letmepost for programmatic publishing — they don't conflict. If Buffer's UI was the primary value, keep it. If the API was, the move is clean.
+</Step>
+</Steps>
+
+## Feature parity
+
+| Capability | Buffer | letmepost.dev |
+|---|---|---|
+| Hosted publishing API | ✓ | ✓ |
+| Open source | — | ✓ (Apache-2.0) |
+| Self-hostable | — | ✓ ([guide](/guides/self-host)) |
+| Multi-target post in one request | ✓ (`profile_ids[]`) | ✓ (`targets[]`) |
+| Scheduled posts | ✓ | ✓ |
+| Preflight catalog with stable rule ids | — | ✓ ([preflight](/preflight)) |
+| Structured error envelope (raw `platformResponse` attached) | — | ✓ ([errors](/errors)) |
+| Request-level idempotency (`Idempotency-Key`, body-hash conflict) | — | ✓ ([idempotency](/idempotency)) |
+| Pinned platform versions, `version.deprecated` webhook | — | ✓ |
+| Webhooks for post lifecycle | limited | ✓ ([webhooks](/webhooks)) |
+| Scheduling / queue UI for end users | ✓ (mature) | minimal |
+| Analytics dashboards | ✓ | not in v1 |
+| Engagement / reply management | ✓ | not in v1 |
+| AI assistant / drafting | ✓ | not in scope |
+| Official SDKs (TypeScript, Python, Go) | — | ✓ ([SDKs](/sdks/typescript)) |
+| CLI + MCP server | — | ✓ ([CLI](/cli), [MCP](/mcp)) |
+
+Buffer is a mature scheduling product with strong UI workflows and analytics. letmepost is a publishing API with a minimal dashboard. If you're building publishing into your own product, the migration is straightforward. If your team works inside Buffer's UI, plan to keep using it for that. See [pricing](/pricing) for the current letmepost plan.
+
+## Need help
+
+Open an issue on [GitHub](https://github.com/letmepost/letmepost.dev) or email rose@letmepost.dev. If you're migrating from Buffer, we'll prioritize debugging help.

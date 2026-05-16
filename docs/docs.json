@@ -42,6 +42,14 @@
             ]
           },
           {
+            "group": "Migrate from",
+            "pages": [
+              "guides/migrate-from-postiz",
+              "guides/migrate-from-ayrshare",
+              "guides/migrate-from-buffer"
+            ]
+          },
+          {
             "group": "Webhooks",
             "pages": [
               "webhooks/index",
