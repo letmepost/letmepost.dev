@@ -1,6 +1,7 @@
 ---
 title: platform_auth_failed
 description: The connected account's platform token is missing, expired, or revoked. The user must reconnect.
+icon: lock-open
 ---
 
 The credentials we hold for the connected upstream account are no longer accepted by the platform. This is distinct from [`unauthenticated`](/errors/unauthenticated), which is about your letmepost API key — `platform_auth_failed` is about the OAuth token (or app password) for the *connected platform account*.

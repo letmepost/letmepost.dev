@@ -1,6 +1,7 @@
 ---
 title: Scheduled posts
 description: Pass scheduledAt to queue a batch for the future. 202 instead of 200, queued status per target, post.queued webhook per target.
+icon: clock
 ---
 
 Add `scheduledAt` to a `POST /v1/posts` body and every target in the batch is persisted with `status: "queued"`. A delayed publish job is enqueued per target at the requested time.

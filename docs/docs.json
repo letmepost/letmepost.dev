@@ -118,6 +118,8 @@
             "pages": [
               {
                 "group": "Bluesky",
+                "icon": "bluesky",
+                "iconType": "brands",
                 "pages": [
                   "preflight/bluesky-text-non_empty",
                   "preflight/bluesky-text-max_graphemes",
@@ -136,6 +138,8 @@
               },
               {
                 "group": "Threads",
+                "icon": "threads",
+                "iconType": "brands",
                 "pages": [
                   "preflight/threads-text-required",
                   "preflight/threads-text-max_graphemes",
@@ -150,6 +154,8 @@
               },
               {
                 "group": "Instagram",
+                "icon": "instagram",
+                "iconType": "brands",
                 "pages": [
                   "preflight/instagram-media-required",
                   "preflight/instagram-text-max_graphemes",
@@ -164,6 +170,8 @@
               },
               {
                 "group": "Facebook",
+                "icon": "facebook",
+                "iconType": "brands",
                 "pages": [
                   "preflight/facebook-text-required",
                   "preflight/facebook-text-max_graphemes",
@@ -177,6 +185,8 @@
               },
               {
                 "group": "LinkedIn",
+                "icon": "linkedin",
+                "iconType": "brands",
                 "pages": [
                   "preflight/linkedin-text-non_empty",
                   "preflight/linkedin-text-max_graphemes",
@@ -188,6 +198,8 @@
               },
               {
                 "group": "Pinterest",
+                "icon": "pinterest",
+                "iconType": "brands",
                 "pages": [
                   "preflight/pinterest-board-required",
                   "preflight/pinterest-media-required",
@@ -210,6 +222,8 @@
               },
               {
                 "group": "Twitter / X",
+                "icon": "x-twitter",
+                "iconType": "brands",
                 "pages": [
                   "preflight/twitter-text-non_empty",
                   "preflight/twitter-text-max_graphemes",
@@ -226,6 +240,7 @@
               },
               {
                 "group": "Cross-platform",
+                "icon": "shuffle",
                 "pages": [
                   "preflight/media-unknown",
                   "preflight/media-bytes_inline_unsupported",

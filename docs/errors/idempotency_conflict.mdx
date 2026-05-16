@@ -1,6 +1,7 @@
 ---
 title: idempotency_conflict
 description: Same Idempotency-Key reused with a different request body. We surface this rather than silently publish twice.
+icon: arrows-rotate
 ---
 
 You sent a second request with an `Idempotency-Key` we've already seen — but the body hash is different from the first request. We refuse to publish, because that's almost always a bug.
