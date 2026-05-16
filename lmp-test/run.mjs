@@ -7,10 +7,11 @@
  * configured so a partial-setup machine still exercises what it can.
  *
  * Sections in this file:
- *   1. Preflight + meta callback + account discovery
- *      (legacy single-target shape — must keep working)
- *   2. Multi-target fan-out
- *      (the new shape introduced in feat/dx-multi-target)
+ *   1. Single-target publish (one-element `targets[]`) + platform-only
+ *      auto-resolution.
+ *   2. Multi-target fan-out across two connected accounts.
+ *   3. Validation rejections (mode conflict, empty targets[], options
+ *      platform mismatch, v0 `account: {}` shape).
  *
  * Run:  pnpm test  (from `lmp-test/`)
  *
@@ -200,6 +201,22 @@ async function main() {
       assert(res.status === 400, `expected 400, got ${res.status}`);
     });
 
+    // Regression: v0 single-target `account: { platform, id }` body was
+    // accepted via legacy compat in early dx-overhaul iterations, then
+    // intentionally dropped. Assert it now fails cleanly so a future PR
+    // can't accidentally reintroduce the back-compat.
+    await test("v0 account-body shape is rejected with a clear error", async () => {
+      const res = await post("/v1/posts", {
+        account: { platform: "bluesky", id: BLUESKY_ID },
+        text: "v0 shape regression",
+      });
+      assert(res.status === 400, `expected 400, got ${res.status}`);
+      assert(
+        res.body?.error?.code === "validation_failed",
+        `expected validation_failed, got ${res.body?.error?.code}`,
+      );
+    });
+
     if (TWITTER_ID) {
       await test("options.platform_mismatch rejection", async () => {
         const res = await post("/v1/posts", {
@@ -224,6 +241,7 @@ async function main() {
   } else {
     skip("mode conflict rejection (publishNow + scheduledAt)", "LMP_BLUESKY_ACCOUNT_ID unset");
     skip("empty targets[] rejection", "LMP_BLUESKY_ACCOUNT_ID unset");
+    skip("v0 account-body shape is rejected with a clear error", "LMP_BLUESKY_ACCOUNT_ID unset");
     skip("options.platform_mismatch rejection", "LMP_BLUESKY_ACCOUNT_ID unset");
   }
 

@@ -7,7 +7,7 @@ icon: network-wired
 Every platform letmepost.dev supports goes through the same API surface — `POST /v1/posts` with `targets: [...]`. Per-platform quirks (caps, mime types, OAuth shapes) live in [preflight rules](/preflight) so failures surface locally with a rule id instead of an opaque upstream error.
 
 <Note>
-**Approval-gated platforms ship as their reviews clear.** Each platform's developer portal runs its own approval queue and the rate varies — the API surface is identical regardless of when a specific platform turns on. Bluesky is the exception: AT Proto has no review gate so it works for every signup today. Live status is also queryable at `GET /v1/platform-versions`.
+**Twitter and Bluesky are live today.** The remaining platforms (Instagram, LinkedIn, Facebook, Threads, Pinterest) are gated on their developer-portal reviews and turn on as approvals clear. The API surface is identical regardless of which platforms are approved for your org — same `POST /v1/posts`, same error envelope. Live status is also queryable at `GET /v1/platform-versions`.
 </Note>
 
 <CardGroup cols={2}>
