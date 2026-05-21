@@ -147,10 +147,11 @@ apps/
   web/                 # Astro landing site (letmepost.dev)
 packages/
   schemas/             # Zod — single source of truth for validation, types, OpenAPI
+  sdk-ts/              # @letmepost/sdk — official TypeScript client (npm)
   config-tsconfig/
 ```
 
-Landing as the stack grows: `packages/openapi/` (generated 3.1 spec), `packages/sdk-ts/` (npm), plus sibling repos `letmepost/sdk-python` and `letmepost/sdk-go` auto-generated from the spec. See [`TECH.md`](./TECH.md) for the full target tree.
+Landing as the stack grows: `packages/openapi/` (generated 3.1 spec), plus sibling repos `letmepost/sdk-python` and `letmepost/sdk-go` auto-generated from the spec. See [`TECH.md`](./TECH.md) for the full target tree.
 
 ## Tech stack
 

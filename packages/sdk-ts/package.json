@@ -1,0 +1,60 @@
+{
+  "name": "@letmepost/sdk",
+  "version": "0.1.0",
+  "description": "Official TypeScript SDK for letmepost.dev. Resource-grouped client over the publishing API, with typed errors, automatic idempotency, retries, and an HMAC webhook verifier.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./webhooks": {
+      "types": "./dist/webhooks.d.ts",
+      "default": "./dist/webhooks.js"
+    },
+    "./errors": {
+      "types": "./dist/errors.d.ts",
+      "default": "./dist/errors.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "letmepost",
+    "social-media",
+    "publishing-api",
+    "sdk",
+    "typescript",
+    "bluesky",
+    "twitter",
+    "linkedin",
+    "pinterest",
+    "threads",
+    "instagram",
+    "facebook"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://docs.letmepost.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/letmepost/letmepost.dev.git",
+    "directory": "packages/sdk-ts"
+  },
+  "devDependencies": {
+    "@letmepost/config-tsconfig": "workspace:*",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

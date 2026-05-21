@@ -334,6 +334,18 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/sdk-ts:
+    devDependencies:
+      '@letmepost/config-tsconfig':
+        specifier: workspace:*
+        version: link:../config-tsconfig
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
 packages:
 
   '@alloc/quick-lru@5.2.0':

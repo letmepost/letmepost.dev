@@ -1,0 +1,141 @@
+# Sync the canonical OpenAPI spec into the Python and Go SDK sibling repos.
+#
+# Triggers:
+#   - push to main when docs/api-reference/openapi.json changes
+#   - workflow_dispatch (manual run from the Actions tab)
+#
+# Required secret:
+#   LETMEPOST_SDK_SYNC_TOKEN, a PAT with `repo` scope on the letmepost
+#   GitHub org. Used to clone the sibling repos and open the regen PR.
+#
+# Prerequisites:
+#   The sibling repos `letmepost/sdk-python` and `letmepost/sdk-go` must
+#   already exist on GitHub. This workflow will not auto-create them; if
+#   either is missing the corresponding job fails loudly.
+
+name: SDK sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/api-reference/openapi.json"
+  workflow_dispatch:
+
+jobs:
+  python-sdk-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out letmepost.dev
+        uses: actions/checkout@v4
+        with:
+          path: letmepost.dev
+
+      - name: Check out letmepost/sdk-python
+        uses: actions/checkout@v4
+        with:
+          repository: letmepost/sdk-python
+          token: ${{ secrets.LETMEPOST_SDK_SYNC_TOKEN }}
+          path: sdk-python
+          # Fail loudly if the repo doesn't exist yet. The checkout step
+          # surfaces a clean "repository not found" error in that case.
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install openapi-python-client
+        run: pip install --upgrade pip openapi-python-client
+
+      - name: Regenerate Python SDK from spec
+        run: |
+          openapi-python-client generate \
+            --path letmepost.dev/docs/api-reference/openapi.json \
+            --output-path sdk-python/src \
+            --overwrite
+
+      - name: Configure git
+        working-directory: sdk-python
+        run: |
+          git config user.name "letmepost-sdk-sync[bot]"
+          git config user.email "sdk-sync@letmepost.dev"
+
+      - name: Create regeneration PR
+        working-directory: sdk-python
+        env:
+          GH_TOKEN: ${{ secrets.LETMEPOST_SDK_SYNC_TOKEN }}
+          SHORT_SHA: ${{ github.sha }}
+        run: |
+          SHORT=$(echo "$SHORT_SHA" | cut -c1-7)
+          BRANCH="sdk-sync/${SHORT}"
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No diff after regeneration; nothing to PR."
+            exit 0
+          fi
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore: sync openapi spec (${SHORT})"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "chore: sync openapi spec (${SHORT})" \
+            --body "Regenerated from letmepost/letmepost.dev@${SHORT}. Source spec: docs/api-reference/openapi.json." \
+            --base main \
+            --head "$BRANCH"
+
+  go-sdk-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out letmepost.dev
+        uses: actions/checkout@v4
+        with:
+          path: letmepost.dev
+
+      - name: Check out letmepost/sdk-go
+        uses: actions/checkout@v4
+        with:
+          repository: letmepost/sdk-go
+          token: ${{ secrets.LETMEPOST_SDK_SYNC_TOKEN }}
+          path: sdk-go
+
+      - name: Set up Go 1.23
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Install oapi-codegen
+        run: go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
+
+      - name: Regenerate Go SDK from spec
+        run: |
+          oapi-codegen -package letmepost -generate types,client \
+            letmepost.dev/docs/api-reference/openapi.json \
+            > sdk-go/client.go
+
+      - name: Configure git
+        working-directory: sdk-go
+        run: |
+          git config user.name "letmepost-sdk-sync[bot]"
+          git config user.email "sdk-sync@letmepost.dev"
+
+      - name: Create regeneration PR
+        working-directory: sdk-go
+        env:
+          GH_TOKEN: ${{ secrets.LETMEPOST_SDK_SYNC_TOKEN }}
+          SHORT_SHA: ${{ github.sha }}
+        run: |
+          SHORT=$(echo "$SHORT_SHA" | cut -c1-7)
+          BRANCH="sdk-sync/${SHORT}"
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No diff after regeneration; nothing to PR."
+            exit 0
+          fi
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore: sync openapi spec (${SHORT})"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --title "chore: sync openapi spec (${SHORT})" \
+            --body "Regenerated from letmepost/letmepost.dev@${SHORT}. Source spec: docs/api-reference/openapi.json." \
+            --base main \
+            --head "$BRANCH"
