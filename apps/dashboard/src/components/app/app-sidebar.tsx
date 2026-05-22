@@ -20,13 +20,18 @@ import {
   Sun,
   Moon,
   Monitor,
+  CreditCard,
+  BookOpen,
+  ArrowSquareOut,
 } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
 import { track } from "@/lib/analytics";
 import { NewOrgDialog } from "@/components/app/new-org-dialog";
 import { LogoMark } from "@/components/app/logo";
+import { SidebarUsageMeter } from "@/components/app/sidebar-usage-meter";
 import { useActiveProfile } from "@/lib/profiles";
+import { useSubscription } from "@/lib/billing";
 import {
   Sidebar,
   SidebarContent,
@@ -59,6 +64,7 @@ const NAV_ITEMS = [
   { href: "/media", label: "Media", icon: ImageSquare },
   { href: "/api-keys", label: "API keys", icon: Key },
   { href: "/webhooks", label: "Webhooks", icon: Broadcast },
+  { href: "/billing", label: "Billing", icon: CreditCard },
 ] as const;
 
 export function AppSidebar() {
@@ -74,6 +80,15 @@ export function AppSidebar() {
     setActiveProfile,
     isLoading: profilesLoading,
   } = useActiveProfile();
+  // `self_host` instances run without billing — hide the Billing nav entry
+  // and the sidebar usage meter. Self-host gets detected via the same
+  // subscription endpoint (it returns `tier: "self_host"` when
+  // `BILLING_ENABLED=false` on the API).
+  const subscription = useSubscription();
+  const isSelfHost = subscription.data?.tier === "self_host";
+  const navItems = isSelfHost
+    ? NAV_ITEMS.filter((i) => i.href !== "/billing")
+    : NAV_ITEMS;
 
   const initials = (session?.user.name ?? session?.user.email ?? "?")
     .split(/\s+/)
@@ -208,7 +223,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Operate</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => {
+              {navItems.map((item) => {
                 const Icon = item.icon;
                 const active =
                   item.href === "/"
@@ -229,7 +244,30 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Reference</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild>
+                  <a
+                    href="https://docs.letmepost.dev"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <BookOpen className="size-4" />
+                    <span>Docs</span>
+                    <ArrowSquareOut className="size-3 ml-auto opacity-60" />
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
+
+      <SidebarUsageMeter />
 
       <SidebarFooter>
         <DropdownMenu>
