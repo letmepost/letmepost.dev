@@ -274,12 +274,23 @@ export function createBillingRoutes(
     if (!row?.lsCustomerId) {
       return c.json({ data: [], nextPage: null });
     }
-    const result = await listInvoicesForCustomer(
-      row.lsCustomerId,
-      parsed.data.page,
-      parsed.data.perPage,
-    );
-    return c.json(result);
+    // Fail-soft: a Lemon Squeezy API hiccup on the invoices list shouldn't
+    // gate the entire /billing page from rendering. Log the upstream error
+    // for forensics and return an empty list so the dashboard stays usable.
+    try {
+      const result = await listInvoicesForCustomer(
+        row.lsCustomerId,
+        parsed.data.page,
+        parsed.data.perPage,
+      );
+      return c.json(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(
+        `[billing] listInvoicesForCustomer failed for org=${organizationId} customer=${row.lsCustomerId}: ${message}`,
+      );
+      return c.json({ data: [], nextPage: null });
+    }
   });
 
   return app;
