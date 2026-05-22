@@ -20,6 +20,7 @@ export const QUEUE_NAMES = {
   validate: "validate",
   refreshToken: "refresh-token",
   webhookDeliver: "webhook-deliver",
+  billing: "billing",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -62,6 +63,15 @@ export type WebhookDeliverJobData = {
   requestId?: string;
 };
 
+/**
+ * Periodic billing maintenance. `kind` discriminates which job runs:
+ *   - "dunning"   — hourly past_due → delinquent sweep
+ *   - "retention" — nightly per-org log cleanup
+ */
+export type BillingJobData =
+  | { kind: "dunning" }
+  | { kind: "retention" };
+
 const defaultJobOptions: QueueOptions["defaultJobOptions"] = {
   removeOnComplete: { age: 7 * 24 * 60 * 60, count: 1000 },
   removeOnFail: { age: 30 * 24 * 60 * 60 },
@@ -81,6 +91,7 @@ let _publishQueue: Queue<PublishJobData> | null = null;
 let _validateQueue: Queue<ValidateJobData> | null = null;
 let _refreshTokenQueue: Queue<RefreshTokenJobData> | null = null;
 let _webhookDeliverQueue: Queue<WebhookDeliverJobData> | null = null;
+let _billingQueue: Queue<BillingJobData> | null = null;
 
 export function getPublishQueue(): Queue<PublishJobData> {
   if (!_publishQueue)
@@ -110,6 +121,12 @@ export function getWebhookDeliverQueue(): Queue<WebhookDeliverJobData> {
   return _webhookDeliverQueue;
 }
 
+export function getBillingQueue(): Queue<BillingJobData> {
+  if (!_billingQueue)
+    _billingQueue = buildQueue(QUEUE_NAMES.billing) as Queue<BillingJobData>;
+  return _billingQueue;
+}
+
 /**
  * Retry policy for webhook delivery — see `src/webhooks/deliver.ts` for the
  * rationale. 8 attempts with exponential backoff starting at 5s. After the
@@ -127,9 +144,11 @@ export async function closeAllQueues(): Promise<void> {
     _validateQueue?.close(),
     _refreshTokenQueue?.close(),
     _webhookDeliverQueue?.close(),
+    _billingQueue?.close(),
   ]);
   _publishQueue = null;
   _validateQueue = null;
   _refreshTokenQueue = null;
   _webhookDeliverQueue = null;
+  _billingQueue = null;
 }

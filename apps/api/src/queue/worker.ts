@@ -17,9 +17,14 @@ import { publishForAccount } from "../platforms/_shared/dispatch.js";
 import { DrizzlePlatformAccountsRepository } from "../repositories/platform-accounts.js";
 import { deliverWebhook } from "../webhooks/deliver.js";
 import { createDefaultWebhookDispatcher } from "../webhooks/dispatch.js";
+import { startTierInvalidationListener } from "../billing/invalidate.js";
+import { runBillingDunning } from "./jobs/billing-dunning.js";
+import { runPostsRetention } from "./jobs/posts-retention.js";
 import { createRedisConnection } from "./connection.js";
 import {
   QUEUE_NAMES,
+  getBillingQueue,
+  type BillingJobData,
   type PublishJobData,
   type RefreshTokenJobData,
   type ValidateJobData,
@@ -360,17 +365,79 @@ const webhookDeliverWorker = new Worker<WebhookDeliverJobData>(
   { connection },
 );
 
+const billingWorker = new Worker<BillingJobData>(
+  QUEUE_NAMES.billing,
+  async (job) => {
+    if (job.data.kind === "dunning") {
+      const result = await runBillingDunning(db, {
+        webhookDispatcher: dispatcher,
+      });
+      return result;
+    }
+    if (job.data.kind === "retention") {
+      const result = await runPostsRetention(db);
+      return result;
+    }
+    throw new UnrecoverableError(
+      `billing worker: unknown job kind ${(job.data as { kind?: string }).kind}`,
+    );
+  },
+  { connection },
+);
+
+/**
+ * Register repeatable schedules for the billing maintenance jobs. Idempotent
+ * thanks to a stable `jobId` per kind; reboot adds nothing.
+ *
+ *   dunning   — every hour
+ *   retention — daily at 03:30 UTC (off-peak everywhere)
+ */
+async function registerBillingSchedules(): Promise<void> {
+  const queue = getBillingQueue();
+  await queue
+    .add(
+      "dunning",
+      { kind: "dunning" },
+      {
+        jobId: "billing-dunning-schedule",
+        repeat: { every: 60 * 60 * 1000 },
+      },
+    )
+    .catch((err: unknown) => {
+      console.error("[worker] failed to register dunning schedule", err);
+    });
+  await queue
+    .add(
+      "retention",
+      { kind: "retention" },
+      {
+        jobId: "billing-retention-schedule",
+        repeat: { pattern: "30 3 * * *", tz: "Etc/UTC" },
+      },
+    )
+    .catch((err: unknown) => {
+      console.error("[worker] failed to register retention schedule", err);
+    });
+}
+
+// Subscribe to cross-process tier-cache invalidation.
+const stopTierListener = startTierInvalidationListener();
+
+void registerBillingSchedules();
+
 const workers = [
   publishWorker,
   validateWorker,
   refreshTokenWorker,
   webhookDeliverWorker,
+  billingWorker,
 ];
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   console.log(`[worker] received ${signal}, draining…`);
   await Promise.all(workers.map((w) => w.close()));
   await closeAllQueues();
+  await stopTierListener().catch(() => {});
   await connection.quit().catch(() => {});
   process.exit(0);
 }

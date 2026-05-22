@@ -45,6 +45,7 @@
     "drizzle-orm": "^0.45.2",
     "hono": "^4.6.13",
     "ioredis": "^5.10.1",
+    "lru-cache": "^11.3.5",
     "postgres": "^3.4.9",
     "rate-limiter-flexible": "^11.0.1",
     "ws": "^8.20.0",
