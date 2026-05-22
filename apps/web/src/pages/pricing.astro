@@ -2,43 +2,19 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
 
-const principles = [
-  {
-    icon: "ph:check-circle",
-    title: "Free during alpha",
-    body: "Every API surface, every platform, every webhook. No card required. No per-profile tax.",
-  },
-  {
-    icon: "ph:check-circle",
-    title: "Flat-rate, no surprises",
-    body: "One number for the whole org. No per-channel multiplier, no per-seat ladder, no per-profile tax. The pricing is the flat number on the card.",
-  },
-  {
-    icon: "ph:check-circle",
-    title: "A real free tier, not a trial",
-    body: "Persistent, indefinite. Sized so an indie dev or hobby project never has to upgrade. Bigger orgs hit a paid tier; their pricing pays for the free tier.",
-  },
-  {
-    icon: "ph:check-circle",
-    title: "Self-host stays free forever",
-    body: "Apache 2.0, Docker Compose, BYO Postgres + Redis. Same code as the hosted SaaS, no feature-gate, no open-core trick.",
-  },
-];
-
-/**
- * Tier cards. The Scale tier ships as `comingSoon` until sub-org isolation
- * lands — gating the headline Scale feature behind a future ship date is
- * honest, and keeps customers in the Business → Enterprise pipeline rather
- * than parking on a $799 plan we can't fully deliver yet.
- */
 type Tier = {
   name: string;
   tagline: string;
   price: string;
   priceSuffix?: string;
   highlight?: boolean;
-  comingSoon?: boolean;
   features: string[];
+  cta: {
+    label: string;
+    href: string;
+    external?: boolean;
+    analyticsTarget: string;
+  };
 };
 
 const mainTiers: Tier[] = [
@@ -50,170 +26,67 @@ const mainTiers: Tier[] = [
     features: [
       "50 posts / month",
       "All 7 platforms, all API surface",
-      "BYO platform credentials",
-      "MCP server (1 namespace)",
+      "MCP server + CLI",
       "Community Discord support",
     ],
+    cta: {
+      label: "Get started",
+      href: "https://dashboard.letmepost.dev",
+      analyticsTarget: "dashboard",
+    },
   },
   {
     name: "Pro",
     tagline: "For a SaaS or a side project.",
     price: "$79",
     priceSuffix: "/mo",
+    highlight: true,
     features: [
-      "2,000 posts / month",
-      "Hosted OAuth (no BYO required)",
-      "Webhooks · all events",
+      "5,000 posts / month",
+      "All 7 platforms, all API surface",
+      "MCP server + CLI",
+      "All webhook events",
       "30-day publish logs",
-      "Email support · 24h response",
+      "Email support, 24h response",
     ],
+    cta: {
+      label: "Get started",
+      href: "https://dashboard.letmepost.dev",
+      analyticsTarget: "dashboard",
+    },
   },
   {
     name: "Business",
     tagline: "For real SaaS + agency workflows.",
     price: "$299",
     priceSuffix: "/mo",
-    highlight: true,
     features: [
       "25,000 posts / month",
+      "All 7 platforms, all API surface",
+      "MCP server + CLI",
       "White-label OAuth (your brand)",
       "99.9% uptime SLA",
       "180-day publish logs",
-      "Priority Slack + email · 4h response",
-      "5 MCP namespaces",
+      "Priority Slack + email, 4h response",
     ],
-  },
-  {
-    name: "Scale",
-    tagline: "For agencies with many clients.",
-    price: "$799",
-    priceSuffix: "/mo",
-    comingSoon: true,
-    features: [
-      "250,000 posts / month",
-      "Sub-org isolation for client work",
-      "Rate-limit budget uplift",
-      "Dedicated channel + monthly review",
-      "365-day publish logs",
-      "Unlimited MCP namespaces",
-    ],
-  },
-];
-
-const auxTiers: Tier[] = [
-  {
-    name: "Self-host",
-    tagline: "Apache 2.0, forever.",
-    price: "$0",
-    priceSuffix: "/mo",
-    features: [
-      "Same code as hosted",
-      "BYO Postgres + Redis",
-      "BYO platform credentials",
-      "No license server, no telemetry",
-    ],
-  },
-  {
-    name: "Enterprise",
-    tagline: "Dedicated infra + DPA + SSO.",
-    price: "Custom",
-    features: [
-      "Unlimited posts",
-      "SSO + SCIM",
-      "Custom SLA + DPA",
-      "Named CSM",
-      "Security + procurement review",
-    ],
-  },
-];
-
-const faqs = [
-  {
-    q: "When does paid billing actually start?",
-    a: "When alpha ends. We'll notify every alpha account 30 days before, and any workflow that connected during alpha gets a 60-day grace window after announcement before charges begin. No surprise debits.",
-  },
-  {
-    q: "Why is Scale marked Coming Soon?",
-    a: "Sub-org isolation, the headline Scale feature for agencies, is still landing. Pricing is locked at $799/mo so you can plan around it. The tier opens for sign-ups when the feature ships. If your need is in the gap, email us and we'll figure something out manually.",
-  },
-  {
-    q: "What about per-post or per-platform pricing?",
-    a: "Not happening. Per-profile, per-channel, and per-seat pricing are the universally hated patterns we're explicitly building around. A flat per-org tier with sane quotas is the entire commercial wedge.",
-  },
-  {
-    q: "What happens if I hit the post cap mid-month?",
-    a: "Hard cap. We stop posting until the cycle resets or you upgrade. No overage charges, no surprise bills. You get a webhook + email at 80% and 100% of cap so the wall is never a surprise.",
-  },
-  {
-    q: "How does self-host work?",
-    a: "Apache-2.0 from day one. `docker compose up` against your own Postgres + Redis. BYO platform credentials. Same API responses, same behavior as hosted. No license servers, no telemetry checks, no feature flags off.",
-  },
-  {
-    q: "Is the alpha pricing genuinely free?",
-    a: "Yes. No card required, no usage limits enforced beyond the standard rate limits every account gets. Alpha is signal-gathering for us; you running real workloads is exactly the data we need.",
+    cta: {
+      label: "Get started",
+      href: "https://dashboard.letmepost.dev",
+      analyticsTarget: "dashboard",
+    },
   },
 ];
 ---
 
 <BaseLayout
   title="Pricing"
-  description="Pricing for letmepost.dev. Flat-rate per org, no per-profile or per-seat tax. Free during alpha, self-host always free."
+  description="Two tiers. Free for evaluation, Pro at $79/mo for real workloads. Self-host always free under Apache 2.0. No per-profile or per-seat tax."
 >
-  <!-- Hero -->
-  <section class="pt-22 pb-12 max-[640px]:pt-14 max-[640px]:pb-8">
-    <div class="container">
-      <div
-        class="inline-flex items-center gap-2 text-[0.72rem] uppercase tracking-[0.1em] mb-7 py-[0.3rem] px-[0.6rem] border border-border-strong"
-      >
-        <span
-          class="w-[7px] h-[7px] inline-block bg-accent"
-          aria-hidden="true"
-        ></span>
-        Pricing · Locked
-      </div>
-
-      <h1 class="!m-0">
-        Free during alpha. <br class="max-[640px]:hidden" />
-        <span class="text-accent">Flat-rate locked for launch.</span>
-      </h1>
-
-      <p
-        class="text-[1.2rem] leading-[1.65] mt-7 mb-10 text-text-secondary"
-      >
-        Pricing is set. Billing flips on when alpha ends and we ship v1 across all platforms. Until then, every API, every platform, every webhook is free, and self-host stays free forever.
-      </p>
-
-      <div class="flex gap-[0.6rem] flex-wrap">
-        <a
-          class="btn btn-primary"
-          href="https://dashboard.letmepost.dev"
-          data-analytics-event="cta.clicked"
-          data-analytics-props='{"location":"hero","target":"dashboard","page":"pricing","label":"Start building free"}'
-        >
-          Start building free
-          <Icon name="ph:arrow-up-right" width={13} height={13} />
-        </a>
-        <a
-          class="btn btn-secondary"
-          href="/contact"
-          data-analytics-event="cta.clicked"
-          data-analytics-props='{"location":"hero-secondary","target":"contact","page":"pricing","label":"Talk to us"}'
-        >Talk to us</a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Tier cards -->
-  <section class="pt-4 pb-12">
+  <section class="pt-22 pb-18 max-[640px]:pt-14 max-[640px]:pb-12">
     <div class="container-wide">
-      <div class="container">
-        <h2 class="!mt-0">Tiers.</h2>
-        <p class="text-text-muted">
-          Pricing is per org, not per account. The number on the card is what your whole org pays.
-        </p>
-      </div>
+      <h1 class="!m-0 !text-[2rem] !leading-tight mb-16 max-[640px]:!text-[1.5rem] max-[640px]:mb-10">Pricing.</h1>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {mainTiers.map((tier) => (
           <div
             class={
@@ -236,11 +109,6 @@ const faqs = [
                   Recommended
                 </div>
               ) : null}
-              {tier.comingSoon ? (
-                <div class="text-[0.62rem] uppercase tracking-[0.08em] text-text-muted border border-border-strong px-[0.35rem] py-[0.1rem]">
-                  Coming soon
-                </div>
-              ) : null}
             </div>
             <div class="flex items-baseline gap-1 mb-1">
               <span class="text-2xl font-extrabold">{tier.price}</span>
@@ -262,119 +130,19 @@ const faqs = [
                 </li>
               ))}
             </ul>
+            <a
+              class={tier.highlight ? "btn btn-primary mt-5 w-full justify-center" : "btn btn-secondary mt-5 w-full justify-center"}
+              href={tier.cta.href}
+              {...(tier.cta.external ? { target: "_blank", rel: "noopener" } : {})}
+              data-analytics-event="cta.clicked"
+              data-analytics-props={`{"location":"pricing-card","target":"${tier.cta.analyticsTarget}","page":"pricing","tier":"${tier.name}","label":"${tier.cta.label}"}`}
+            >
+              {tier.cta.label}
+              <Icon name="ph:arrow-up-right" width={13} height={13} />
+            </a>
           </div>
         ))}
       </div>
-
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-        {auxTiers.map((tier) => (
-          <div class="border border-border p-5 flex flex-col">
-            <div class="text-[0.72rem] uppercase tracking-[0.1em] text-text-muted mb-2">
-              {tier.name}
-            </div>
-            <div class="flex items-baseline gap-1 mb-1">
-              <span class="text-2xl font-extrabold">{tier.price}</span>
-              {tier.priceSuffix ? (
-                <span class="text-[0.8rem] text-text-muted">{tier.priceSuffix}</span>
-              ) : null}
-            </div>
-            <p class="text-text-muted m-0 text-[0.86rem] mb-3">{tier.tagline}</p>
-            <ul class="list-none p-0 m-0 text-[0.86rem] text-text-secondary flex-1">
-              {tier.features.map((f) => (
-                <li class="py-[0.3rem] flex gap-[0.5rem] items-start">
-                  <Icon
-                    name="ph:check"
-                    width={13}
-                    height={13}
-                    class="text-accent shrink-0 mt-[0.25rem]"
-                  />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-
-      <div class="container">
-        <p class="text-[0.78rem] mt-6 text-text-muted">
-          Annual billing saves 2 months on every paid tier. Toggle on signup when billing turns on, or just email us and we'll lock it.
-        </p>
-      </div>
     </div>
   </section>
-
-  <!-- Principles -->
-  <section class="pt-8 pb-12">
-    <div class="container">
-      <h2 class="!mt-0">What we're committing to.</h2>
-      <p class="text-text-muted">
-        These principles are the contract underneath the numbers. The numbers shipped; the shape doesn't change.
-      </p>
-
-      <ul class="list-none p-0 mt-6 mb-4">
-        {principles.map((p) => (
-          <li class="flex gap-[1.1rem] py-5">
-            <Icon name={p.icon} width={20} height={20} class="text-accent shrink-0 mt-[0.15rem]" />
-            <div>
-              <h3 class="!m-0 !mb-[0.35rem] !text-base !font-bold">{p.title}</h3>
-              <p class="text-text-muted m-0 text-[0.92rem]">{p.body}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  </section>
-
-  <!-- FAQs -->
-  <section class="pt-8 pb-12">
-    <div class="container">
-      <h2 class="!mt-0">FAQs.</h2>
-
-      <dl class="m-0 mt-6 mb-4 p-0">
-        {faqs.map((f) => (
-          <div class="py-[1.15rem]">
-            <dt class="flex gap-[0.6rem] font-bold text-text m-0 mb-2 text-[0.95rem] before:content-['Q'] before:text-accent before:font-extrabold">
-              {f.q}
-            </dt>
-            <dd class="flex gap-[0.6rem] text-text-muted m-0 text-[0.9rem] before:content-['A'] before:text-accent before:font-extrabold">
-              <span>{f.a}</span>
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  </section>
-
-  <!-- Final CTA -->
-  <section class="pt-8 pb-18 max-[640px]:pb-12">
-    <div class="container">
-      <h2 class="!mt-0">Build now. Pay later.</h2>
-      <p class="text-text-muted">
-        Alpha access is complete and free. The pricing on this page is what you'll pay when alpha ends. Flat, per-org, no asterisks.
-      </p>
-      <div class="flex gap-[0.6rem] flex-wrap">
-        <a
-          class="btn btn-primary"
-          href="https://dashboard.letmepost.dev"
-          data-analytics-event="cta.clicked"
-          data-analytics-props='{"location":"pricing-final","target":"dashboard","page":"pricing","label":"Start building free"}'
-        >
-          Start building free
-          <Icon name="ph:arrow-up-right" width={13} height={13} />
-        </a>
-        <a
-          class="btn btn-secondary"
-          href="https://github.com/letmepost/letmepost.dev"
-          target="_blank"
-          rel="noopener"
-          data-analytics-event="external.github_clicked"
-          data-analytics-props='{"from_page":"pricing","location":"pricing-final"}'
-        >
-          Self-host on GitHub
-        </a>
-      </div>
-    </div>
-  </section>
-
 </BaseLayout>

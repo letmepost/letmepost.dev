@@ -1,6 +1,6 @@
 ---
 title: Pricing
-description: Free during alpha. Flat-rate per org once billing turns on, with a real free tier and no per-profile tax.
+description: Two tiers. Free for evaluation, Pro at $79/mo for real workloads. Self-host always free under Apache 2.0.
 icon: tag
 ---
 
@@ -21,16 +21,20 @@ Pricing is per org, not per account. The number on the card is what your whole o
 
 | tier | price | what you get |
 |---|---|---|
-| **Free** | $0 / mo | 50 posts / month. All 7 platforms, all API surface. BYO platform credentials. MCP server (1 namespace). Community Discord support. |
-| **Pro** | $79 / mo | 2,000 posts / month. Hosted OAuth (no BYO required). All webhook events. 30-day publish logs. Email support, 24h response. |
-| **Business** | $299 / mo | 25,000 posts / month. White-label OAuth (your brand). 99.9% uptime SLA. 180-day publish logs. Priority Slack + email, 4h response. 5 MCP namespaces. |
-| **Scale** *(coming soon)* | $799 / mo | 250,000 posts / month. Sub-org isolation for client work. Rate-limit budget uplift. Dedicated channel + monthly review. 365-day publish logs. Unlimited MCP namespaces. |
-| **Self-host** | $0 / mo | Same code as hosted. BYO Postgres + Redis. BYO platform credentials. No license server, no telemetry. |
-| **Enterprise** | Custom | Unlimited posts. SSO + SCIM. Custom SLA + DPA. Named CSM. Security + procurement review. |
+| **Free** | $0 / mo | 50 posts / month. All 7 platforms, all API surface. MCP server + CLI. Community Discord support. |
+| **Pro** | $79 / mo | 5,000 posts / month. All 7 platforms, all API surface. MCP server + CLI. All webhook events. 30-day publish logs. Email support, 24h response. |
+| **Business** | $299 / mo | 25,000 posts / month. All 7 platforms, all API surface. MCP server + CLI. White-label OAuth. 99.9% uptime SLA. 180-day publish logs. Priority Slack + email, 4h response. |
+| **Self-host** | $0 / mo | Same code as hosted. Bring your own Postgres + Redis. No license server, no telemetry. |
 
-Annual billing saves 2 months on every paid tier when it turns on.
+Annual billing saves 2 months on Pro when it turns on.
 
-Scale is marked Coming Soon because sub-org isolation, its headline feature, is still landing. Pricing is locked at $799/mo so you can plan around it.
+<Note>
+**Founder pricing.** $40/mo locked for life on Pro if you sign up in the next 30 days. Normally $79/mo. Forfeit on cancel.
+</Note>
+
+Need more volume, SSO, a custom SLA, or a DPA? Email us and we'll set up a custom plan. No marketplace tier-stacking games.
+
+We intentionally start with two tiers. Once we have real usage data we'll add tiers where the breakpoints actually are. More tiers right now is just decision friction for you and complexity for us.
 
 ## What's actually live
 
