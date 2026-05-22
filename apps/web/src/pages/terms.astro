@@ -1,16 +1,26 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import Tape from "../components/Tape.astro";
+import Closeout from "../components/Closeout.astro";
 const updated = "2026-04-27";
 ---
 
 <BaseLayout
   title="Terms of Service"
   description="Terms governing use of letmepost.dev."
+  stripWidth={700}
 >
-  <section class="pt-14 pb-16">
-    <div class="container prose">
-      <h1>Terms of Service</h1>
-      <p class="text-text-muted">Last updated: {updated}</p>
+  <Tape />
+
+  <header class="page-head" data-sticky-anchor>
+    <div class="crumb"><a href="/">letmepost</a> / terms</div>
+    <h1 class="page-h1">Terms of service.</h1>
+    <p class="lede" style="color: var(--r-very); font-size: 12px; letter-spacing: 0.06em;">Last updated: {updated}</p>
+  </header>
+
+  <hr class="dash" />
+
+  <div class="prose">
 
       <p>
         These terms govern your use of letmepost.dev. By using the service, you
@@ -125,7 +135,11 @@ const updated = "2026-04-27";
       <p>
         <a href="mailto:support@letmepost.dev">support@letmepost.dev</a>
       </p>
-    </div>
-  </section>
+  </div>
+
+  <hr class="double" />
+
+  <Closeout codeLine="000 LMP TERMS · 2026-05-23" />
+  <Tape bottom />
 </BaseLayout>
 

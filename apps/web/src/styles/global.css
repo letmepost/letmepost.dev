@@ -1,53 +1,51 @@
 @import "tailwindcss";
 
-/* -------------------------------------------------------------------------- */
-/* Design tokens — light defaults exposed to Tailwind as utilities             */
-/* (bg-accent, text-muted, …). Dark variants override below.                   */
-/* -------------------------------------------------------------------------- */
+/* ═══════════════════════════════════════════════════════════════════
+   letmepost.dev — design system
+   "Receipt" direction: thermal-printer aesthetic, mono everywhere,
+   zero border-radius. Tokens live as CSS custom properties and are
+   also wired into Tailwind v4's @theme so legacy utility classes
+   (text-text-muted, bg-bg-card, …) resolve to the receipt palette
+   without a per-page migration.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ──────────────────────────────────────────────────────────
+   TAILWIND v4 theme tokens
+   ────────────────────────────────────────────────────────── */
 @theme {
-  /* Paper — warm cream. Anchors mirror dashboard `:root` light tokens
-     (--background / --card / --secondary / --muted-foreground / etc). */
-  --color-bg: hsl(30 25% 98%);
-  --color-bg-elev: hsl(30 20% 96%);
-  --color-bg-card: hsl(30 18% 93%);
-  --color-bg-card-hover: hsl(30 20% 91%);
+  --color-bg: #f7f4ea;
+  --color-bg-elev: #fbfaf2;
+  --color-bg-card: #f1eedf;
+  --color-bg-card-hover: #ebe7d5;
 
-  /* Ink */
-  --color-text: hsl(24 10% 10%);
-  --color-text-secondary: hsl(24 8% 30%);
-  --color-text-muted: hsl(24 6% 42%);
+  --color-text: #0a0907;
+  --color-text-secondary: #1a1612;
+  --color-text-muted: #4a4537;
 
-  /* Borders */
-  --color-border: hsl(28 14% 82%);
-  --color-border-strong: hsl(28 12% 68%);
+  --color-border: #cdcabe;
+  --color-border-strong: #8a8676;
 
-  /* Accent — forest green. accent-soft alpha matches dashboard --accent. */
-  --color-accent: hsl(150 45% 32%);
-  --color-accent-hover: hsl(150 48% 26%);
-  --color-accent-soft: hsl(150 45% 32% / 0.10);
-  --color-accent-text: hsl(30 25% 98%);
+  --color-accent: #2D7652;
+  --color-accent-hover: #235a3f;
+  --color-accent-soft: rgba(45, 118, 82, 0.10);
+  --color-accent-text: #fbfaf2;
 
-  /* Code surface */
-  --color-code-bg: hsl(24 10% 10%);
-  --color-code-text: hsl(30 20% 96%);
-  --color-code-muted: hsl(24 6% 58%);
+  --color-code-bg: #0c1014;
+  --color-code-text: #d4d0c4;
+  --color-code-muted: #6b7a73;
 
-  /* Semantic — dashboard --success / --destructive */
-  --color-success: hsl(142 55% 36%);
-  --color-error: hsl(0 70% 45%);
+  --color-success: #2D7652;
+  --color-error: #c14a4a;
 
-  /* HTTP method colors */
-  --color-http-post: hsl(142 55% 38%);
-  --color-http-get: hsl(24 6% 48%);
-  --color-http-put: hsl(150 45% 32%);
-  --color-http-delete: hsl(0 70% 50%);
+  --color-http-post: #2D7652;
+  --color-http-get: #4a4537;
+  --color-http-put: #2D7652;
+  --color-http-delete: #c14a4a;
 
-  /* Typography */
-  --font-mono: "Commit Mono", ui-monospace, "SFMono-Regular", "Menlo",
-    "Consolas", monospace;
+  --font-mono: "Space Mono", "IBM Plex Mono", "Commit Mono", ui-monospace,
+    "SFMono-Regular", "Menlo", "Consolas", monospace;
   --font-serif: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
 
-  /* Zero radius everywhere */
   --radius-none: 0;
   --radius-sm: 0;
   --radius-md: 0;
@@ -55,351 +53,832 @@
   --radius-xl: 0;
 }
 
-/* Dark token set — palette mirrors the dashboard's globals.css `.dark` block
-   so the landing and the operator console feel like the same product. */
+/* ──────────────────────────────────────────────────────────
+   RECEIPT TOKENS — canonical for the new design
+   ────────────────────────────────────────────────────────── */
+:root {
+  --r-bg:        #f7f4ea;
+  --r-paper:     #fbfaf2;
+  --r-paper-deep:#f1eedf;
+
+  --r-ink:       #0a0907;
+  --r-fg:        #1a1612;
+  --r-dim:       #4a4537;
+  --r-very:      #8a8676;
+
+  --r-line:      #cdcabe;
+
+  --r-accent:        #2D7652;
+  --r-accent-soft:   rgba(45, 118, 82, 0.10);
+
+  --r-code-bg:   #0c1014;
+  --r-code-fg:   #d4d0c4;
+  --r-code-dim:  #6b7a73;
+  --r-code-line: #1b242b;
+
+  --r-mono: "Space Mono", "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  --r-fs-1:  32px;
+  --r-fs-2:  16px;
+  --r-fs-3:  14px;
+  --r-fs-sm: 12px;
+  --r-fs-xs: 10px;
+
+  --r-strip-w: 640px;
+  --r-nav-w:   200px;
+  --r-marg-w:  200px;
+  --r-gutter:  32px;
+  --r-page-max: 1180px;
+}
+
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* Anchors mirror dashboard --background / --card / --secondary / --muted */
-  --color-bg: hsl(24 12% 8%);
-  --color-bg-elev: hsl(24 11% 11%);
-  --color-bg-card: hsl(24 11% 11%);
-  --color-bg-card-hover: hsl(24 10% 15%);
+  --color-bg: #0e0e0a;
+  --color-bg-elev: #16170f;
+  --color-bg-card: #1a1b12;
+  --color-bg-card-hover: #22231a;
+  --color-text: #e8e3d2;
+  --color-text-secondary: #cdc8b5;
+  --color-text-muted: #9a9582;
+  --color-border: #2a2820;
+  --color-border-strong: #5e5b4e;
+  --color-accent: #4DBE85;
+  --color-accent-hover: #6dd09e;
+  --color-accent-soft: rgba(77, 190, 133, 0.14);
+  --color-accent-text: #0e0e0a;
+  --color-code-bg: #02050a;
+  --color-success: #4DBE85;
 
-  /* --foreground / --muted-foreground from dashboard. text-secondary is a
-     landing-only token (between primary text and muted) — no dashboard
-     equivalent, picked to sit between 94% and 62% lightness. */
-  --color-text: hsl(30 22% 94%);
-  --color-text-secondary: hsl(30 15% 78%);
-  --color-text-muted: hsl(30 12% 62%);
-
-  --color-border: hsl(24 8% 22%);
-  --color-border-strong: hsl(24 8% 32%);
-
-  /* Dashboard --primary / --accent. accent-soft uses dashboard's 0.14 alpha. */
-  --color-accent: hsl(150 50% 55%);
-  --color-accent-hover: hsl(150 55% 62%);
-  --color-accent-soft: hsl(150 50% 55% / 0.14);
-  --color-accent-text: hsl(24 12% 8%);
-
-  /* Code window — elevated surface in dark (not a hole as in light mode). */
-  --color-code-bg: hsl(24 11% 14%);
-  --color-code-text: hsl(30 22% 94%);
-  --color-code-muted: hsl(30 12% 55%);
-
-  /* Dashboard --success / --destructive. */
-  --color-success: hsl(142 55% 55%);
-  --color-error: hsl(0 65% 58%);
-
-  /* HTTP method colors — landing-only; brightened for legibility on dark. */
-  --color-http-post: hsl(142 55% 55%);
-  --color-http-get: hsl(30 12% 62%);
-  --color-http-put: hsl(150 50% 55%);
-  --color-http-delete: hsl(0 65% 58%);
+  --r-bg:        #0e0e0a;
+  --r-paper:     #16170f;
+  --r-paper-deep:#1a1b12;
+  --r-ink:       #e8e3d2;
+  --r-fg:        #e8e3d2;
+  --r-dim:       #9a9582;
+  --r-very:      #5e5b4e;
+  --r-line:      #2a2820;
+  --r-accent:        #4DBE85;
+  --r-accent-soft:   rgba(77, 190, 133, 0.14);
+  --r-code-bg:   #02050a;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Base — things that belong on html/body or need to cascade globally          */
-/* -------------------------------------------------------------------------- */
-@layer base {
-  html {
-    font-family: var(--font-mono);
-    /* 16px base — the body is set in monospace, so 15px reads cramped
-       on large screens. 16px gives the paper-cream layout room to
-       breathe without bumping the line-length too far. The container
-       widths below scale in the same direction. */
-    font-size: 16px;
-    line-height: 1.7;
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
-    -webkit-text-size-adjust: 100%;
-    color-scheme: light;
-    scroll-behavior: smooth;
-    scroll-padding-top: 2rem;
-  }
+/* ──────────────────────────────────────────────────────────
+   BASE
+   ────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 2rem;
+}
+body {
+  background: var(--r-bg);
+  color: var(--r-fg);
+  font-family: var(--r-mono);
+  font-size: var(--r-fs-3);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+  transition: color 120ms ease;
+}
+a:hover { color: var(--r-accent); }
+code, pre, kbd { font-family: var(--r-mono); }
+pre { margin: 0; }
+:focus-visible { outline: 2px solid var(--r-accent); outline-offset: 3px; }
+::selection { background: var(--r-accent-soft); color: var(--r-ink); }
 
-  body {
-    margin: 0;
-    background-color: var(--color-bg);
-    color: var(--color-text);
-    font-family: var(--font-mono);
-    min-height: 100vh;
-  }
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--r-mono);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  color: var(--r-ink);
+  margin: 0 0 0.6em;
+}
+p { margin: 0 0 1.1em; }
 
-  ::selection {
-    background: var(--color-accent-soft);
-    color: var(--color-text);
-  }
-
-  :focus-visible {
-    outline: 2px solid var(--color-accent);
-    outline-offset: 3px;
-  }
-
-  /* Base heading rhythm — inline Tailwind utilities override per-use.
-     Line-height bumped from 1.15 → 1.18 so the larger sizes below
-     don't read as a stack of tightly-packed slabs. The letter-spacing
-     stays slightly negative (mono headlines look airy at default
-     tracking when sized this big). */
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: var(--font-mono);
-    font-weight: 700;
-    line-height: 1.18;
-    letter-spacing: -0.02em;
-    color: var(--color-text);
-  }
-
-  /* h1 — display weight. Sized to land deliberately big without
-     overwhelming the page. Ceiling 3.75rem (60px) at 1280+ viewports;
-     scales down via 5.5vw on smaller screens. Letter-spacing tighter
-     at larger sizes (display type wants less air per character) and
-     line-height 1.1 keeps stacked headline lines from feeling
-     unrelated. */
-  h1 {
-    font-size: clamp(2.2rem, 5.5vw, 3.75rem);
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
-    margin: 0 0 1.25rem;
-  }
-
-  /* h2 — section anchors. Was clamp(1.4, 3vw, 1.8); now clamp(1.65,
-     3.5vw, 2.25). At 2.25rem they have proper section weight against
-     the paper background. */
-  h2 {
-    font-size: clamp(1.65rem, 3.5vw, 2.25rem);
-    margin: 2.75rem 0 0.85rem;
-  }
-
-  /* h3 — subsections. 1.2rem actually distinguishes from body now. */
-  h3 {
-    font-size: 1.2rem;
-    margin: 1.6rem 0 0.6rem;
-  }
-
-  p {
-    margin: 0 0 1.1rem;
-  }
-
-  a {
-    color: var(--color-text);
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
-    transition: color 120ms ease;
-  }
-
-  a:hover {
-    color: var(--color-accent);
-  }
-
-  code,
-  pre {
-    font-family: var(--font-mono);
-    font-size: 0.9em;
-  }
-
-  :not(pre) > code {
-    background: var(--color-accent-soft);
-    color: var(--color-text);
-    padding: 1px 5px;
-    font-size: 0.88em;
-  }
-
-  /* Prose lists — restore bullet styling removed by Preflight */
-  .prose ul,
-  .prose ol {
-    padding-left: 1.25rem;
-    margin: 0 0 1rem;
-  }
-  .prose ul {
-    list-style: disc;
-  }
-  .prose ol {
-    list-style: decimal;
-  }
-  .prose li {
-    margin-bottom: 0.25rem;
-  }
-
-  hr {
-    border: 0;
-    border-top: 1px solid var(--color-border);
-    margin: 3rem 0;
-  }
+:not(pre) > code {
+  background: var(--r-accent-soft);
+  color: var(--r-fg);
+  padding: 1px 5px;
+  font-size: 0.92em;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Components — reused patterns worth a class                                  */
-/* -------------------------------------------------------------------------- */
+.prose ul, .prose ol { padding-left: 1.25rem; margin: 0 0 1rem; }
+.prose ul { list-style: disc; }
+.prose ol { list-style: decimal; }
+.prose li { margin-bottom: 0.25rem; }
 
-/* Override Tailwind's built-in `.container` utility — we want one fixed
-   paper-width, not its responsive 40rem/48rem/64rem/80rem/96rem ladder.
-   900px sits comfortably below the 1024px laptop floor while letting
-   the bigger heading scale (2.25rem h2, 3.5rem h1 ceiling) breathe. */
-@utility container {
-  width: 100%;
-  max-width: 900px;
+/* ──────────────────────────────────────────────────────────
+   PAGE LAYOUT — 3 columns
+   ────────────────────────────────────────────────────────── */
+.page {
+  max-width: var(--r-page-max);
   margin-inline: auto;
-  padding-inline: 1.5rem;
+  display: grid;
+  grid-template-columns: var(--r-nav-w) var(--r-strip-w) var(--r-marg-w);
+  gap: var(--r-gutter);
+  padding: 40px 24px 80px;
+}
+.strip {
+  background: var(--r-paper);
+  border-left: 1px dashed var(--r-very);
+  border-right: 1px dashed var(--r-very);
+  padding: 0 40px 48px;
+  min-width: 0;
 }
 
-/* Wider container for the navbar only — the page-body width is right
-   for reading but cramped once the nav has Docs + Product dropdowns +
-   four link items + GitHub + theme toggle at the new 1rem font size.
-   Apply to the header row only; page sections keep the narrower
-   paper width. */
-@utility container-wide {
-  width: 100%;
-  max-width: 1200px;
-  margin-inline: auto;
-  padding-inline: 1.5rem;
+.tape {
+  height: 12px;
+  background: radial-gradient(circle at 12px 12px, var(--r-bg) 6px, transparent 6.5px) repeat-x;
+  background-size: 24px 12px;
+}
+.tape.bot {
+  background: radial-gradient(circle at 12px 0, var(--r-bg) 6px, transparent 6.5px) repeat-x;
+  background-size: 24px 12px;
 }
 
-/* Vertical-rhythm utility for major page sections. Replaces the
-   ad-hoc `pt-14 pb-14` / `pt-22 pb-12` / `pt-8 pb-12` patterns
-   sprinkled across the marketing pages. Three flavors:
-     - .section          → standard section (5rem top/bottom)
-     - .section-hero     → hero-page-top (7rem top, 4.5rem bottom)
-     - .section-tight    → tight rhythm between adjacent code/visual
-                           blocks (3rem top/bottom)
-   Mobile tightens via the breakpoint below. */
-@utility section {
-  padding-block: 6rem;
+hr.solid  { border: 0; border-top: 2px solid var(--r-ink); margin: 22px 0; }
+hr.dash   { border: 0; border-top: 1px dashed var(--r-very); margin: 28px 0; }
+hr.double {
+  border: 0; height: 4px;
+  border-top: 1px solid var(--r-ink); border-bottom: 1px solid var(--r-ink);
+  margin: 24px 0;
 }
 
-@utility section-hero {
-  /* Hero needs real airiness — the eye should land on the headline
-     with breathing room above + a clear gap below before the next
-     thing. 10rem top puts the headline visually one full screen-height
-     "below" the navbar on a typical laptop. */
-  padding-top: 10rem;
-  padding-bottom: 6rem;
+/* ──────────────────────────────────────────────────────────
+   LEFT NAV RAIL
+   ────────────────────────────────────────────────────────── */
+.nav-rail {
+  position: sticky; top: 32px;
+  align-self: start;
+  padding-top: 24px;
+  font-size: var(--r-fs-sm);
+}
+.nav-rail .brand {
+  font-size: 12px;
+  letter-spacing: 0.36em;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--r-ink);
+  padding-left: 0.36em;
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 6px;
+}
+.r-stamp {
+  width: 14px; height: 14px; background: var(--r-accent);
+  position: relative; flex-shrink: 0;
+  display: inline-block;
+}
+.r-stamp::after {
+  content: ''; position: absolute; inset: 3px;
+  background: var(--r-paper); transform: rotate(18deg);
+}
+.r-stamp.sm { width: 12px; height: 12px; }
+.nav-rail .brand-sub {
+  font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--r-very);
+  padding-left: 24px; margin-bottom: 20px;
+}
+.nav-rail .nav-section,
+.mobile-sheet .sheet-section {
+  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--r-very); margin: 18px 0 8px;
+  padding-bottom: 6px; border-bottom: 1px dotted var(--r-line);
+}
+.mobile-sheet .sheet-section {
+  font-size: 10px; margin: 18px 0 10px; padding-bottom: 8px;
+}
+.nav-rail ul.links, .mobile-sheet ul.links { list-style: none; padding: 0; margin: 0 0 16px; }
+.nav-rail ul.links li {
+  display: grid; grid-template-columns: 14px 1fr auto;
+  gap: 6px; align-items: baseline; padding: 5px 0;
+}
+.nav-rail ul.links li::before { content: '·'; color: var(--r-very); }
+.nav-rail ul.links li.current::before {
+  content: '→'; color: var(--r-accent); font-weight: 700;
+}
+.nav-rail ul.links li.current a,
+.mobile-sheet ul.links li.current a { color: var(--r-accent); font-weight: 700; }
+.nav-rail ul.links a {
+  text-decoration: none; color: var(--r-fg); font-size: 12px;
+  transition: color 100ms;
+}
+.nav-rail ul.links a:hover { color: var(--r-accent); }
+.nav-rail ul.links li .meta,
+.mobile-sheet ul.links li .meta {
+  font-size: 9px; color: var(--r-very);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.mobile-sheet ul.links li .meta { font-size: 10px; }
+
+.github-card {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border: 1px solid var(--r-line);
+  text-decoration: none; color: var(--r-fg);
+  font-size: 11px; letter-spacing: 0.06em;
+  margin: 4px 0 16px;
+  transition: border-color 100ms, color 100ms;
+}
+.github-card:hover { border-color: var(--r-accent); color: var(--r-accent); }
+.github-card .star {
+  margin-left: auto; color: var(--r-accent);
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.mobile-sheet .github-card {
+  padding: 12px 14px; font-size: 13px; margin: 4px 0 18px;
 }
 
-@utility section-tight {
-  padding-block: 3rem;
+.status-card { font-size: 10px; line-height: 1.7; color: var(--r-dim); padding-top: 4px; }
+.status-card .row {
+  display: grid; grid-template-columns: 1fr auto;
+  padding: 3px 0; gap: 8px;
+}
+.status-card .row .k {
+  color: var(--r-very); letter-spacing: 0.06em;
+  text-transform: uppercase; font-size: 9px;
+}
+.status-card .row .v { color: var(--r-ink); font-weight: 700; font-size: 10px; }
+.status-card .row .v.ok { color: var(--r-accent); }
+.status-card .pulse {
+  display: inline-block; width: 5px; height: 5px;
+  background: var(--r-accent); margin-right: 4px;
+  vertical-align: middle;
+  animation: pulse 2s ease-out infinite;
+}
+.mobile-sheet .status-card { font-size: 12px; padding-top: 4px; }
+.mobile-sheet .status-card .row { padding: 4px 0; }
+.mobile-sheet .status-card .row .k { font-size: 10px; }
+.mobile-sheet .status-card .row .v { font-size: 12px; }
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 var(--r-accent-soft); }
+  70%  { box-shadow: 0 0 0 5px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
 }
 
-@media (max-width: 900px) {
-  .section {
-    padding-block: 4rem;
-  }
-  .section-hero {
-    padding-top: 6rem;
-    padding-bottom: 4rem;
-  }
+.colophon {
+  font-size: 9px; color: var(--r-very);
+  letter-spacing: 0.08em; line-height: 1.7;
+  margin-top: 20px; padding-top: 14px;
+  border-top: 1px dotted var(--r-line);
+}
+.colophon b { color: var(--r-fg); font-weight: 700; }
+.mobile-sheet .colophon { font-size: 11px; letter-spacing: 0.06em; margin-top: 22px; padding-top: 16px; }
+
+.theme-btn {
+  margin-top: 14px;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border: 1px solid var(--r-line);
+  background: transparent; cursor: pointer;
+  font-family: var(--r-mono); font-size: 10px;
+  color: var(--r-dim); letter-spacing: 0.08em; text-transform: uppercase;
+}
+.theme-btn:hover { color: var(--r-accent); border-color: var(--r-accent); }
+.mobile-sheet .theme-btn { margin-top: 18px; padding: 8px 14px; font-size: 12px; gap: 8px; }
+
+/* ──────────────────────────────────────────────────────────
+   RIGHT RAIL — marginalia + toc variants
+   ────────────────────────────────────────────────────────── */
+.marg {
+  font-size: 11px; line-height: 1.55; color: var(--r-dim);
+  padding-top: 60px;
+  position: sticky; top: 32px;
+  align-self: start;
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.marg::-webkit-scrollbar { display: none; }
+.marg .note { margin-bottom: 24px; padding-left: 18px; position: relative; }
+.marg .note::before {
+  content: '→'; position: absolute; left: 0; top: 0;
+  color: var(--r-accent); font-weight: 700;
+}
+.marg .note b { color: var(--r-ink); font-weight: 700; }
+.marg .tag {
+  display: inline-block; font-size: 9px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--r-accent); margin-bottom: 4px;
+}
+.marg .note code { background: var(--r-accent-soft); padding: 1px 5px; font-size: 0.92em; }
+.marg .note a { color: var(--r-accent); }
+
+.toc {
+  font-size: 11px; line-height: 1.65; color: var(--r-dim);
+  padding-top: 60px;
+  position: sticky; top: 32px;
+  align-self: start;
+}
+.toc .lbl {
+  font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--r-very); margin-bottom: 12px;
+  padding-bottom: 6px; border-bottom: 1px dotted var(--r-line);
+}
+.toc ol { list-style: none; padding: 0; margin: 0; }
+.toc ol li { padding: 5px 0; }
+.toc ol li a {
+  text-decoration: none; color: var(--r-fg);
+  display: grid; grid-template-columns: 22px 1fr; gap: 6px;
+  transition: color 100ms;
+}
+.toc ol li a:hover { color: var(--r-accent); }
+.toc ol li .num { color: var(--r-very); font-variant-numeric: tabular-nums; }
+.toc .read {
+  margin-top: 16px; padding-top: 12px;
+  border-top: 1px dotted var(--r-line);
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--r-very);
+}
+.toc .read b { color: var(--r-ink); font-weight: 700; font-size: 12px; }
+
+/* ──────────────────────────────────────────────────────────
+   SECTION HEADINGS
+   ────────────────────────────────────────────────────────── */
+section.section { padding-top: 28px; }
+.h-caps {
+  font-family: var(--r-mono); font-weight: 700;
+  font-size: var(--r-fs-2); letter-spacing: 0.22em; text-transform: uppercase;
+  text-align: center; margin: 0 0 4px;
+}
+.h-mixed {
+  font-family: var(--r-mono); font-weight: 700;
+  font-size: 18px; letter-spacing: -0.005em; margin: 0 0 6px;
+}
+.h-mixed .acc { color: var(--r-accent); }
+.subtitle {
+  font-size: var(--r-fs-xs); letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--r-very); margin: 0 0 18px;
+}
+.subtitle.center { text-align: center; }
+.subtitle.left   { text-align: left; }
+
+/* ──────────────────────────────────────────────────────────
+   HEAD — landing centered brand block
+   ────────────────────────────────────────────────────────── */
+.head { text-align: center; padding: 36px 0 8px; }
+.head .brand-mark { font-size: 14px; letter-spacing: 0.5em; font-weight: 700; padding-left: 0.5em; margin-bottom: 6px; }
+.head .url-line { font-size: 11px; color: var(--r-dim); letter-spacing: 0.14em; }
+.head .ascii {
+  margin: 22px 0 8px;
+  font-family: var(--r-mono); font-size: 11px;
+  color: var(--r-very); white-space: pre; line-height: 1.2;
 }
 
-@media (max-width: 640px) {
-  .section {
-    padding-block: 3.25rem;
-  }
-  .section-hero {
-    padding-top: 4.5rem;
-    padding-bottom: 3rem;
-  }
-  .section-tight {
-    padding-block: 2.25rem;
-  }
+.stampbox {
+  margin: 18px auto 14px;
+  width: 240px;
+  padding: 16px 14px 14px;
+  border: 2px solid var(--r-ink);
+  transform: rotate(-3deg);
+  text-align: center;
+  color: var(--r-ink);
+}
+.stampbox .l1 { font-size: 11px; letter-spacing: 0.32em; line-height: 1; }
+.stampbox .l2 { font-size: 24px; letter-spacing: 0.06em; font-weight: 700; line-height: 1; margin: 6px 0; }
+.stampbox .l3 { font-size: 10px; letter-spacing: 0.2em; line-height: 1; }
+
+.meta-grid {
+  margin-top: 24px;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px 14px;
+  font-size: 11px; color: var(--r-dim);
+}
+.meta-grid .k {
+  color: var(--r-very); letter-spacing: 0.08em;
+  text-transform: uppercase; margin-right: 6px;
+}
+.meta-grid .v { color: var(--r-ink); }
+
+/* ──────────────────────────────────────────────────────────
+   BUTTONS
+   ────────────────────────────────────────────────────────── */
+.btn {
+  font-family: var(--r-mono); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 11px 18px;
+  border: 2px solid var(--r-ink);
+  background: var(--r-paper); color: var(--r-ink);
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 8px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+.btn:hover { background: var(--r-ink); color: var(--r-paper); }
+.btn.pri { background: var(--r-ink); color: var(--r-paper); }
+.btn.pri:hover { background: var(--r-accent); border-color: var(--r-accent); color: var(--r-paper); }
+[data-theme="dark"] .btn.pri:hover { color: #0e0e0a; }
+.btn.small { padding: 8px 12px; font-size: 11px; }
+
+.ctas { display: flex; gap: 10px; flex-wrap: wrap; margin: 18px 0 8px; }
+
+.reassurance {
+  font-size: var(--r-fs-xs); letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--r-very); margin-top: 10px;
 }
 
-@layer components {
-  /* Buttons — bumped to 0.85rem 1.65rem at 0.95rem font. Buttons are
-     focal CTAs on every marketing page; they were sitting too small
-     against the new heading scale. The press transform is now -1px
-     translate combined with a 60ms ease-out so the click feels
-     deliberate without overshooting. */
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    font-family: var(--font-mono);
-    font-weight: 600;
-    font-size: 0.95rem;
-    padding: 0.85rem 1.65rem;
-    text-decoration: none;
-    border: 1px solid transparent;
-    cursor: pointer;
-    white-space: nowrap;
-    line-height: 1;
-    transition:
-      background 120ms ease,
-      color 120ms ease,
-      border-color 120ms ease,
-      box-shadow 120ms ease,
-      transform 80ms ease-out;
-  }
-  .btn:active {
-    transform: translateY(1px);
-  }
+/* ──────────────────────────────────────────────────────────
+   HERO + PAGE TYPOGRAPHY
+   ────────────────────────────────────────────────────────── */
+h1.hero-h1 {
+  font-family: var(--r-mono); font-weight: 700;
+  font-size: 30px; line-height: 1.18; letter-spacing: -0.02em;
+  margin: 14px 0 16px; text-wrap: balance;
+}
+h1.hero-h1 .acc { color: var(--r-accent); }
+h1.hero-h1 .under {
+  text-decoration: underline; text-decoration-thickness: 3px;
+  text-decoration-color: var(--r-accent); text-underline-offset: 6px;
+}
+.lede { color: var(--r-dim); font-size: 13.5px; line-height: 1.65; margin: 0 0 22px; }
+.lede b { color: var(--r-ink); font-weight: 700; }
+.lede code { background: var(--r-accent-soft); padding: 1px 6px; color: var(--r-fg); font-size: 0.92em; }
+.lede a { color: var(--r-accent); }
 
-  /* Primary — the forest-green block. The 2px inset shadow at the top
-     gives it a subtle "pressed paper" depth that matches the
-     brutalist-but-tactile aesthetic without resorting to gradients or
-     CSS shadows that would muddy the borderless layout. */
-  .btn-primary {
-    background: var(--color-accent);
-    color: var(--color-accent-text);
-    border-color: var(--color-accent);
-    box-shadow: inset 0 -2px 0 0 hsl(0 0% 0% / 0.18);
-  }
-  .btn-primary:hover {
-    background: var(--color-accent-hover);
-    border-color: var(--color-accent-hover);
-    color: var(--color-accent-text);
-    box-shadow: inset 0 -2px 0 0 hsl(0 0% 0% / 0.22);
-  }
-  .btn-primary:active {
-    box-shadow: inset 0 -1px 0 0 hsl(0 0% 0% / 0.2);
-  }
-
-  /* Secondary — outlined, inverts on hover. Border now uses
-     border-strong so the edge reads cleanly against paper cream. */
-  .btn-secondary {
-    background: transparent;
-    color: var(--color-text);
-    border-color: var(--color-border-strong);
-  }
-  .btn-secondary:hover {
-    background: var(--color-text);
-    color: var(--color-bg);
-    border-color: var(--color-text);
-  }
-
-  /* Status pill — used in the hero on platform pages and in the page
-     header on the landing index. Centralized so the pill never drifts
-     in size between pages. */
-  .status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    padding: 0.4rem 0.75rem;
-    border: 1px solid var(--color-border-strong);
-    line-height: 1;
-  }
-  .status-pill-dot {
-    width: 8px;
-    height: 8px;
-    display: inline-block;
-  }
+.crumb {
+  font-size: var(--r-fs-xs); letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--r-very); margin-bottom: 10px;
+}
+.crumb a { text-decoration: none; }
+.page-head { padding: 28px 0 16px; }
+h1.page-h1 {
+  font-family: var(--r-mono); font-weight: 700;
+  font-size: var(--r-fs-1); line-height: 1.18; letter-spacing: -0.02em;
+  margin: 0 0 14px; text-wrap: balance;
+}
+h1.page-h1 .acc { color: var(--r-accent); }
+h1.page-h1 .under {
+  text-decoration: underline; text-decoration-thickness: 3px;
+  text-decoration-color: var(--r-accent); text-underline-offset: 6px;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Shiki output — <Code> renders .astro-code with inline styles we override    */
-/* -------------------------------------------------------------------------- */
-.astro-code {
-  padding: 1.25rem 1.5rem !important;
-  margin: 0 !important;
-  font-size: 1.05rem !important;
-  line-height: 1.55 !important;
+/* ──────────────────────────────────────────────────────────
+   CODE BLOCK
+   ────────────────────────────────────────────────────────── */
+.code-block {
+  margin: 14px 0;
+  border: 1px solid var(--r-line);
+  background: var(--r-code-bg); color: var(--r-code-fg);
+  font-size: 11.5px;
+}
+.code-block .head-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--r-code-line);
+  font-size: var(--r-fs-xs); letter-spacing: 0.08em;
+  color: var(--r-code-dim);
+}
+.code-block .tabs { display: flex; gap: 14px; }
+.code-block .tab {
+  cursor: pointer; padding: 2px 0;
+  border: 0; border-bottom: 1px solid transparent;
+  user-select: none;
+  background: transparent;
+  color: var(--r-code-dim);
+  font-family: var(--r-mono); font-size: var(--r-fs-xs);
+  letter-spacing: 0.08em;
+}
+.code-block .tab.on { color: var(--r-code-fg); border-bottom-color: var(--r-accent); }
+.code-block pre { padding: 14px 16px; overflow-x: auto; line-height: 1.7; }
+.code-block pre[hidden] { display: none; }
+.code-block .tok-k { color: var(--r-accent); }
+.code-block .tok-s { color: #d4c79b; }
+.code-block .tok-n { color: #8fb8b0; }
+.code-block .tok-c { color: var(--r-code-dim); font-style: italic; }
+.code-block .tok-p { color: #a8a8a8; }
+
+.inline-cmd {
+  background: var(--r-code-bg); color: var(--r-code-fg);
+  padding: 4px 10px;
+  border-left: 2px solid var(--r-accent);
+  display: inline-block;
+  font-size: 12px;
+}
+
+/* ──────────────────────────────────────────────────────────
+   ITEMIZED LIST + TOTAL
+   ────────────────────────────────────────────────────────── */
+.items { margin: 8px 0; }
+.item {
+  display: grid; grid-template-columns: 36px 1fr auto;
+  gap: 12px; padding: 10px 0;
+  align-items: baseline;
+  border-bottom: 1px dotted var(--r-very);
+}
+.item:last-child { border-bottom: 0; }
+.item .qty { color: var(--r-very); font-variant-numeric: tabular-nums; }
+.item .desc { line-height: 1.4; }
+.item .desc .sub { display: block; font-size: var(--r-fs-sm); color: var(--r-dim); margin-top: 3px; }
+.item .val { color: var(--r-accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.total {
+  margin-top: 8px; padding: 14px 0;
+  border-top: 2px solid var(--r-ink); border-bottom: 1px solid var(--r-ink);
+  display: grid; grid-template-columns: 1fr auto;
+  font-weight: 700; font-size: 14px;
+}
+.total .v { color: var(--r-accent); font-size: 22px; line-height: 1; }
+
+/* ──────────────────────────────────────────────────────────
+   PLATFORM STATUS LIST
+   ────────────────────────────────────────────────────────── */
+.platforms { margin: 8px 0; }
+.platforms .row {
+  display: grid; grid-template-columns: 28px 1fr auto;
+  gap: 12px; padding: 10px 0;
+  border-bottom: 1px dotted var(--r-very);
+  align-items: center;
+}
+.platforms .row:last-child { border-bottom: 0; }
+.platforms .row .nm { font-weight: 700; color: var(--r-ink); font-size: 13px; }
+.platforms .row .nm .h {
+  display: block; font-weight: 400; color: var(--r-dim);
+  font-size: 11px; margin-top: 2px;
+  letter-spacing: 0;
+}
+.platforms .row .st {
+  font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+  padding: 3px 8px; border: 1px solid var(--r-line);
+  color: var(--r-dim); white-space: nowrap;
+}
+.platforms .row .st.live      { color: var(--r-accent); border-color: var(--r-accent); }
+.platforms .row .st.in-review { color: var(--r-ink);    border-color: var(--r-ink); }
+.platforms .row .st.planned   { color: var(--r-very);   border-color: var(--r-very); }
+.platforms .row .pglyph {
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--r-ink);
+}
+
+/* ──────────────────────────────────────────────────────────
+   ENVELOPE — structured error block
+   ────────────────────────────────────────────────────────── */
+.envelope {
+  margin: 12px 0;
+  border: 1px solid var(--r-line);
+  background: var(--r-code-bg);
+  color: var(--r-code-fg);
+  font-size: 12px;
+}
+.envelope .head-bar {
+  display: flex; justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--r-code-line);
+  font-size: var(--r-fs-xs); letter-spacing: 0.08em;
+  color: var(--r-code-dim);
+}
+.envelope .body { padding: 14px 16px; }
+.envelope .field {
+  display: grid; grid-template-columns: 150px 1fr;
+  padding: 3px 0; gap: 14px;
+  font-family: var(--r-mono);
+}
+.envelope .field .k { color: var(--r-code-dim); }
+.envelope .field .v { color: var(--r-code-fg); word-break: break-word; }
+.envelope .field .v.b { font-weight: 700; }
+.envelope .field .v.acc { color: var(--r-accent); }
+
+/* ──────────────────────────────────────────────────────────
+   MCP TEASER
+   ────────────────────────────────────────────────────────── */
+.mcp {
+  margin: 14px 0;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.mcp p { color: var(--r-dim); font-size: 13px; line-height: 1.65; }
+.mcp p a { color: var(--r-accent); }
+.mcp .config {
+  background: var(--r-code-bg); color: var(--r-code-fg);
+  padding: 14px 16px;
+  font-size: 11.5px; line-height: 1.6;
+  border: 1px solid var(--r-line);
   overflow-x: auto;
-  background: var(--color-code-bg) !important;
+}
+.mcp .config .tok-k { color: var(--r-accent); }
+.mcp .config .tok-s { color: #d4c79b; }
+@media (max-width: 700px) {
+  .mcp { grid-template-columns: 1fr; }
+}
+
+/* ──────────────────────────────────────────────────────────
+   TARIFF — landing pricing teaser table
+   ────────────────────────────────────────────────────────── */
+.tariff { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0 8px; }
+.tariff th {
+  text-align: left;
+  font-size: var(--r-fs-xs); letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--r-very);
+  padding: 10px 0; border-bottom: 2px solid var(--r-ink); font-weight: 700;
+}
+.tariff th.r { text-align: right; }
+.tariff td {
+  padding: 12px 0; border-bottom: 1px dotted var(--r-very);
+  vertical-align: top;
+}
+.tariff td.r { text-align: right; }
+.tariff td.tier { font-weight: 700; color: var(--r-ink); }
+.tariff td.tier .who {
+  display: block; font-weight: 400; color: var(--r-dim);
+  font-size: 11px; margin-top: 2px; letter-spacing: 0;
+}
+.tariff td.tier .stars { color: var(--r-accent); margin-left: 4px; }
+.tariff .price { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--r-ink); }
+.tariff tr.hi td { background: var(--r-accent-soft); }
+
+/* ──────────────────────────────────────────────────────────
+   FAQ
+   ────────────────────────────────────────────────────────── */
+.faq .item-q { padding: 14px 0; border-bottom: 1px dotted var(--r-very); }
+.faq .item-q:last-child { border-bottom: 0; }
+.faq .q { font-weight: 700; margin: 0 0 6px; font-size: 14px; color: var(--r-ink); }
+.faq .q::before { content: 'Q · '; color: var(--r-accent); }
+.faq .a { color: var(--r-dim); font-size: 13px; margin: 0; line-height: 1.65; }
+.faq .a::before { content: 'A · '; color: var(--r-very); margin-right: 4px; }
+.faq .a a { color: var(--r-accent); }
+.faq .a code { background: var(--r-accent-soft); padding: 1px 5px; }
+
+/* ──────────────────────────────────────────────────────────
+   CLOSEOUT
+   ────────────────────────────────────────────────────────── */
+.closeout {
+  text-align: center; padding-top: 18px;
+  border-top: 1px dashed var(--r-very);
+  font-size: var(--r-fs-xs); letter-spacing: 0.08em;
+  color: var(--r-very); line-height: 1.8;
+}
+.closeout .thanks { letter-spacing: 0.2em; }
+.closeout .barcode {
+  margin-top: 14px; display: flex; gap: 1px; height: 38px;
+  justify-content: center; align-items: stretch;
+}
+.closeout .barcode i { display: inline-block; background: var(--r-ink); }
+.closeout .code-line {
+  margin-top: 6px; font-size: var(--r-fs-xs); letter-spacing: 0.16em;
+  color: var(--r-ink);
+}
+.closeout .links { margin-top: 14px; color: var(--r-dim); }
+.closeout .links a { margin: 0 6px; }
+
+/* ──────────────────────────────────────────────────────────
+   STICKY CTA
+   ────────────────────────────────────────────────────────── */
+.sticky-cta {
+  position: fixed; right: 24px; bottom: 24px; z-index: 100;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 11px 16px;
+  background: var(--r-ink); color: var(--r-paper);
+  border: 2px solid var(--r-ink);
+  font-family: var(--r-mono); font-size: 12px; font-weight: 700;
+  letter-spacing: 0.06em; text-decoration: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  opacity: 0; transform: translateY(8px); pointer-events: none;
+  transition: opacity 200ms, transform 200ms, background 120ms;
+}
+.sticky-cta.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.sticky-cta:hover { background: var(--r-accent); border-color: var(--r-accent); }
+[data-theme="dark"] .sticky-cta:hover { color: #0e0e0a; }
+
+/* ──────────────────────────────────────────────────────────
+   MOBILE PILL
+   ────────────────────────────────────────────────────────── */
+.mobile-pill {
+  display: none;
+  position: fixed; left: 50%; bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 90;
+  background: var(--r-paper);
+  border: 1.5px dashed var(--r-very);
+  padding: 4px 6px;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 10px 32px rgba(0,0,0,0.18), 0 2px 6px rgba(0,0,0,0.08);
+  font-family: var(--r-mono); font-size: 11px;
+  font-weight: 700; letter-spacing: 0.08em;
+  align-items: center; gap: 2px;
+  max-width: calc(100vw - 24px);
+}
+.mobile-pill .pill-brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 12px; color: var(--r-ink); text-decoration: none;
+  letter-spacing: 0.24em;
+}
+.mobile-pill .pill-sep {
+  width: 1px; height: 18px; background: var(--r-line);
+  margin: 0 2px; align-self: center;
+}
+.mobile-pill .pill-link {
+  padding: 8px 12px; text-decoration: none; color: var(--r-fg);
+  text-transform: uppercase;
+}
+.mobile-pill .pill-link:hover, .mobile-pill .pill-link:active { color: var(--r-accent); }
+.mobile-pill .pill-menu {
+  border: 0; background: transparent; cursor: pointer;
+  padding: 8px 14px;
+  font-family: var(--r-mono); font-size: 18px; font-weight: 700;
+  color: var(--r-ink);
+  display: inline-flex; align-items: center; letter-spacing: 0;
+}
+.mobile-pill .pill-menu:hover { color: var(--r-accent); }
+
+/* ──────────────────────────────────────────────────────────
+   MOBILE TAKEOVER SHEET
+   ────────────────────────────────────────────────────────── */
+.mobile-sheet {
+  display: none;
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--r-paper);
+  flex-direction: column;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 28px 22px 48px;
+  padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
+  opacity: 1;
+}
+.mobile-sheet[data-open] { display: flex; }
+@keyframes sheet-in {
+  from { transform: translateY(16px); }
+  to   { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-sheet[data-open] {
+    animation: sheet-in 220ms cubic-bezier(.2,.7,.3,1);
+  }
+}
+.mobile-sheet .sheet-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 18px;
+  border-bottom: 1px dashed var(--r-very);
+  margin-bottom: 22px;
+}
+.mobile-sheet .sheet-hd .brand {
+  font-size: 13px; letter-spacing: 0.4em; font-weight: 700;
+  display: flex; align-items: center; gap: 10px;
+  color: var(--r-ink); text-decoration: none;
+  padding-left: 0.4em;
+}
+.mobile-sheet .sheet-hd .close-btn {
+  border: 1px solid var(--r-line); background: transparent;
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--r-fg); font-size: 16px;
+  font-family: var(--r-mono); font-weight: 700;
+}
+.mobile-sheet .sheet-hd .close-btn:hover { border-color: var(--r-accent); color: var(--r-accent); }
+.mobile-sheet ul.links li {
+  display: grid; grid-template-columns: 18px 1fr auto;
+  gap: 8px; align-items: baseline;
+  padding: 12px 0;
+  border-bottom: 1px dotted var(--r-line);
+  font-size: 15px;
+}
+.mobile-sheet ul.links li:last-child { border-bottom: 0; }
+.mobile-sheet ul.links li::before { content: '·'; color: var(--r-very); }
+.mobile-sheet ul.links li.current::before { content: '→'; color: var(--r-accent); font-weight: 700; }
+.mobile-sheet ul.links a { text-decoration: none; color: var(--r-fg); }
+
+body.sheet-open { overflow: hidden; }
+
+/* ──────────────────────────────────────────────────────────
+   RESPONSIVE
+   ────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .page {
+    grid-template-columns: minmax(0, var(--r-strip-w));
+    justify-content: center;
+    padding-top: 32px;
+    padding-bottom: 110px;
+  }
+  .nav-rail, .marg, .toc { display: none; }
+  .mobile-pill { display: inline-flex; }
+  .sticky-cta {
+    right: 50%; bottom: 76px;
+    transform: translateX(50%) translateY(8px);
+  }
+  .sticky-cta.show { transform: translateX(50%) translateY(0); }
+}
+@media (max-width: 700px) {
+  :root { --r-fs-1: 26px; }
+  .strip { padding: 0 22px 32px; }
+  .page { padding: 16px 12px 110px; gap: 12px; }
+  h1.hero-h1, h1.page-h1 { font-size: 24px; }
+  .meta-grid { grid-template-columns: 1fr; }
+  .stampbox { width: 220px; }
+  .item { grid-template-columns: 26px 1fr auto; }
+  .mobile-pill { font-size: 10px; }
+  .mobile-pill .pill-brand { padding: 8px 10px; letter-spacing: 0.2em; }
+  .mobile-pill .pill-link { padding: 8px 10px; }
+  .mobile-pill .pill-menu { padding: 8px 12px; }
+}
+@media (max-width: 380px) {
+  .mobile-pill .pill-link:nth-child(4),
+  .mobile-pill .pill-sep:nth-child(3) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }

@@ -1,16 +1,26 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import Tape from "../components/Tape.astro";
+import Closeout from "../components/Closeout.astro";
 const updated = "2026-04-27";
 ---
 
 <BaseLayout
   title="Privacy Policy"
   description="How letmepost.dev handles your data, OAuth tokens, and usage logs."
+  stripWidth={700}
 >
-  <section class="pt-14 pb-16">
-    <div class="container prose">
-      <h1>Privacy Policy</h1>
-      <p class="text-text-muted">Last updated: {updated}</p>
+  <Tape />
+
+  <header class="page-head" data-sticky-anchor>
+    <div class="crumb"><a href="/">letmepost</a> / privacy</div>
+    <h1 class="page-h1">Privacy policy.</h1>
+    <p class="lede" style="color: var(--r-very); font-size: 12px; letter-spacing: 0.06em;">Last updated: {updated}</p>
+  </header>
+
+  <hr class="dash" />
+
+  <div class="prose">
 
       <p>
         letmepost.dev ("we", "us", "the service") is an open-source social
@@ -114,7 +124,11 @@ const updated = "2026-04-27";
           >support@letmepost.dev</a
         >.
       </p>
-    </div>
-  </section>
+  </div>
+
+  <hr class="double" />
+
+  <Closeout codeLine="000 LMP PRIVACY · 2026-05-23" />
+  <Tape bottom />
 </BaseLayout>
 

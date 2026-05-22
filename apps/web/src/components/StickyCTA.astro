@@ -1,0 +1,21 @@
+---
+interface Props {
+  href?: string;
+  label?: string;
+}
+const {
+  href = "https://dashboard.letmepost.dev",
+  label = "→ START FREE",
+} = Astro.props;
+---
+
+<a
+  href={href}
+  class="sticky-cta"
+  id="sticky-cta"
+  aria-label="Start free"
+  data-analytics-event="cta.clicked"
+  data-analytics-props='{"location":"sticky-cta","target":"dashboard"}'
+>
+  {label}
+</a>

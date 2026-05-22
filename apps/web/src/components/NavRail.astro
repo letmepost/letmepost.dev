@@ -1,0 +1,102 @@
+---
+import { Icon } from "astro-icon/components";
+import { PLATFORMS } from "../data/platforms.ts";
+
+interface Props {
+  /** Pathname used to mark the current nav item. Defaults to Astro.url.pathname. */
+  currentPath?: string;
+}
+
+const { currentPath = Astro.url.pathname } = Astro.props;
+
+// Match pathname against a link's href, treating "/" specially so it doesn't
+// flag every page as current. Strip trailing slashes from both sides.
+function isCurrent(href: string): boolean {
+  const norm = (s: string) => s.replace(/\/$/, "") || "/";
+  return norm(currentPath) === norm(href);
+}
+
+const platformCount = PLATFORMS.length;
+
+const primaryLinks = [
+  { href: "/", label: "Home" },
+  { href: "https://docs.letmepost.dev", label: "Docs" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/platforms", label: "Platforms", meta: String(platformCount) },
+  { href: "/tools", label: "Tools", meta: "14" },
+  { href: "/blog", label: "Blog" },
+  { href: "/agents", label: "For agents" },
+  { href: "https://docs.letmepost.dev/changelog", label: "Changelog" },
+];
+---
+
+<aside class="nav-rail" aria-label="Primary">
+  <a href="/" class="brand">
+    <span class="r-stamp" aria-hidden="true"></span>
+    LETMEPOST
+  </a>
+  <div class="brand-sub">letmepost.dev</div>
+
+  <div class="nav-section">Navigate</div>
+  <ul class="links">
+    {
+      primaryLinks.map((l) => (
+        <li class={isCurrent(l.href) ? "current" : ""}>
+          <a href={l.href}>{l.label}</a>
+          {l.meta && <span class="meta">{l.meta}</span>}
+        </li>
+      ))
+    }
+  </ul>
+
+  <slot name="secondary">
+    <div class="nav-section">Quick links</div>
+    <ul class="links">
+      <li><a href="https://dashboard.letmepost.dev">Dashboard ↗</a></li>
+      <li><a href="https://docs.letmepost.dev/quickstart">Quickstart</a></li>
+      <li><a href="https://docs.letmepost.dev/self-host">Self-host</a></li>
+      <li><a href="https://status.letmepost.dev">Status</a></li>
+    </ul>
+  </slot>
+
+  <a
+    href="https://github.com/letmepost/letmepost.dev"
+    class="github-card"
+    target="_blank"
+    rel="noopener"
+    aria-label="View letmepost on GitHub"
+    data-analytics-event="external.github_clicked"
+    data-analytics-props='{"location":"nav-rail"}'
+  >
+    <Icon name="ph:github-logo" width={13} height={13} />
+    Star on GitHub
+    <span class="star">★ 142</span>
+  </a>
+
+  <slot name="status">
+    <div class="nav-section">Live</div>
+    <div class="status-card">
+      <div class="row">
+        <span class="k"><span class="pulse" aria-hidden="true"></span> Build</span>
+        <span class="v ok">v0.4.2</span>
+      </div>
+      <div class="row"><span class="k">API</span><span class="v ok">200 OK · 41ms</span></div>
+      <div class="row"><span class="k">Posts/24h</span><span class="v">12,418</span></div>
+      <div class="row"><span class="k">Preflight</span><span class="v">80 rules</span></div>
+      <div class="row"><span class="k">Licence</span><span class="v">Apache-2.0</span></div>
+    </div>
+  </slot>
+
+  <slot name="colophon">
+    <div class="colophon">
+      Built by <b>Rose Kamal Love.</b><br />
+      4 weeks old, alpha. India.<br />
+      <a href="mailto:rose@letmepost.dev" style="color: var(--r-dim);">rose@letmepost.dev</a>
+    </div>
+  </slot>
+
+  <button class="theme-btn" id="theme-btn" type="button" aria-label="Toggle theme">
+    <Icon name="ph:sun" width={11} height={11} />
+    Theme
+  </button>
+</aside>

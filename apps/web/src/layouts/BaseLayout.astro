@@ -1,26 +1,26 @@
 ---
-import "@fontsource/commit-mono/400.css";
-import "@fontsource/commit-mono/600.css";
-import "@fontsource/commit-mono/700.css";
-import "@fontsource/instrument-serif/400.css";
-import "@fontsource/instrument-serif/400-italic.css";
 import "../styles/global.css";
 import { ClientRouter } from "astro:transitions";
-import Header from "../components/Header.astro";
-import Footer from "../components/Footer.astro";
 import Analytics from "../components/Analytics.astro";
+import NavRail from "../components/NavRail.astro";
+import MobilePill from "../components/MobilePill.astro";
+import MobileSheet from "../components/MobileSheet.astro";
+import StickyCTA from "../components/StickyCTA.astro";
 
 /**
- * `jsonLd` lets a page contribute additional structured-data graphs on
- * top of the default Organization + WebSite ones we always emit.
- * Common shapes:
+ * The marketing site's shared chrome: 3-column receipt layout with a
+ * left nav rail, a center "strip" that the page content fills, and an
+ * optional right rail (marginalia, or a table-of-contents on blog
+ * posts). Mobile drops both rails and floats a pill + takeover sheet.
  *
- *   - FAQPage         — for the home FAQ section
- *   - BreadcrumbList  — for /platforms/[slug] and /api/[slug]
- *   - SoftwareApplication / Product — for per-platform marketing pages
+ * Pages opt into the right rail via the `rightRail` slot. Pages that
+ * want a different strip width (pricing → 720, blog → 700, blog-post
+ * → 660) pass `stripWidth`. Sticky CTA can be opted out via
+ * `stickyCTA={false}`.
  *
- * Each entry renders as its own <script type="application/ld+json">
- * tag — Google parses each block independently.
+ * Shared chrome behaviors (theme toggle, sticky CTA reveal, mobile
+ * sheet open/close, code-block tabs) ship as one inline script at
+ * the bottom of <body> so they survive Astro view transitions.
  */
 export interface JsonLdGraph {
   "@context"?: string;
@@ -31,13 +31,16 @@ export interface JsonLdGraph {
 interface Props {
   title: string;
   description?: string;
-  /** Override the OG image (absolute path or full URL). Defaults to /og-image.png (generated at build time from og-image.svg). */
   ogImage?: string;
   noindex?: boolean;
-  /** Additional JSON-LD graphs to emit alongside the default Organization + WebSite. */
   jsonLd?: JsonLdGraph[];
-  /** og:type — defaults to website. Override per page when applicable. */
   ogType?: "website" | "article" | "product";
+  /** Override --r-strip-w. Defaults to 640px (landing). */
+  stripWidth?: number;
+  /** Override mobile-pill quick links (defaults to Docs + Pricing). */
+  pillLinks?: Array<{ href: string; label: string }>;
+  /** Sticky CTA config; pass `false` to hide. */
+  stickyCTA?: { href: string; label: string } | false;
 }
 
 const {
@@ -47,28 +50,17 @@ const {
   noindex = false,
   jsonLd = [],
   ogType = "website",
+  stripWidth,
+  pillLinks,
+  stickyCTA,
 } = Astro.props;
 
 const siteName = "letmepost.dev";
-// Match the dashboard's title template: `<page> · letmepost.dev`. The
-// dashboard uses Next.js metadata's `template: "%s · letmepost.dev"`;
-// this is the Astro mirror of the same convention so a user moving
-// between marketing tabs and dashboard tabs sees identical formatting.
 const fullTitle = title === siteName ? title : `${title} · ${siteName}`;
 const canonical = new URL(Astro.url.pathname, Astro.site).toString();
 const ogImageUrl = new URL(ogImage, Astro.site).toString();
 const siteUrl = Astro.site!.toString().replace(/\/$/, "");
 
-/**
- * Default structured-data graphs every page emits. `Organization`
- * establishes the brand entity (logo, sameAs links to social profiles)
- * so Google can render a knowledge panel. `WebSite` enables the
- * sitelinks-search-box on Google SERPs once docs is indexed.
- *
- * Both graphs use stable `@id` URIs so additional graphs on per-page
- * `jsonLd` reference the SAME entity instead of fragmenting it across
- * the index.
- */
 const defaultGraphs: JsonLdGraph[] = [
   {
     "@context": "https://schema.org",
@@ -95,6 +87,13 @@ const defaultGraphs: JsonLdGraph[] = [
 ];
 
 const allGraphs: JsonLdGraph[] = [...defaultGraphs, ...jsonLd];
+
+const pageStyle = stripWidth ? `--r-strip-w: ${stripWidth}px;` : undefined;
+
+const ctaConfig =
+  stickyCTA === false
+    ? null
+    : (stickyCTA ?? { href: "https://dashboard.letmepost.dev", label: "→ START FREE" });
 ---
 
 <!doctype html>
@@ -103,53 +102,41 @@ const allGraphs: JsonLdGraph[] = [...defaultGraphs, ...jsonLd];
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#F2EDE3" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#171411" media="(prefers-color-scheme: dark)" />
-    <meta name="msapplication-TileColor" content="#F2EDE3" />
+    <meta name="theme-color" content="#f7f4ea" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0e0e0a" media="(prefers-color-scheme: dark)" />
 
-    <!-- Pre-paint theme bootstrap. Runs synchronously before <body> renders
-         to avoid a flash of the wrong theme. Reads stored preference (or
-         falls back to system) and sets data-theme on <html>.
-         `data-astro-rerun` re-executes this on every ClientRouter view
-         transition. Without it, soft navigations between pages drop the
-         `data-theme` attribute mid-swap and the light-mode defaults flash
-         in until the next interaction. -->
+    {/* Pre-paint theme bootstrap. Receipt design uses 2-state: empty
+        string = light, "dark" = dark. `data-astro-rerun` re-fires on
+        view transitions so soft navigations don't flash light defaults
+        mid-swap. */}
     <script is:inline data-astro-rerun>
       (function () {
         try {
-          var pref = localStorage.getItem("lmp-theme") || "system";
-          var resolved =
-            pref === "system"
-              ? window.matchMedia("(prefers-color-scheme: dark)").matches
-                ? "dark"
-                : "light"
-              : pref;
-          document.documentElement.setAttribute("data-theme", resolved);
-          document.documentElement.dataset.themePref = pref;
-        } catch (e) {
-          document.documentElement.setAttribute("data-theme", "light");
-        }
+          var pref = localStorage.getItem("lmp-theme") || "";
+          if (pref === "dark") document.documentElement.setAttribute("data-theme", "dark");
+          else document.documentElement.removeAttribute("data-theme");
+        } catch (e) {}
       })();
     </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Mono:wght@400;500;700&display=swap"
+    />
 
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     {noindex && <meta name="robots" content="noindex" />}
 
-    <!-- Favicons + platform icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.svg" />
     <link rel="manifest" href="/site.webmanifest" />
     <link rel="sitemap" href="/sitemap-index.xml" />
-    <link
-      rel="alternate"
-      type="application/rss+xml"
-      title="letmepost.dev Blog"
-      href="/rss.xml"
-    />
+    <link rel="alternate" type="application/rss+xml" title="letmepost.dev Blog" href="/rss.xml" />
 
-    <!-- Open Graph -->
     <meta property="og:title" content={fullTitle} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content={ogType} />
@@ -159,31 +146,17 @@ const allGraphs: JsonLdGraph[] = [...defaultGraphs, ...jsonLd];
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta
-      property="og:image:alt"
-      content="letmepost.dev. Social media publishing that fails loudly."
-    />
+    <meta property="og:image:alt" content="letmepost.dev. Social media publishing that fails loudly." />
     <meta property="og:locale" content="en_US" />
 
-    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@letmepostdotdev" />
     <meta name="twitter:creator" content="@letmepostdotdev" />
     <meta name="twitter:title" content={fullTitle} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={ogImageUrl} />
-    <meta
-      name="twitter:image:alt"
-      content="letmepost.dev. Social media publishing that fails loudly."
-    />
+    <meta name="twitter:image:alt" content="letmepost.dev. Social media publishing that fails loudly." />
 
-    {/*
-      JSON-LD structured data. Default graphs (Organization + WebSite)
-      are always emitted; per-page graphs (FAQPage on home,
-      BreadcrumbList on platform pages, etc.) layer on via the `jsonLd`
-      prop. Each block is its own <script> so Google parses them
-      independently — broken JSON in one doesn't taint the rest.
-    */}
     {allGraphs.map((graph) => (
       <script is:inline type="application/ld+json" set:html={JSON.stringify(graph)} />
     ))}
@@ -192,8 +165,126 @@ const allGraphs: JsonLdGraph[] = [...defaultGraphs, ...jsonLd];
     <Analytics />
   </head>
   <body>
-    <Header />
-    <main transition:animate="fade"><slot /></main>
-    <Footer />
+    <div class="page" style={pageStyle}>
+      <NavRail>
+        <slot name="navSecondary" slot="secondary" />
+        <slot name="navStatus" slot="status" />
+        <slot name="navColophon" slot="colophon" />
+      </NavRail>
+
+      <main class="strip" transition:animate="fade">
+        <slot />
+      </main>
+
+      <slot name="rightRail">
+        <aside class="marg" aria-hidden="true"></aside>
+      </slot>
+    </div>
+
+    <MobilePill links={pillLinks} />
+    <MobileSheet />
+
+    {ctaConfig && <StickyCTA href={ctaConfig.href} label={ctaConfig.label} />}
+
+    {/* Shared chrome behaviors. Defensive — pages without a feature
+        don't error. Re-binds on Astro view transitions. */}
+    <script>
+      function setup() {
+        document.querySelectorAll<HTMLElement>("[data-tabs]").forEach((block) => {
+          if (block.dataset.lmpBound) return;
+          block.dataset.lmpBound = "1";
+          const tabs = block.querySelectorAll<HTMLElement>(".tab");
+          const panes = block.querySelectorAll<HTMLElement>("[data-pane]");
+          const fileEl = block.querySelector<HTMLElement>(".file");
+          let files: Record<string, string> = {};
+          try {
+            files = JSON.parse(block.dataset.files || "null") || {};
+          } catch {}
+          tabs.forEach((tab) => {
+            tab.addEventListener("click", () => {
+              const id = tab.dataset.tab!;
+              tabs.forEach((t) => t.classList.toggle("on", t === tab));
+              panes.forEach((p) => {
+                if (p.dataset.pane !== id) p.setAttribute("hidden", "");
+                else p.removeAttribute("hidden");
+              });
+              if (fileEl && files[id]) fileEl.textContent = files[id];
+            });
+          });
+        });
+
+        const sticky = document.getElementById("sticky-cta");
+        const anchor =
+          document.querySelector<HTMLElement>("[data-sticky-anchor]") ||
+          document.querySelector<HTMLElement>(".head") ||
+          document.querySelector<HTMLElement>(".page-head");
+        if (sticky && anchor) {
+          const prior = (window as unknown as { __lmpStickyScroll?: () => void }).__lmpStickyScroll;
+          if (prior) window.removeEventListener("scroll", prior);
+          const onScroll = () => {
+            const bottom = anchor.getBoundingClientRect().bottom;
+            sticky.classList.toggle("show", bottom < 0);
+          };
+          (window as unknown as { __lmpStickyScroll?: () => void }).__lmpStickyScroll = onScroll;
+          window.addEventListener("scroll", onScroll, { passive: true });
+          onScroll();
+        }
+
+        function toggleTheme() {
+          const cur = document.documentElement.getAttribute("data-theme");
+          const next = cur === "dark" ? "" : "dark";
+          if (next) document.documentElement.setAttribute("data-theme", next);
+          else document.documentElement.removeAttribute("data-theme");
+          try {
+            localStorage.setItem("lmp-theme", next);
+          } catch {}
+        }
+        document
+          .querySelectorAll<HTMLElement>("#theme-btn, #sheet-theme-btn, [data-theme-btn]")
+          .forEach((b) => {
+            if (b.dataset.lmpBound) return;
+            b.dataset.lmpBound = "1";
+            b.addEventListener("click", toggleTheme);
+          });
+
+        const sheet = document.getElementById("mobile-sheet");
+        const openBtn = document.getElementById("open-sheet");
+        const closeBtn = document.getElementById("close-sheet");
+        function openSheet() {
+          if (!sheet) return;
+          sheet.setAttribute("data-open", "");
+          document.body.classList.add("sheet-open");
+          openBtn?.setAttribute("aria-expanded", "true");
+        }
+        function closeSheet() {
+          if (!sheet) return;
+          sheet.removeAttribute("data-open");
+          document.body.classList.remove("sheet-open");
+          openBtn?.setAttribute("aria-expanded", "false");
+        }
+        if (openBtn && !openBtn.dataset.lmpBound) {
+          openBtn.dataset.lmpBound = "1";
+          openBtn.addEventListener("click", openSheet);
+        }
+        if (closeBtn && !closeBtn.dataset.lmpBound) {
+          closeBtn.dataset.lmpBound = "1";
+          closeBtn.addEventListener("click", closeSheet);
+        }
+        sheet?.querySelectorAll<HTMLAnchorElement>("a").forEach((a) => {
+          if (a.dataset.lmpBound) return;
+          a.dataset.lmpBound = "1";
+          a.addEventListener("click", () => setTimeout(closeSheet, 60));
+        });
+        if (!(window as unknown as { __lmpSheetEsc?: boolean }).__lmpSheetEsc) {
+          (window as unknown as { __lmpSheetEsc?: boolean }).__lmpSheetEsc = true;
+          document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && sheet?.hasAttribute("data-open")) closeSheet();
+          });
+        }
+      }
+
+      setup();
+      document.addEventListener("astro:page-load", setup);
+    </script>
   </body>
 </html>

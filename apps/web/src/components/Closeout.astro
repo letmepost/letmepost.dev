@@ -1,0 +1,39 @@
+---
+interface Props {
+  thanks?: string;
+  codeLine?: string;
+  links?: Array<{ href: string; label: string }>;
+}
+
+const {
+  thanks = "* * * THANK YOU FOR SHOPPING OPEN SOURCE * * *",
+  codeLine = "000 LMP 0001 · 2026-05-23",
+  links = [
+    { href: "https://docs.letmepost.dev", label: "docs" },
+    { href: "https://github.com/letmepost/letmepost.dev", label: "github" },
+    { href: "https://status.letmepost.dev", label: "status" },
+    { href: "/privacy", label: "privacy" },
+    { href: "/terms", label: "terms" },
+  ],
+} = Astro.props;
+
+// CSS-rendered barcode — fixed pattern, the design uses 27 bars at
+// alternating widths (2/1/3/1/2/...). Same pattern across every page.
+const barWidths = [2, 1, 3, 1, 2, 1, 2, 3, 1, 2, 1, 3, 2, 1, 2, 1, 3, 2, 1, 2, 1, 2, 3, 1, 2, 1, 3];
+---
+
+<div class="closeout">
+  <div class="thanks">{thanks}</div>
+  <div class="barcode" aria-hidden="true">
+    {barWidths.map((w) => <i style={`width:${w}px`}></i>)}
+  </div>
+  <div class="code-line">{codeLine}</div>
+  <div class="links">
+    {links.map((l, i) => (
+      <>
+        {i > 0 && <span>·</span>}
+        <a href={l.href}>{l.label}</a>
+      </>
+    ))}
+  </div>
+</div>

@@ -1,220 +1,464 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import CharacterCounter from "../../components/CharacterCounter.astro";
 import { Icon } from "astro-icon/components";
+import Tape from "../../components/Tape.astro";
+import Closeout from "../../components/Closeout.astro";
 
-// Order matters — shortest cap first so the eye lands on the tightest
-// constraint when scanning down the cards.
+/**
+ * Multi-platform character counter — receipt design's flagship tool
+ * template. The workbench (textarea + tally + per-platform rows) is
+ * the functional core; counting logic runs entirely client-side via
+ * Intl.Segmenter + TextEncoder. Bluesky has two caps (graphemes AND
+ * UTF-8 bytes) — both checked, whichever fails first sets the
+ * verdict.
+ *
+ * Other counter tools (Bluesky-only, X-only, etc.) reuse the same
+ * workbench shape with a single platform row.
+ */
+
 const platforms = [
-  {
-    slug: "x",
-    name: "X (Twitter)",
-    limit: 280,
-    mode: "twitter-weighted" as const,
-    hint: "weighted count",
-  },
-  {
-    slug: "bluesky",
-    name: "Bluesky",
-    limit: 300,
-    byteLimit: 3000,
-    mode: "graphemes" as const,
-    hint: "graphemes + bytes",
-  },
-  {
-    slug: "threads",
-    name: "Threads",
-    limit: 500,
-    mode: "graphemes" as const,
-    hint: "single post",
-  },
-  {
-    slug: "instagram-caption",
-    name: "Instagram caption",
-    limit: 2200,
-    mode: "graphemes" as const,
-    hint: "feed + Reels",
-  },
-  {
-    slug: "linkedin",
-    name: "LinkedIn",
-    limit: 3000,
-    mode: "graphemes" as const,
-    hint: "main post",
-  },
-  {
-    slug: "facebook",
-    name: "Facebook page",
-    limit: 63206,
-    mode: "graphemes" as const,
-    hint: "but ~80 chars sees the most engagement",
-  },
-];
-
-const platformLinks = [
-  { slug: "linkedin-character-counter", label: "LinkedIn-only" },
-  { slug: "x-character-counter", label: "X-only" },
-  { slug: "bluesky-grapheme-counter", label: "Bluesky-only" },
-  { slug: "threads-character-counter", label: "Threads-only" },
+  { slug: "bluesky", name: "Bluesky", limit: 300, icon: "ph:butterfly", limitText: "300 graphemes + 3000 bytes", byteLimit: 3000 },
+  { slug: "x", name: "X (Twitter)", limit: 280, icon: "ph:x-logo", limitText: "280 weighted" },
+  { slug: "threads", name: "Threads", limit: 500, icon: "ph:threads-logo", limitText: "500 graphemes" },
+  { slug: "instagram", name: "Instagram", limit: 2200, icon: "ph:instagram-logo", limitText: "2,200 chars", subtitle: "caption" },
+  { slug: "linkedin", name: "LinkedIn", limit: 3000, icon: "ph:linkedin-logo", limitText: "3,000 graphemes" },
+  { slug: "pinterest", name: "Pinterest", limit: 500, icon: "ph:pinterest-logo", limitText: "500 chars", subtitle: "description" },
+  { slug: "facebook", name: "Facebook Pages", limit: 63206, icon: "ph:facebook-logo", limitText: "63,206 chars" },
 ];
 ---
 
 <BaseLayout
-  title="Social media character counter"
-  description="Free multi-platform character counter — Bluesky, X (Twitter), Threads, LinkedIn, Instagram, and Facebook. Each counted with the platform's actual rule."
-  jsonLd={[
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      name: "Multi-platform social media character counter",
-      applicationCategory: "DeveloperApplication",
-      operatingSystem: "Web",
-      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-      description:
-        "Free social media character counter that runs every major platform's rule simultaneously — Bluesky graphemes + bytes, X weighted, LinkedIn 3,000, Threads 500.",
-    },
+  title="Multi-platform character counter"
+  description="One textarea, every social platform limit at once. Bluesky graphemes + bytes, X weighted, LinkedIn 3,000, Threads 500. Free, runs in your browser, no signup."
+  stripWidth={700}
+  pillLinks={[
+    { href: "/tools", label: "Tools" },
+    { href: "/pricing", label: "Pricing" },
   ]}
+  stickyCTA={false}
 >
-  <section class="pt-22 pb-10 max-[640px]:pt-14 max-[640px]:pb-6">
-    <div class="container">
-      <div
-        class="inline-flex items-center gap-2 text-[0.72rem] uppercase tracking-[0.1em] mb-5 py-[0.3rem] px-[0.6rem] border border-border-strong"
-      >
-        <span
-          class="w-[7px] h-[7px] inline-block bg-accent"
-          aria-hidden="true"></span>
-        Tool · Free
-      </div>
-      <h1 class="!m-0">
-        One textarea.<br class="max-[640px]:hidden" />
-        <span class="text-accent">Every platform's rule.</span>
-      </h1>
-      <p
-        class="text-[1.05rem] leading-[1.6] max-w-[42rem] mt-4 mb-8 text-text-secondary"
-      >
-        Each platform counts differently — X uses weighted characters, Bluesky
-        uses graphemes <em>and</em> UTF-8 bytes, LinkedIn uses graphemes alone,
-        Threads at 500. This counter runs all of them at once.
-      </p>
-      <CharacterCounter
-        platforms={platforms}
-        placeholder="Type or paste your post — every cap updates as you type."
-      />
+  <Fragment slot="navSecondary">
+    <div class="nav-section">More counters</div>
+    <ul class="links">
+      <li><a href="/tools/bluesky-grapheme-counter">Bluesky only</a></li>
+      <li><a href="/tools/x-character-counter">X only</a></li>
+      <li><a href="/tools/linkedin-character-counter">LinkedIn only</a></li>
+      <li><a href="/tools/threads-character-counter">Threads only</a></li>
+    </ul>
+  </Fragment>
+
+  <Fragment slot="navColophon">
+    <div class="colophon">
+      <b>Free, no signup.</b> Runs in your browser. No tracking, no logs. <b>Apache 2.0</b> source.
     </div>
-  </section>
+  </Fragment>
 
-  <section class="pt-4 pb-10">
-    <div class="container">
-      <h2 class="!mt-0">Why each platform counts differently.</h2>
-      <p class="text-text-muted">
-        There's no shared rule. The only safe thing is to enforce each
-        platform's published count locally before you hit the API. Otherwise
-        you find out at the wire — and most upstream errors don't tell you
-        which character was the problem.
-      </p>
+  <Tape />
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-        <div class="border border-border p-4">
-          <div class="text-[0.72rem] uppercase tracking-[0.1em] text-accent mb-2">
-            X (Twitter)
-          </div>
-          <p class="m-0 text-[0.88rem] text-text-secondary">
-            Weighted count from twitter-text. Latin = 1, CJK / Arabic / Hebrew
-            / emoji = 2. URLs always count as 23 regardless of length (t.co
-            shortening).
-          </p>
-        </div>
+  <header class="tool-head page-head" data-sticky-anchor>
+    <div class="crumb"><a href="/">letmepost</a> / <a href="/tools">tools</a> / character counters</div>
+    <span class="tag">★ Flagship counter</span>
+    <h1 class="page-h1">Multi-platform <span class="acc">character counter.</span></h1>
+    <p class="lede">
+      One textarea. Every limit at once. <b>Grapheme-aware counts</b> matching what each platform
+      actually enforces, Bluesky's 300 graphemes + 3,000-byte cap, X's weighted-character formula,
+      LinkedIn's 3,000-char share limit, Threads' 500, Instagram's 2,200. Runs in your browser.
+    </p>
+  </header>
 
-        <div class="border border-border p-4">
-          <div class="text-[0.72rem] uppercase tracking-[0.1em] text-accent mb-2">
-            Bluesky
-          </div>
-          <p class="m-0 text-[0.88rem] text-text-secondary">
-            300 graphemes <em>and</em> 3,000 UTF-8 bytes — whichever fills
-            first. A heavy-emoji post can hit the byte cap before the grapheme
-            cap.
-          </p>
-        </div>
-
-        <div class="border border-border p-4">
-          <div class="text-[0.72rem] uppercase tracking-[0.1em] text-accent mb-2">
-            LinkedIn
-          </div>
-          <p class="m-0 text-[0.88rem] text-text-secondary">
-            3,000 graphemes for the main share. Comments cap at 1,250.
-            Connection notes at 300 (free) or 1,900 (Premium).
-          </p>
-        </div>
-
-        <div class="border border-border p-4">
-          <div class="text-[0.72rem] uppercase tracking-[0.1em] text-accent mb-2">
-            Threads
-          </div>
-          <p class="m-0 text-[0.88rem] text-text-secondary">
-            500 graphemes per post. Chain up to 20 posts; each gets the full
-            500.
-          </p>
-        </div>
-
-        <div class="border border-border p-4">
-          <div class="text-[0.72rem] uppercase tracking-[0.1em] text-accent mb-2">
-            Instagram caption
-          </div>
-          <p class="m-0 text-[0.88rem] text-text-secondary">
-            2,200 graphemes for the caption (feed and Reels). 30 hashtags max.
-          </p>
-        </div>
-
-        <div class="border border-border p-4">
-          <div class="text-[0.72rem] uppercase tracking-[0.1em] text-accent mb-2">
-            Facebook page
-          </div>
-          <p class="m-0 text-[0.88rem] text-text-secondary">
-            63,206 characters technically allowed; ~80 characters is the
-            engagement sweet spot per Meta's own data.
-          </p>
-        </div>
+  {/* WORKBENCH */}
+  <div class="workbench">
+    <div class="label-row">
+      <span>Paste / type your post</span>
+      <div class="actions">
+        <button type="button" data-action="sample">Load sample</button>
+        <button type="button" data-action="clear">Clear</button>
+        <button type="button" data-action="copy">Copy</button>
       </div>
     </div>
-  </section>
-
-  <section class="pt-6 pb-10">
-    <div class="container">
-      <h2 class="!mt-0">Need a single-platform version?</h2>
-      <ul class="list-none p-0 mt-3 grid grid-cols-2 gap-2">
-        {
-          platformLinks.map((p) => (
-            <li>
-              <a
-                href={`/tools/${p.slug}`}
-                class="block border border-border p-3 no-underline text-[0.88rem] hover:border-border-strong hover:text-accent"
-              >
-                {p.label} →
-              </a>
-            </li>
-          ))
-        }
-      </ul>
+    <textarea
+      id="input"
+      placeholder="Shipped multi-target publishing today. One POST. Eight platforms. Zero days in Meta's review queue."
+      spellcheck="false"
+      autocomplete="off"></textarea>
+    <div class="tally">
+      <div class="cell"><b id="t-graphemes">0</b><span class="lbl">graphemes</span></div>
+      <div class="cell"><b id="t-codepoints">0</b><span class="lbl">codepoints</span></div>
+      <div class="cell"><b id="t-bytes">0</b><span class="lbl">UTF-8 bytes</span></div>
     </div>
-  </section>
+  </div>
 
-  <section class="pt-6 pb-18 max-[640px]:pb-12">
-    <div class="container">
-      <h2 class="!mt-0">Or have us preflight it for you.</h2>
-      <p class="text-text-muted">
-        <code>letmepost.dev</code> runs every one of these rules on every post
-        you submit — and tells you exactly which one would have failed before
-        we hit the platform.
-      </p>
-      <div class="flex gap-[0.6rem] flex-wrap mt-6">
-        <a class="btn btn-primary" href="https://dashboard.letmepost.dev">
-          Try the API for free
-          <Icon name="ph:arrow-up-right" width={13} height={13} />
-        </a>
-        <a class="btn btn-secondary" href="https://docs.letmepost.dev/preflight"
-          >Read the preflight docs</a
+  {/* PER-PLATFORM RESULTS */}
+  <section class="results" id="results">
+    {
+      platforms.map((p) => (
+        <div
+          class="platform ok"
+          data-platform={p.slug}
+          data-limit={p.limit}
+          data-byte-limit={p.byteLimit ?? ""}
         >
-      </div>
-    </div>
+          <span class="glyph">
+            <Icon name={p.icon} width={20} height={20} />
+          </span>
+          <div class="info">
+            <div class="name">
+              {p.name}
+              {p.subtitle && (
+                <span style="color: var(--r-very); font-weight: 400; font-size: 11px;">
+                  {" "}
+                  {p.subtitle}
+                </span>
+              )}
+            </div>
+            <div class="meta">
+              <span><span class="k">used</span> <b data-used>0</b></span>
+              <span><span class="k">limit</span> {p.limitText}</span>
+              <span><span class="k">remaining</span> <b data-remaining>{p.limit}</b></span>
+            </div>
+            <div class="bar"><div class="fill" data-fill style="width:0%"></div></div>
+          </div>
+          <span class="verdict" data-verdict>OK</span>
+        </div>
+      ))
+    }
   </section>
+
+  {/* WHAT COUNTS */}
+  <aside class="notes">
+    <h3>What counts as one character?</h3>
+    <ul>
+      <li><b>Bluesky</b> enforces both a <b>grapheme limit</b> (300) AND a <b>UTF-8 byte limit</b> (3,000). Whichever caps first wins. A single emoji like <code>👨‍👩‍👧‍👦</code> is one grapheme but 25 UTF-8 bytes.</li>
+      <li><b>X</b> uses a weighted-character formula. Latin chars count as 1, CJK as 2, emoji as 2, URLs collapse to t.co (23 chars). This counter uses graphemes as a conservative approximation.</li>
+      <li><b>Threads</b> and <b>LinkedIn</b> count graphemes, not codepoints. Multi-codepoint emoji (👨‍👩‍👧‍👦) count as one.</li>
+      <li><b>Instagram</b> and <b>Pinterest</b> count plain characters (Unicode codepoints, not graphemes). A family emoji counts as 7.</li>
+      <li><b>Facebook Pages</b> allows a stupendous 63,206 characters. You will hit this only if you paste an entire chapter of a novel.</li>
+    </ul>
+  </aside>
+
+  {/* RELATED */}
+  <div class="related">
+    <h3>Related tools</h3>
+    <div class="links">
+      <a href="/tools/bluesky-grapheme-counter">Bluesky grapheme counter (standalone)</a>
+      <a href="/tools/x-character-counter">X v2 character counter (twitter-text exact)</a>
+      <a href="/tools/linkedin-character-counter">LinkedIn character counter</a>
+      <a href="/tools/threads-character-counter">Threads character counter</a>
+      <a href="/tools/idempotency-key-generator">Idempotency key generator</a>
+      <a href="/tools/pkce-generator">PKCE generator</a>
+    </div>
+  </div>
+
+  <hr class="double" />
+
+  <Closeout
+    thanks="* * * SHIP WITHIN THE LIMITS * * *"
+    codeLine="TOOL · MULTI-PLATFORM · v1.4"
+    links={[
+      { href: "/tools", label: "all tools" },
+      {
+        href: "https://github.com/letmepost/letmepost.dev/blob/main/apps/web/src/pages/tools/social-media-character-counter.astro",
+        label: "source ↗",
+      },
+      { href: "https://github.com/letmepost/letmepost.dev/issues", label: "issues" },
+    ]}
+  />
+  <Tape bottom />
+
+  {/* Right rail — tool-specific notes */}
+  <aside class="marg" aria-label="Notes" slot="rightRail">
+    <div class="note">
+      <span class="tag">No tracking</span>
+      Every keystroke stays in your browser. <b>Nothing is sent to a server.</b> No logs, no analytics on your input.
+    </div>
+    <div class="note">
+      <span class="tag">Grapheme rule</span>
+      We use <code>Intl.Segmenter</code> to count graphemes the way Unicode 15.1 defines them. The family-emoji example: 7 codepoints, 1 grapheme.
+    </div>
+    <div class="note">
+      <span class="tag">UTF-8 bytes</span>
+      Bluesky's second cap is <b>3,000 bytes</b>. Many emoji are 4-byte sequences. A wall of emoji can blow the byte limit before the grapheme limit.
+    </div>
+    <div class="note">
+      <span class="tag">X weighting</span>
+      For exact twitter-text weighting (including the t.co URL collapse), use the <a href="/tools/x-character-counter">X-only counter</a> which ships the actual <code>twitter-text</code> library.
+    </div>
+    <div class="note">
+      <span class="tag">Source</span>
+      Tool source on GitHub, <b>Apache 2.0</b>. Pull, fork, ship.
+    </div>
+  </aside>
 </BaseLayout>
+
+<script>
+  // Multi-platform character counter — counting logic.
+  // Bluesky has TWO caps (graphemes AND bytes). Other graphemes-count
+  // platforms (X/Threads/LinkedIn) use Intl.Segmenter for grapheme
+  // counting. Instagram/Pinterest/Facebook use raw codepoint counts.
+
+  function setup() {
+    const input = document.getElementById("input") as HTMLTextAreaElement | null;
+    if (!input || input.dataset.lmpBound) return;
+    input.dataset.lmpBound = "1";
+
+    const tGraph = document.getElementById("t-graphemes")!;
+    const tCp = document.getElementById("t-codepoints")!;
+    const tBytes = document.getElementById("t-bytes")!;
+    const rows = document.querySelectorAll<HTMLElement>(".platform");
+
+    const segmenter =
+      typeof Intl !== "undefined" && (Intl as unknown as { Segmenter?: typeof Intl.Segmenter }).Segmenter
+        ? new Intl.Segmenter("en", { granularity: "grapheme" })
+        : null;
+
+    function countGraphemes(text: string): number {
+      if (!text) return 0;
+      if (segmenter) {
+        let n = 0;
+        for (const _ of segmenter.segment(text)) n++;
+        return n;
+      }
+      return [...text].length;
+    }
+    function countCodepoints(text: string): number {
+      return text ? [...text].length : 0;
+    }
+    function countBytes(text: string): number {
+      if (!text) return 0;
+      return new TextEncoder().encode(text).length;
+    }
+    function countForPlatform(slug: string, text: string): number {
+      if (slug === "instagram" || slug === "pinterest" || slug === "facebook") {
+        return countCodepoints(text);
+      }
+      return countGraphemes(text);
+    }
+
+    function update() {
+      if (!input) return;
+      const text = input.value;
+      const g = countGraphemes(text);
+      const c = countCodepoints(text);
+      const b = countBytes(text);
+      tGraph.textContent = g.toLocaleString();
+      tCp.textContent = c.toLocaleString();
+      tBytes.textContent = b.toLocaleString();
+
+      rows.forEach((row) => {
+        const slug = row.dataset.platform!;
+        const limit = parseInt(row.dataset.limit!, 10);
+        const byteLimit = row.dataset.byteLimit ? parseInt(row.dataset.byteLimit, 10) : null;
+        const used = countForPlatform(slug, text);
+        const remaining = limit - used;
+        const pct = Math.min(100, (used / limit) * 100);
+
+        row.querySelector("[data-used]")!.textContent = used.toLocaleString();
+        row.querySelector("[data-remaining]")!.textContent = remaining.toLocaleString();
+        (row.querySelector("[data-fill]") as HTMLElement).style.width = pct + "%";
+
+        const blueskyOver = slug === "bluesky" && byteLimit !== null && b > byteLimit;
+        let state: "ok" | "warn" | "over";
+        let verdict: string;
+        if (used > limit || blueskyOver) {
+          state = "over";
+          verdict = blueskyOver ? "BYTE OVER" : "OVER";
+        } else if (used > limit * 0.9) {
+          state = "warn";
+          verdict = "TIGHT";
+        } else {
+          state = "ok";
+          verdict = "OK";
+        }
+        row.classList.remove("ok", "warn", "over");
+        row.classList.add(state);
+        row.querySelector("[data-verdict]")!.textContent = verdict;
+      });
+    }
+
+    input.addEventListener("input", update);
+    update();
+
+    document.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((b) => {
+      if (b.dataset.lmpBound) return;
+      b.dataset.lmpBound = "1";
+      b.addEventListener("click", () => {
+        const a = b.dataset.action;
+        if (a === "clear") {
+          input.value = "";
+          input.focus();
+          update();
+        }
+        if (a === "sample") {
+          input.value =
+            "Shipped multi-target publishing today. One POST. Eight platforms. Zero days in Meta's review queue. 🎉 The Idempotency-Key middleware ate three weeks of edge cases so your retry storm doesn't double-post.";
+          input.focus();
+          update();
+        }
+        if (a === "copy") {
+          navigator.clipboard.writeText(input.value).then(() => {
+            const orig = b.textContent;
+            b.textContent = "Copied";
+            setTimeout(() => (b.textContent = orig), 1200);
+          });
+        }
+      });
+    });
+  }
+
+  setup();
+  document.addEventListener("astro:page-load", setup);
+</script>
+
+<style is:global>
+  /* ── Single tool page (counter template) ─────────────── */
+
+  .tool-head { padding: 28px 0 14px; }
+  .tool-head > .tag {
+    display: inline-block;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--r-accent); margin-bottom: 8px; font-weight: 700;
+  }
+  .tool-head h1.page-h1 { font-size: 28px; }
+  .tool-head .lede { font-size: 13.5px; max-width: 580px; }
+
+  .workbench {
+    margin: 18px 0 8px;
+    border: 1px solid var(--r-line);
+    background: var(--r-paper);
+  }
+  .workbench .label-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px dashed var(--r-very);
+    font-size: var(--r-fs-xs); letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--r-very);
+  }
+  .workbench .label-row .actions { display: flex; gap: 14px; }
+  .workbench .label-row .actions button {
+    border: 0; background: transparent; cursor: pointer;
+    font-family: var(--r-mono); font-size: 10px;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--r-dim); padding: 2px 4px;
+  }
+  .workbench .label-row .actions button:hover { color: var(--r-accent); }
+
+  .workbench textarea {
+    width: 100%; min-height: 200px;
+    resize: vertical;
+    padding: 16px 18px;
+    background: transparent;
+    color: var(--r-fg);
+    border: 0;
+    font-family: var(--r-mono); font-size: 14.5px; line-height: 1.6;
+    outline: none;
+    display: block;
+  }
+  .workbench textarea:focus { background: var(--r-paper-deep); }
+  .workbench textarea::placeholder { color: var(--r-very); }
+
+  .tally {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    border-top: 1px dashed var(--r-very);
+    font-size: 11px; color: var(--r-very);
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .tally .cell {
+    padding: 10px 14px;
+    border-right: 1px dashed var(--r-very);
+    text-align: center;
+  }
+  .tally .cell:last-child { border-right: 0; }
+  .tally .cell b { color: var(--r-ink); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .tally .cell .lbl { display: block; margin-top: 2px; }
+
+  .results { margin: 22px 0 8px; }
+  .platform {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px dotted var(--r-very);
+    align-items: center;
+  }
+  .platform:last-child { border-bottom: 0; }
+  .platform .glyph { color: var(--r-ink); display: inline-flex; align-items: center; justify-content: center; }
+  .platform .info { min-width: 0; }
+  .platform .name {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 14px; color: var(--r-ink);
+  }
+  .platform .info .meta {
+    display: flex; gap: 14px; flex-wrap: wrap;
+    font-size: 11px; color: var(--r-dim);
+    margin-top: 3px;
+  }
+  .platform .info .meta .k { color: var(--r-very); letter-spacing: 0.04em; }
+  .platform .info .meta b { color: var(--r-ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .platform .info .bar {
+    margin-top: 8px;
+    height: 4px; background: var(--r-line);
+    position: relative;
+  }
+  .platform .info .bar .fill {
+    position: absolute; left: 0; top: 0; height: 100%;
+    background: var(--r-accent);
+    transition: width 120ms ease-out;
+  }
+  .platform.over .info .bar .fill { background: #c14a4a; }
+  .platform .verdict {
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    padding: 4px 10px;
+    border: 1px solid var(--r-line);
+    white-space: nowrap;
+    min-width: 84px; text-align: center;
+  }
+  .platform.ok .verdict { color: var(--r-accent); border-color: var(--r-accent); }
+  .platform.warn .verdict { color: var(--r-ink); border-color: var(--r-ink); }
+  .platform.over .verdict { color: #fbfaf2; background: #c14a4a; border-color: #c14a4a; }
+
+  .notes {
+    margin-top: 22px;
+    padding: 18px 20px;
+    background: var(--r-paper-deep);
+    border-left: 3px solid var(--r-accent);
+  }
+  .notes h3 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 13px; margin: 0 0 8px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--r-ink);
+  }
+  .notes ul { padding-left: 1.1em; margin: 0; font-size: 12.5px; line-height: 1.65; color: var(--r-dim); }
+  .notes li { margin-bottom: 4px; }
+  .notes li b { color: var(--r-ink); }
+  .notes code { background: var(--r-paper); padding: 1px 5px; font-size: 0.92em; }
+
+  .related {
+    margin: 30px 0 6px;
+    padding: 22px 24px;
+    border: 1px solid var(--r-line);
+    background: var(--r-paper);
+  }
+  .related h3 {
+    font-family: var(--r-mono); font-size: 12px; font-weight: 700;
+    margin: 0 0 12px;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--r-very);
+  }
+  .related .links { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .related .links a {
+    text-decoration: none; color: var(--r-fg);
+    display: grid; grid-template-columns: 18px 1fr; gap: 8px;
+    padding: 8px 0; border-bottom: 1px dotted var(--r-very);
+    font-size: 12.5px;
+  }
+  .related .links a::before { content: '·'; color: var(--r-very); }
+  .related .links a:hover { color: var(--r-accent); }
+
+  @media (max-width: 600px) {
+    .tally { grid-template-columns: 1fr 1fr; }
+    .tally .cell:nth-child(2) { border-right: 0; }
+    .tally .cell:nth-child(3) { grid-column: 1 / -1; border-top: 1px dashed var(--r-very); }
+    .related .links { grid-template-columns: 1fr; }
+  }
+</style>
