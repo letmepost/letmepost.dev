@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import {
@@ -27,7 +28,6 @@ lemonSqueezy.post("/webhook", async (c) => {
   const rawBody = await c.req.raw.clone().text();
   const signature = c.req.header("X-Signature");
   const eventName = c.req.header("X-Event-Name") ?? "";
-  const eventId = c.req.header("X-Event-Id") ?? "";
 
   const secret = process.env.LMSQ_WEBHOOK_SECRET ?? "";
   if (!secret) {
@@ -37,14 +37,12 @@ lemonSqueezy.post("/webhook", async (c) => {
       message: "LMSQ_WEBHOOK_SECRET is not configured.",
     });
   }
-  if (!eventId) {
-    throw new LetmepostError({
-      code: "validation_failed",
-      status: 400,
-      message: "Missing X-Event-Id header.",
-      rule: "lemonsqueezy.event_id.required",
-    });
-  }
+
+  // Lemon Squeezy does not send a per-event unique header. To dedupe retries
+  // of the same payload, derive a stable event id from SHA-256 of the raw
+  // body. Identical retries hash to the same id, distinct events hash
+  // differently.
+  const eventId = createHash("sha256").update(rawBody).digest("hex");
 
   const signatureValid = verifyLemonSqueezySignature(
     rawBody,
