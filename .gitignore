@@ -11,6 +11,7 @@ coverage
 .vscode
 .idea
 .claude
+.claude-design
 DAY_ZERO.md
 LAUNCH-PREP.md
 .plans/
