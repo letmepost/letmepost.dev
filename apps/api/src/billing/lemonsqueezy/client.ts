@@ -143,21 +143,54 @@ export async function listInvoicesForCustomer(
   return { data, nextPage: hasMore ? page + 1 : null };
 }
 
+type CheckoutResponse = {
+  data?: { attributes?: { url?: string } };
+};
+
 /**
- * Build a hosted-checkout URL for a variant. Lemon Squeezy supports a
- * `?checkout[custom][organization_id]=…` query convention which they
- * forward back on the webhook as `meta.custom_data.organization_id`.
+ * Create a Lemon Squeezy checkout session and return its URL. We call the
+ * Checkouts API (rather than constructing a /buy/<variant> link client-side)
+ * because the API auto-handles test vs live mode based on the API key, uses
+ * the correct store slug subdomain, and signs the custom_data payload so it
+ * round-trips back on the webhook as `meta.custom_data.organization_id`.
  */
-export function buildCheckoutUrl(
+export async function createCheckoutUrl(
   variantId: string,
   customData: Record<string, string>,
-): string {
-  const storeId = process.env.LMSQ_STORE_ID ?? "";
-  const base = `https://${storeId ? `${storeId}.` : ""}lemonsqueezy.com/checkout/buy/${variantId}`;
-  const params = new URLSearchParams();
-  for (const [k, v] of Object.entries(customData)) {
-    params.set(`checkout[custom][${k}]`, v);
+): Promise<string> {
+  const storeId = process.env.LMSQ_STORE_ID;
+  if (!storeId) {
+    throw new LetmepostError({
+      code: "internal_error",
+      status: 500,
+      message: "LMSQ_STORE_ID is not configured.",
+    });
   }
-  const qs = params.toString();
-  return qs ? `${base}?${qs}` : base;
+  const json = await lsFetch<CheckoutResponse>("/checkouts", {
+    method: "POST",
+    body: JSON.stringify({
+      data: {
+        type: "checkouts",
+        attributes: {
+          checkout_data: {
+            custom: customData,
+          },
+        },
+        relationships: {
+          store: { data: { type: "stores", id: storeId } },
+          variant: { data: { type: "variants", id: variantId } },
+        },
+      },
+    }),
+  });
+  const url = json.data?.attributes?.url;
+  if (typeof url !== "string") {
+    throw new LetmepostError({
+      code: "platform_unavailable",
+      status: 502,
+      message: "Lemon Squeezy did not return a checkout URL.",
+      platform: "lemonsqueezy",
+    });
+  }
+  return url;
 }

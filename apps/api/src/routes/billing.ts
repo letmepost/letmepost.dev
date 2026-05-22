@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
 import {
-  buildCheckoutUrl,
+  createCheckoutUrl,
   cancelSubscription,
   listInvoicesForCustomer,
   mintCustomerPortalUrl,
@@ -144,7 +144,7 @@ export function createBillingRoutes(
         message: `Lemon Squeezy variant for tier "${targetTier}" is not configured.`,
       });
     }
-    const url = buildCheckoutUrl(variantEnv, {
+    const url = await createCheckoutUrl(variantEnv, {
       organization_id: c.var.session.organizationId,
       user_id: c.var.session.userId,
     });
