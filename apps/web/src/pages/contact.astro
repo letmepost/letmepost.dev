@@ -1,18 +1,26 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import Tape from "../components/Tape.astro";
+import Closeout from "../components/Closeout.astro";
 ---
 
 <BaseLayout
   title="Contact"
   description="How to get in touch with letmepost.dev."
 >
-  <section class="pt-14 pb-16">
-    <div class="container prose">
-      <h1>Contact</h1>
+  <Tape />
 
+  <header class="page-head" data-sticky-anchor>
+    <div class="crumb"><a href="/">letmepost</a> / contact</div>
+    <h1 class="page-h1">Contact.</h1>
+  </header>
+
+  <hr class="dash" />
+
+  <div class="prose">
       <p>
         letmepost.dev is operated by M/S Rose Creator (trading as letmepost.dev),
-        a sole proprietorship based in India. Solo-dev shop — messages come to a real inbox and get
+        a sole proprietorship based in India. Solo-dev shop. Messages come to a real inbox and get
         real replies.
       </p>
 
@@ -42,10 +50,14 @@ import BaseLayout from "../layouts/BaseLayout.astro";
       </p>
 
       <h2>Business address</h2>
-      <p class="text-text-muted">
+      <p style="color: var(--r-dim);">
         Registered address is disclosed on request for billing / platform
         verification purposes. Email us.
       </p>
-    </div>
-  </section>
+  </div>
+
+  <hr class="double" />
+
+  <Closeout codeLine="000 LMP CONTACT · 2026-05-23" />
+  <Tape bottom />
 </BaseLayout>

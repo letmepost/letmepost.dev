@@ -1,0 +1,8 @@
+---
+interface Props {
+  bottom?: boolean;
+}
+const { bottom = false } = Astro.props;
+---
+
+<div class={bottom ? "tape bot" : "tape"} aria-hidden="true"></div>

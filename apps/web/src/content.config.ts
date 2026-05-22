@@ -40,7 +40,11 @@ const blog = defineCollection({
     updatedDate: z.coerce.date().optional(),
     author: z.string().default("letmepost.dev"),
     tags: z.array(z.string()).default([]),
+    category: z
+      .enum(["engineering", "philosophy", "release-notes"])
+      .default("engineering"),
     heroImage: z.string().optional(),
+    readingTime: z.number().int().positive().optional(),
     draft: z.boolean().default(false),
     canonicalUrl: z.string().url().optional(),
   }),

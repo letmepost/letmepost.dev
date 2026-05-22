@@ -1,13 +1,18 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { Icon } from "astro-icon/components";
+import Tape from "../../components/Tape.astro";
+import Closeout from "../../components/Closeout.astro";
 
 /**
- * Blog index — sorted newest first. Drafts hidden in production
- * builds (`import.meta.env.PROD`). When the directory is empty we
- * still render a graceful "we're cooking" state so the route never
- * 404s on a fresh deploy.
+ * Blog index — receipt design. Featured post (newest non-draft) +
+ * three category sections (engineering, philosophy, release-notes).
+ * Empty categories are hidden. Strip widens to 700 for the ledger
+ * rows.
+ *
+ * Drafts hidden in production builds. Posts pulled from the content
+ * collection — no hardcoded sample copy; if the collection is sparse,
+ * sections collapse gracefully.
  */
 const allPosts = await getCollection("blog", ({ data }) => {
   return import.meta.env.PROD ? data.draft !== true : true;
@@ -17,106 +22,323 @@ const posts = allPosts.sort(
   (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
 );
 
-function fmtDate(d: Date) {
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+// ISO-style date, matches design's `2026-05-20` ledger format.
+function fmtISO(d: Date): string {
+  return d.toISOString().slice(0, 10);
 }
+
+// Rough reading-time estimate from body length when frontmatter
+// doesn't specify one. 200 wpm is the standard prose pace.
+function readingMin(post: (typeof posts)[number]): number {
+  if (post.data.readingTime) return post.data.readingTime;
+  const body = post.body ?? "";
+  const words = body.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+const featured = posts[0];
+const rest = posts.slice(1);
+
+const categoryLabels = {
+  engineering: "Engineering",
+  philosophy: "Philosophy",
+  "release-notes": "Release notes",
+} as const;
+
+const byCategory = {
+  engineering: rest.filter((p) => p.data.category === "engineering"),
+  philosophy: rest.filter((p) => p.data.category === "philosophy"),
+  "release-notes": rest.filter((p) => p.data.category === "release-notes"),
+};
 ---
 
 <BaseLayout
   title="Blog"
-  description="Notes from the team building letmepost.dev — API design, platform integrations, OAuth lifecycle, the failure-modes corpus that drove our product principles."
+  description="Dispatches from letmepost.dev. Engineering deep-dives, platform-review postmortems, release notes, and the occasional founder letter."
+  stripWidth={700}
 >
-  <section class="pt-22 pb-12 max-[640px]:pt-14 max-[640px]:pb-8">
-    <div class="container">
-      <div
-        class="inline-flex items-center gap-2 text-[0.72rem] uppercase tracking-[0.1em] mb-7 py-[0.3rem] px-[0.6rem] border border-border-strong"
-      >
-        <span class="w-[7px] h-[7px] inline-block bg-accent" aria-hidden="true"></span>
-        Blog
-      </div>
+  <Tape />
 
-      <h1 class="!m-0">Field notes from the build.</h1>
+  <header class="page-head" data-sticky-anchor>
+    <div class="crumb"><a href="/">letmepost</a> / blog</div>
+    <h1 class="page-h1">Dispatches.</h1>
+    <p class="lede">
+      Engineering notes from inside the platform-review queue.
+      Release postmortems, architecture write-ups, and the occasional
+      founder letter. Mostly technical. Always honest about what's broken.
+      <a href="/rss.xml">Subscribe via RSS.</a>
+    </p>
+  </header>
 
-      <p
-        class="text-[1.2rem] leading-[1.65] mt-7 mb-2 text-text-secondary"
-      >
-        API design, platform-integration gotchas, and the failure-modes corpus that drove our product principles. <a
-          href="/rss.xml"
-          class="text-accent"
-          data-analytics-event="rss.subscribed"
-          data-analytics-props='{"from_page":"blog"}'
-        >RSS</a>.
-      </p>
-    </div>
-  </section>
+  <hr class="dash" />
 
-  <section class="pt-4 pb-18 max-[640px]:pb-12">
-    <div class="container">
-      {
-        posts.length === 0 ? (
-          <div
-            class="border border-dashed border-border-strong p-8 text-center"
-          >
-            <Icon
-              name="ph:book-open"
-              width={32}
-              height={32}
-              class="mx-auto mb-3 text-text-muted"
-            />
-            <h3 class="!mt-0 !mb-1 !text-base">First post landing soon.</h3>
-            <p class="text-text-muted text-[0.9rem] m-0">
-              We're drafting the launch series — version churn, OAuth lifecycle, the fails-loudly thesis. Subscribe via <a href="/rss.xml" class="text-accent">RSS</a> to be notified.
-            </p>
+  {
+    featured && (
+      <section class="section" style="padding-top: 0;">
+        <h2 class="h-caps">FEATURED</h2>
+        <div class="subtitle center">latest dispatch from the workshop</div>
+
+        <article class="featured">
+          <div>
+            <div class="ft-tag">
+              {fmtISO(featured.data.pubDate)} ·{" "}
+              {categoryLabels[featured.data.category]}
+            </div>
+            <h3>
+              <a href={`/blog/${featured.id}`}>{featured.data.title}</a>
+            </h3>
+            <p class="kicker">{featured.data.description}</p>
+            <div class="meta">
+              <span>
+                <b>{featured.data.author}</b>
+              </span>
+              <span>· {readingMin(featured)} min read</span>
+              {featured.data.tags.length > 0 && (
+                <span>· {featured.data.tags.join(", ")}</span>
+              )}
+            </div>
           </div>
-        ) : (
-          <ul class="list-none p-0 m-0">
-            {posts.map((post) => (
-              <li class="py-6 border-t border-border first:border-t-0">
-                <a
-                  href={`/blog/${post.id}`}
-                  class="no-underline text-text block group"
-                >
-                  <div class="flex items-baseline gap-3 mb-2 text-[0.78rem] text-text-muted">
-                    <time datetime={post.data.pubDate.toISOString()}>
-                      {fmtDate(post.data.pubDate)}
-                    </time>
-                    {post.data.tags.length > 0 ? (
-                      <span class="opacity-50">·</span>
-                    ) : null}
-                    {post.data.tags.map((t) => (
-                      <span class="uppercase tracking-[0.08em] text-[0.7rem]">
-                        {t}
-                      </span>
-                    ))}
-                    {post.data.draft ? (
-                      <span
-                        class="ml-auto uppercase tracking-[0.1em] text-[0.65rem] py-[0.1rem] px-[0.4rem] border border-accent text-accent"
-                        aria-label="Draft (visible only in dev)"
-                      >
-                        draft
-                      </span>
-                    ) : null}
-                  </div>
-                  <h2 class="!m-0 !text-[1.3rem] !font-bold group-hover:text-accent transition-colors">
-                    {post.data.title}
-                  </h2>
-                  <p class="text-text-muted m-0 mt-2 text-[0.95rem]">
-                    {post.data.description}
-                  </p>
-                  <div class="mt-3 inline-flex items-center gap-1 text-[0.82rem] text-accent">
-                    Read
-                    <Icon name="ph:arrow-right" width={12} height={12} />
-                  </div>
-                </a>
+          <div class="stampish">
+            POSTMORTEM
+            <br />
+            <b>FILED</b>
+            <br />
+            {fmtISO(featured.data.pubDate)}
+          </div>
+        </article>
+      </section>
+    )
+  }
+
+  {!featured && (
+    <section class="section" style="padding-top: 0;">
+      <div
+        style="border: 1px dashed var(--r-very); padding: 28px; text-align: center; color: var(--r-dim); font-size: 13px;"
+      >
+        First dispatch landing soon. <a href="/rss.xml" style="color: var(--r-accent);">Subscribe via RSS</a> to be notified.
+      </div>
+    </section>
+  )}
+
+  <hr class="dash" />
+
+  {
+    (
+      ["engineering", "philosophy", "release-notes"] as const
+    ).map((cat) =>
+      byCategory[cat].length > 0 ? (
+        <>
+          <div class="cat-head">
+            <span class="cat-name">{categoryLabels[cat]}</span>
+            <span class="cat-rule" />
+            <span class="cat-count">
+              <b>{byCategory[cat].length}</b> {byCategory[cat].length === 1 ? "post" : "posts"}
+            </span>
+          </div>
+          <ul class="ledger">
+            {byCategory[cat].map((post) => (
+              <li class="post">
+                <span class="ts">{fmtISO(post.data.pubDate)}</span>
+                <div class="body">
+                  <h4>
+                    <a href={`/blog/${post.id}`}>{post.data.title}</a>
+                  </h4>
+                  <p class="desc">{post.data.description}</p>
+                  {post.data.tags.length > 0 && (
+                    <div class="tags">
+                      {post.data.tags.map((t, i) => (
+                        <span>{i === 0 ? <b>{t}</b> : t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div class="read">
+                  <span class="min">{readingMin(post)}</span>min
+                </div>
               </li>
             ))}
           </ul>
-        )
-      }
+        </>
+      ) : null,
+    )
+  }
+
+  {/* RSS callout */}
+  <div class="rss">
+    <div>
+      <h3>Subscribe for new dispatches.</h3>
+      <p>
+        Two posts a month, roughly. No newsletter, just RSS. Or follow
+        <a href="https://bsky.app/profile/rosekamallove.dev"> @rosekamallove</a> on Bluesky.
+      </p>
     </div>
-  </section>
+    <a href="/rss.xml" class="btn small">RSS →</a>
+  </div>
+
+  <hr class="double" />
+
+  <Closeout
+    thanks="* * * THANK YOU FOR READING * * *"
+    codeLine="000 LMP BLOG · 2026-05-23"
+    links={[
+      { href: "/", label: "home" },
+      { href: "https://docs.letmepost.dev", label: "docs" },
+      { href: "/rss.xml", label: "rss" },
+      { href: "https://github.com/letmepost/letmepost.dev", label: "github" },
+    ]}
+  />
+  <Tape bottom />
+
+  {/* Right rail — editorial notes */}
+  <aside class="marg" aria-label="Notes" slot="rightRail">
+    <div class="note">
+      <span class="tag">Cadence</span>
+      Two posts a month, mostly. No content marketing. No "X reasons why" listicles. <b>Engineering things that took us a while to figure out.</b>
+    </div>
+    <div class="note">
+      <span class="tag">Authors</span>
+      <b>Rose Kamal Love</b> writes most posts. Guest posts welcome, email if you have something to say about platform APIs.
+    </div>
+    <div class="note">
+      <span class="tag">RSS</span>
+      Full-text feed at <code>/rss.xml</code>. No tracking. No email harvesting. Just XML.
+    </div>
+    <div class="note">
+      <span class="tag">Comments</span>
+      We don't run them. Reply on Bluesky <b>@rosekamallove</b> or open an issue on the repo.
+    </div>
+    <div class="note">
+      <span class="tag">Licence</span>
+      Posts are <b>CC BY 4.0</b>. Quote, translate, remix, credit + a link back is all we ask.
+    </div>
+  </aside>
 </BaseLayout>
+
+<style is:global>
+  /* ── Blog index only ───────────────────────────────────── */
+
+  .featured {
+    border: 1px solid var(--r-line);
+    background: var(--r-paper);
+    padding: 26px 28px;
+    margin: 14px 0 28px;
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 24px; align-items: start;
+  }
+  .featured .ft-tag {
+    font-size: 9px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--r-accent);
+    margin-bottom: 10px; font-weight: 700;
+  }
+  .featured h3 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 22px; line-height: 1.2; letter-spacing: -0.01em;
+    margin: 0 0 10px; text-wrap: balance;
+  }
+  .featured h3 a { text-decoration: none; color: var(--r-ink); }
+  .featured h3 a:hover { color: var(--r-accent); }
+  .featured .kicker { color: var(--r-dim); font-size: 13px; line-height: 1.6; margin: 0 0 14px; }
+  .featured .meta {
+    font-size: var(--r-fs-xs); letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--r-very); display: flex; gap: 14px; flex-wrap: wrap;
+  }
+  .featured .meta b { color: var(--r-ink); font-weight: 700; }
+  .featured .stampish {
+    display: inline-block;
+    padding: 8px 10px;
+    border: 2px solid var(--r-ink);
+    transform: rotate(-2deg);
+    text-align: center;
+    font-size: 9px; letter-spacing: 0.2em;
+    line-height: 1.4;
+    color: var(--r-ink);
+  }
+  .featured .stampish b { display: block; font-size: 12px; letter-spacing: 0.06em; }
+
+  .cat-head {
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 12px; align-items: baseline;
+    margin: 36px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--r-ink);
+  }
+  .cat-head .cat-name {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 13px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--r-ink);
+  }
+  .cat-head .cat-rule {
+    align-self: center; height: 0;
+    border-bottom: 1px dotted var(--r-very);
+  }
+  .cat-head .cat-count {
+    font-size: var(--r-fs-xs); letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--r-very);
+  }
+  .cat-head .cat-count b { color: var(--r-ink); font-weight: 700; }
+
+  .ledger { list-style: none; padding: 0; margin: 0; }
+  .ledger li.post {
+    display: grid;
+    grid-template-columns: 92px 1fr 60px;
+    gap: 16px;
+    padding: 18px 0;
+    border-bottom: 1px dotted var(--r-very);
+    align-items: start;
+  }
+  .ledger li.post:last-child { border-bottom: 0; }
+  .ledger .ts {
+    font-size: 11px; letter-spacing: 0.04em; color: var(--r-very);
+    font-variant-numeric: tabular-nums; padding-top: 2px;
+  }
+  .ledger .body h4 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 15px; line-height: 1.3; margin: 0 0 5px;
+  }
+  .ledger .body h4 a { text-decoration: none; color: var(--r-ink); }
+  .ledger .body h4 a:hover { color: var(--r-accent); }
+  .ledger .body .desc { color: var(--r-dim); font-size: 12.5px; line-height: 1.55; margin: 0; }
+  .ledger .body .desc code { background: var(--r-accent-soft); padding: 1px 5px; font-size: 0.92em; }
+  .ledger .body .tags {
+    margin-top: 6px;
+    display: flex; gap: 10px; flex-wrap: wrap;
+    font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--r-very);
+  }
+  .ledger .body .tags b { color: var(--r-ink); font-weight: 700; }
+  .ledger .read {
+    text-align: right;
+    font-size: 11px; color: var(--r-very);
+    letter-spacing: 0.06em; padding-top: 2px;
+  }
+  .ledger .read .min {
+    display: block; font-size: 14px; color: var(--r-ink);
+    font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 0;
+  }
+
+  .rss {
+    margin: 28px 0;
+    padding: 18px 20px;
+    border: 1px dashed var(--r-accent);
+    background: var(--r-accent-soft);
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 14px; align-items: center;
+  }
+  .rss h3 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 14px; margin: 0 0 4px;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--r-ink);
+  }
+  .rss p { margin: 0; color: var(--r-dim); font-size: 12px; }
+  .rss p a { color: var(--r-accent); }
+
+  @media (max-width: 700px) {
+    .featured { grid-template-columns: 1fr; }
+    .featured .stampish { justify-self: start; }
+    .ledger li.post { grid-template-columns: 80px 1fr; }
+    .ledger .read { grid-column: 1 / -1; text-align: left; padding-top: 4px; }
+    .ledger .read .min { display: inline; font-size: inherit; font-weight: 400; color: var(--r-very); }
+    .ledger .read .min::before { content: " "; }
+  }
+</style>

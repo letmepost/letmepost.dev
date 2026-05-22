@@ -1,559 +1,528 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { Code } from "astro:components";
 import { Icon } from "astro-icon/components";
-import PlatformIcon from "../components/PlatformIcon.astro";
+import Tape from "../components/Tape.astro";
+import Closeout from "../components/Closeout.astro";
 import { PLATFORMS } from "../data/platforms.ts";
 
-// Pull only the fields the platform-support strip needs from the
-// single source of truth in data/platforms.ts. `slug` matches the
-// backend Platform enum except for the navbar's "x" alias — kept
-// in lockstep with the data file via the import above.
-const platforms = PLATFORMS.map((p) => ({
-  name: p.name,
-  slug: p.slug,
-  status: p.status,
-}));
+/**
+ * Landing page — receipt direction. Pixel-mirrors design/letmepost.html.
+ * Brand head with stampbox, code-block tabs (curl/ts/py), itemized
+ * `WHAT YOU GET`, platform status, error envelope, MCP teaser, tariff
+ * sheet, fine-print FAQ, and a final centered CTA.
+ *
+ * Voice rules: no em dashes; no banned adjectives; honest status only
+ * (Bluesky/X/Pinterest live, four Meta+LinkedIn in review, TikTok planned).
+ */
 
-const statusLabel: Record<string, string> = {
-  live: "live",
-  trial: "trial",
-  pending: "pending platform review",
-  planned: "planned",
+// Status mapping — backend PLATFORM_STATE ("live" | "pending" | "planned" |
+// "trial") to the marketing-side labels the design uses.
+function statusLabel(s: string): "live" | "in-review" | "planned" {
+  if (s === "live" || s === "trial") return "live";
+  if (s === "pending") return "in-review";
+  return "planned";
+}
+
+// Per-platform tagline shown under the name on the status list.
+const detail: Record<string, string> = {
+  bluesky: "AT Proto · 300 graphemes",
+  twitter: "v2 API · 280 graphemes",
+  pinterest: "v5 · image + video pins",
+  instagram: "Meta App Review · day 24 / ~56",
+  facebook: "Meta App Review · day 24 / ~56",
+  threads: "Meta App Review · day 24 / ~56",
+  linkedin: "MDP · day 12 / ~84",
+  youtube: "Data API v3 · CASA-gated",
 };
 
-const codeSample = `// Idempotency keys make retries safe.
-// Preflight rules run before we hit the platform.
+// Phosphor names mirror PlatformIcon's mapping, kept inline so the
+// landing's tight column doesn't pull in the wrapper component.
+const phosphor: Record<string, string> = {
+  bluesky: "ph:butterfly",
+  twitter: "ph:x-logo",
+  pinterest: "ph:pinterest-logo",
+  instagram: "ph:instagram-logo",
+  facebook: "ph:facebook-logo",
+  threads: "ph:threads-logo",
+  linkedin: "ph:linkedin-logo",
+  youtube: "ph:youtube-logo",
+  tiktok: "ph:tiktok-logo",
+};
 
-await fetch("https://api.letmepost.dev/v1/posts", {
-  method: "POST",
-  headers: {
-    Authorization: "Bearer lmp_live_…",
-    "Idempotency-Key": crypto.randomUUID(),
-  },
-  body: JSON.stringify({
-    account: { platform: "bluesky", id: "acc_…" },
-    text: "Shipping letmepost.dev",
-  }),
-});`;
-
-const errorSample = `{
-  "error": {
-    "code": "preflight_failed",
-    "rule": "bluesky.text.max_graphemes",
-    "platform": "bluesky",
-    "platform_version": "atproto-2026-04",
-    "message": "Post text is 312 graphemes; Bluesky allows at most 300.",
-    "remediation": "Shorten the post to 300 graphemes or fewer.",
-    "request_id": "req_01HY6X4AWBJM2K9F2PTQMRD9JQ"
-  }
-}`;
-
-const endpoints = [
+// Drop YouTube per voice rule ("Do not list YouTube"), and tack on
+// TikTok as a marketing-only `planned` row.
+const platformRows = [
+  ...PLATFORMS.filter((p) => p.slug !== "youtube").map((p) => ({
+    slug: p.slug,
+    name: p.name,
+    detail: detail[p.slug] ?? "",
+    status: statusLabel(p.status),
+  })),
   {
-    method: "POST",
-    path: "/v1/posts",
-    desc: "One call. Seven platforms at v1. Text, images, video, carousels, scheduled or now.",
-  },
-  {
-    method: "POST",
-    path: "/v1/media",
-    desc: "Multipart upload once, reference by mediaId on every post. Bytes stay on our CDN.",
-  },
-  {
-    method: "POST",
-    path: "/v1/accounts/connect/:platform",
-    desc: "One OAuth flow, scoped narrowly. Tokens encrypted at rest. Refresh handled for you.",
-  },
-  {
-    method: "GET",
-    path: "/v1/platform-versions",
-    desc: "Public. See which upstream API version we pin per platform and what's deprecating.",
-  },
-  {
-    method: "POST",
-    path: "/v1/webhook-endpoints",
-    desc: "HMAC-signed deliveries for queued, published, failed, token.expiring, version.deprecated.",
-  },
-  {
-    method: "GET",
-    path: "/v1/posts/:id",
-    desc: "Full post record with every attempt, every upstream response, every status transition.",
+    slug: "tiktok",
+    name: "TikTok",
+    detail: "Publisher in build · v2",
+    status: "planned" as const,
   },
 ];
-
-const methodClasses: Record<string, string> = {
-  POST: "text-http-post bg-http-post/10",
-  GET: "text-http-get bg-http-get/10",
-  PUT: "text-http-put bg-http-put/10",
-  DELETE: "text-http-delete bg-http-delete/10",
-};
 
 const faqs = [
   {
     q: "What actually works today?",
-    a: 'Bluesky, X, and Pinterest are live end-to-end. You can connect an account, send a post, attach images or video, and get a webhook back. Videos route through the transcoding service automatically. Meta (Instagram, Facebook, Threads) and LinkedIn are review-gated and usually clear in 3 to 12 weeks. See the <a href="https://github.com/letmepost/letmepost.dev/blob/main/plan.md">plan</a> for dates.',
+    a: "Bluesky, X, and Pinterest are live end-to-end. You can connect an account, send a post, attach images or video, and get a webhook back. Instagram, Facebook, Threads, and LinkedIn are in platform review and flip on the day approval clears.",
   },
   {
     q: "Why another social media API?",
-    a: 'Because every existing one fails silently and charges per-profile. From 2025 to 2026, across 150+ citations: LinkedIn sunset five API versions in six months. Postiz shipped infinite double-posting bugs. Ayrshare\'s own docs admit their error 138 "masks multiple underlying causes." We fix all three. <a href="https://github.com/letmepost/letmepost.dev/blob/main/PRODUCT.md">Read the brief</a>.',
+    a: "Because the existing ones fail silently, charge per-profile, and break every six months when a platform sunsets a version. This one fails loudly, charges per-org, and pins the version internally. Apache 2.0 from day one.",
   },
   {
     q: "How much does it cost?",
-    a: "Free during alpha. When hosted billing turns on, it's flat-rate with a real free tier. No per-profile tax, no per-seat lock-in. Self-host stays free forever.",
+    a: "Free during alpha. When billing turns on, it's flat-rate per org with a real free tier. Self-host stays free forever.",
   },
   {
     q: "Is it really open source?",
-    a: "Apache 2.0 from day one. Same code runs the hosted SaaS and the self-host Docker Compose. No feature gate, no open-core trick.",
+    a: "Apache 2.0. The hosted SaaS runs the exact same image you can self-host. No feature gate, no open-core trick.",
   },
   {
-    q: "Postiz, Zernio, Ayrshare. What's the difference?",
-    a: 'Postiz is OSS but known for silent-failure bugs. Zernio is closed-source (rebranded from "Late" in late 2025). Ayrshare charges per-profile and returns opaque errors. We ship OSS, transparent errors, and flat pricing. Nobody else has all three.',
+    q: "Do I have to handle Meta App Review myself?",
+    a: "No. Connect through our OAuth flow and you publish through our reviewed app. Self-hosters can BYO Meta app if they want their own reviewer-of-record.",
   },
   {
-    q: "Can I self-host it?",
-    a: "Yes, first-class. Docker Compose against your own Postgres and Redis. Same API, same behavior as hosted.",
+    q: "Can my AI agent drive this?",
+    a: 'Yes. Native MCP server at <code>api.letmepost.dev/mcp</code> and a stdio binary on npm. See the agents landing for the full tool surface.',
   },
 ];
 
-function glyphClasses(status: string): string {
-  if (status === "live") return "bg-success opacity-100";
-  if (status === "trial") return "bg-accent opacity-100";
-  if (status === "pending") return "bg-accent opacity-60";
-  return "bg-text-muted opacity-50";
-}
-
-const liveGlyphShadow =
-  "box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-success) 18%, transparent);";
-
-/**
- * FAQPage structured data — Google renders these as expandable rich
- * results on the SERP. The `name` strings must match the visible
- * question text on the page (Google penalizes mismatch). Answers
- * are HTML-stripped to plain prose so the SERP card stays legible
- * without our anchor formatting.
- */
 const stripHtml = (html: string) => html.replace(/<[^>]+>/g, "");
-
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
   mainEntity: faqs.map((f) => ({
     "@type": "Question",
     name: f.q,
-    acceptedAnswer: {
-      "@type": "Answer",
-      text: stripHtml(f.a),
-    },
+    acceptedAnswer: { "@type": "Answer", text: stripHtml(f.a) },
   })),
 };
+
+const curlSample = `curl -X POST https://api.letmepost.dev/v1/posts \\
+  -H "Authorization: Bearer $LMP_KEY" \\
+  -H "Idempotency-Key: $(uuidgen)" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "targets": [
+      { "platform": "bluesky" },
+      { "platform": "x" },
+      { "platform": "pinterest" }
+    ],
+    "text": "Shipped multi-target publishing today."
+  }'`;
+
+const tsSample = `import { Letmepost } from "@letmepost/sdk";
+
+const lmp = new Letmepost({ apiKey: process.env.LMP_KEY });
+
+const result = await lmp.posts.create({
+  targets: [
+    { platform: "bluesky" },
+    { platform: "x" },
+    { platform: "pinterest" },
+  ],
+  text: "Shipped multi-target publishing today.",
+  // Idempotency-Key stamped automatically.
+});
+
+// Per-target outcomes, never a single ambiguous boolean.
+for (const r of result.targets) {
+  console.log(r.platform, r.status, r.url ?? r.error?.code);
+}`;
+
+const pySample = `from letmepost import Letmepost
+
+lmp = Letmepost(api_key=os.environ["LMP_KEY"])
+
+result = lmp.posts.create(
+    targets=[
+        {"platform": "bluesky"},
+        {"platform": "x"},
+        {"platform": "pinterest"},
+    ],
+    text="Shipped multi-target publishing today.",
+)
+
+for r in result.targets:
+    print(r.platform, r.status, r.url or r.error.code)`;
 ---
 
-<BaseLayout title="letmepost.dev" jsonLd={[faqJsonLd]}>
-  <!-- Hero -->
-  <section class="section-hero">
-    <div class="container">
-      {/* Pre-headline meta — deliberately quiet. The headline should
-          carry the page, not a chunky status pill. The arrow link
-          gives it just enough character to read as a designed
-          element instead of a stranded label. */}
-      <div class="flex items-center gap-3 mb-8 text-[0.85rem] text-text-muted">
-        <a
-          href="https://github.com/letmepost/letmepost.dev"
-          target="_blank"
-          rel="noopener"
-          class="inline-flex items-center gap-1.5 no-underline text-text hover:text-accent transition-colors"
-          data-analytics-event="external.github_clicked"
-          data-analytics-props='{"from_page":"home","location":"hero-meta"}'
-        >
-          <span
-            class="inline-block w-[7px] h-[7px] bg-success"
-            style={liveGlyphShadow}
-            aria-hidden="true"
-          ></span>
-          v0 alpha is live
-          <Icon name="ph:arrow-up-right" width={11} height={11} />
-        </a>
-        <span class="opacity-50">·</span>
-        <span>open source from day one</span>
-      </div>
+<BaseLayout
+  title="letmepost.dev"
+  description="One POST. Eight platforms. Zero days in Meta's review queue. Apache 2.0 social publishing API with preflight validation, idempotency, and a native MCP server."
+  jsonLd={[faqJsonLd]}
+>
+  <Tape />
 
-      <h1>
-        Open source social media API.
-        <span class="text-accent">Built for devs and AI agents.</span>
-      </h1>
+  {/* HEAD — centered brand + ASCII banner + PAID IN FULL stamp + meta grid */}
+  <div class="head">
+    <div class="brand-mark">LETMEPOST</div>
+    <div class="url-line">letmepost.dev · est. 2026 · apache-2.0</div>
 
-      <p class="text-[1.2rem] leading-[1.65] mt-7 mb-11 text-text-secondary">
-        Ship social features in minutes, not months. One API to publish
-        across 7 platforms, with scheduling, webhooks, and idempotency
-        built in. Native MCP server. Apache 2.0.
-      </p>
+    <div class="ascii">+-------------------------------------+
+|        OPEN SOURCE · ALPHA          |
++-------------------------------------+</div>
 
-      <div class="flex gap-[0.7rem] flex-wrap">
-        <a
-          class="btn btn-primary"
-          href="https://dashboard.letmepost.dev"
-          data-analytics-event="cta.clicked"
-          data-analytics-props='{"location":"hero","target":"dashboard","page":"home","label":"Start building free"}'
-        >
-          Start building free
-          <Icon name="ph:arrow-up-right" width={13} height={13} />
-        </a>
-        <a
-          class="btn btn-secondary"
-          href="#request"
-          data-analytics-event="cta.clicked"
-          data-analytics-props='{"location":"hero-secondary","target":"docs","page":"home","label":"See the request"}'
-        >
-          See the request
-          <Icon name="ph:arrow-down" width={13} height={13} />
-        </a>
-      </div>
+    <div class="stampbox" aria-hidden="true">
+      <div class="l1">PLATFORM REVIEW</div>
+      <div class="l2">PAID IN FULL</div>
+      <div class="l3">SO YOU DON'T HAVE TO</div>
+    </div>
 
-      <p class="text-[0.85rem] mt-6 text-text-muted">
-        No credit card · Free during alpha · Self-host stays free forever ·
-        <a
-          href="https://docs.letmepost.dev/quickstart"
-          class="text-accent"
-          data-analytics-event="docs.link_clicked"
-          data-analytics-props='{"from_page":"home","to_section":"quickstart"}'
-        >90-second quickstart →</a>
-      </p>
+    <div class="meta-grid">
+      <div><span class="k">RECEIPT №</span><span class="v">000-LMP-0001</span></div>
+      <div><span class="k">CASHIER</span><span class="v">rose</span></div>
+      <div><span class="k">DATE</span><span class="v">2026-05-22</span></div>
+      <div><span class="k">TERMINAL</span><span class="v">/v1/posts</span></div>
+    </div>
+  </div>
+
+  <hr class="solid" />
+
+  {/* HERO */}
+  <section style="text-align: left;" data-sticky-anchor>
+    <h1 class="hero-h1">
+      One <span class="under">POST</span>. Eight platforms.
+      <br />
+      <span class="acc">Zero days</span> in Meta's review queue.
+    </h1>
+
+    <p class="lede">
+      <b>letmepost</b> is the social-publishing API your backend has been hand-rolling.
+      One <code>POST /v1/posts</code> fans out to Bluesky, X, Pinterest, and the
+      four Meta + LinkedIn properties the day each review clears.
+      We sit in the developer-portal queue so you don't have to. <b>That's the trade.</b>
+    </p>
+
+    <div class="ctas">
+      <a
+        href="https://dashboard.letmepost.dev"
+        class="btn pri"
+        data-analytics-event="cta.clicked"
+        data-analytics-props='{"location":"hero","target":"dashboard","page":"home","label":"Start free"}'
+      >START FREE →</a>
+      <a
+        href="https://docs.letmepost.dev/quickstart"
+        class="btn"
+        data-analytics-event="cta.clicked"
+        data-analytics-props='{"location":"hero-secondary","target":"docs","page":"home","label":"Quickstart"}'
+      >90-SEC QUICKSTART</a>
+    </div>
+    <div class="reassurance">
+      No credit card · Free during alpha · Self-host free forever
     </div>
   </section>
 
-  <!-- Request -->
-  <section
-    id="request"
-    class="section"
-  >
-    <div class="container">
-      <h2 class="!mt-0">One endpoint. Any platform.</h2>
-      <p class="text-text-muted">
-        <code>POST /v1/posts</code> routes to the platform you name and runs
-        every documented rule locally before sending the request. The request
-        and response shapes are identical for every platform. The same code
-        works for Bluesky today and LinkedIn next month.
-      </p>
+  <hr class="dash" />
 
-      <div class="border border-border my-6 bg-code-bg">
-        <div
-          class="flex items-center gap-[0.45rem] py-[0.65rem] px-[0.9rem] border-b border-[hsl(24_10%_16%)] text-[0.7rem] text-code-muted tracking-[0.02em]"
-        >
-          <span
-            class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#ff5f57]"
-            aria-hidden="true"></span>
-          <span
-            class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#febc2e]"
-            aria-hidden="true"></span>
-          <span
-            class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#28c840]"
-            aria-hidden="true"></span>
-          <span class="ml-[0.6rem]">schedule-post.ts</span>
+  {/* SHOW THE CODE */}
+  <section class="section">
+    <h2 class="h-caps">SHOW THE CODE</h2>
+    <div class="subtitle center">$ one terminal session</div>
+
+    <div
+      class="code-block"
+      data-tabs
+      data-files='{"curl":"publish.sh","ts":"publish.ts","py":"publish.py"}'
+    >
+      <div class="head-bar">
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab on" data-tab="curl" role="tab">curl</button>
+          <button type="button" class="tab" data-tab="ts" role="tab">typescript</button>
+          <button type="button" class="tab" data-tab="py" role="tab">python</button>
         </div>
-        <Code code={codeSample} lang="ts" theme="github-dark-dimmed" />
+        <span class="file">publish.sh</span>
+      </div>
+      <pre data-pane="curl">{curlSample}</pre>
+      <pre data-pane="ts" hidden>{tsSample}</pre>
+      <pre data-pane="py" hidden>{pySample}</pre>
+    </div>
+
+    <p class="lede" style="margin-top: 12px;">
+      The shape is identical for every platform. The response is a per-target envelope so you
+      never have to guess whether four succeeded and one didn't. Idempotency keys are stamped
+      automatically by the SDKs; replays return the original response for 24 hours.
+    </p>
+  </section>
+
+  <hr class="dash" />
+
+  {/* WHAT YOU GET */}
+  <section class="section">
+    <h2 class="h-caps">WHAT YOU GET</h2>
+    <div class="subtitle center">priced in time you don't spend</div>
+
+    <div class="items">
+      <div class="item">
+        <span class="qty">1×</span>
+        <span class="desc">
+          Multi-target publish endpoint
+          <span class="sub">POST /v1/posts, fans out to every connected account in one call</span>
+        </span>
+        <span class="val">~ 4 wk</span>
+      </div>
+      <div class="item">
+        <span class="qty">3×</span>
+        <span class="desc">
+          Meta App Review absorbed
+          <span class="sub">Instagram + Facebook + Threads, one shared review, our app of record</span>
+        </span>
+        <span class="val">~ 8 wk</span>
+      </div>
+      <div class="item">
+        <span class="qty">1×</span>
+        <span class="desc">
+          LinkedIn Marketing Developer Platform review
+          <span class="sub">submitted, version-pinned, sunset-monitored</span>
+        </span>
+        <span class="val">~12 wk</span>
+      </div>
+      <div class="item">
+        <span class="qty">80×</span>
+        <span class="desc">
+          Preflight rules
+          <span class="sub">char-count, media-format, audit-state, URN patterns. One docs page each.</span>
+        </span>
+        <span class="val">~ 6 wk</span>
+      </div>
+      <div class="item">
+        <span class="qty">7×</span>
+        <span class="desc">
+          Platform versions pinned for you
+          <span class="sub">we own the LinkedIn-sunsets-every-six-weeks problem</span>
+        </span>
+        <span class="val">∞</span>
       </div>
     </div>
-  </section>
 
-  <!-- Platforms -->
-  <section
-    id="platforms"
-    class="section"
-  >
-    <div class="container">
-      <h2 class="!mt-0">Platform support.</h2>
-      <p class="text-text-muted">
-        Bluesky is live. Everything else is either built and waiting on
-        platform approval, or being built while approval is in flight. Each
-        row flips to live the moment review clears.
-      </p>
-
-      <ul class="list-none p-0 mt-6 mb-5">
-        {
-          platforms.map((p) => (
-            <li class="group flex items-center gap-3 py-2 text-[0.95rem]">
-              <span class="inline-flex items-center gap-[0.55rem] text-text">
-                <PlatformIcon
-                  platform={p.slug}
-                  class="group-hover:text-text"
-                />
-                <span class="font-semibold whitespace-nowrap">{p.name}</span>
-              </span>
-              <span
-                class="flex-1 self-center h-0 border-b border-dotted border-border-strong"
-                aria-hidden="true"
-              />
-              <span class="text-[0.72rem] uppercase tracking-[0.08em] text-text-muted whitespace-nowrap inline-flex items-center gap-[0.4rem]">
-                <span
-                  class={`inline-block w-[6px] h-[6px] ${glyphClasses(p.status)}`}
-                  style={p.status === "live" ? liveGlyphShadow : ""}
-                  aria-hidden="true"
-                />
-                {statusLabel[p.status]}
-              </span>
-            </li>
-          ))
-        }
-      </ul>
-      <p class="text-[0.8rem] mt-4 text-text-muted">
-        TikTok is deferred to v2. The DB enum and schemas keep it reserved
-        for a later add. Reddit, Telegram, Discord, Snapchat, Google
-        Business, and WhatsApp are cut from v1. See the roadmap for the
-        reasoning.
-      </p>
+    <div class="total">
+      <span>TIME RECLAIMED</span>
+      <span class="v">≈ 6 months</span>
     </div>
   </section>
 
-  <!-- Error -->
-  <section
-    class="section"
-  >
-    <div class="container">
-      <h2 class="!mt-0">When it fails, you can act on it.</h2>
-      <p class="text-text-muted">
-        Every failure response uses the same shape. A stable code, the rule
-        that fired, the platform version we tried, a remediation hint, and a
-        request id you can grep for.
-      </p>
+  <hr class="dash" />
 
-      <div class="border border-border my-6 bg-code-bg">
-        <div
-          class="flex items-center gap-[0.45rem] py-[0.65rem] px-[0.9rem] border-b border-[hsl(24_10%_16%)] text-[0.7rem] text-code-muted tracking-[0.02em]"
-        >
-          <span
-            class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#ff5f57]"
-            aria-hidden="true"></span>
-          <span
-            class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#febc2e]"
-            aria-hidden="true"></span>
-          <span
-            class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#28c840]"
-            aria-hidden="true"></span>
-          <span class="ml-[0.6rem]">error-response.json</span>
-        </div>
-        <Code code={errorSample} lang="json" theme="github-dark-dimmed" />
-      </div>
-    </div>
-  </section>
+  {/* PLATFORM STATUS */}
+  <section class="section">
+    <h2 class="h-caps">PLATFORM STATUS</h2>
+    <div class="subtitle center">as of 2026-05-23</div>
 
-  <!-- How it works -->
-  <section
-    id="how-it-works"
-    class="section"
-  >
-    <div class="container">
-      <h2 class="!mt-0">How it works.</h2>
-      <p class="text-text-muted">Three steps. Minutes, not days.</p>
-
-      <ol class="list-none p-0 mt-6 mb-4">
-        <li class="flex gap-[1.1rem] py-5">
-          <div
-            class="text-accent font-extrabold text-[0.85rem] min-w-9 pt-[0.1rem] tracking-[0.04em]"
-          >
-            01
+    <div class="platforms">
+      {
+        platformRows.map((p) => (
+          <div class="row">
+            <span class="pglyph">
+              <Icon name={phosphor[p.slug] ?? "ph:circle"} width={18} height={18} />
+            </span>
+            <span class="nm">
+              {p.name}
+              <span class="h">{p.detail}</span>
+            </span>
+            <span class={`st ${p.status}`}>{p.status === "in-review" ? "in review" : p.status}</span>
           </div>
-          <div>
-            <h3 class="!m-0 !mb-[0.35rem] !text-base !font-bold">
-              Connect an account
-            </h3>
-            <p class="text-text-muted m-0 text-[0.92rem]">
-              One OAuth flow per platform, or an app-password submit for
-              Bluesky. Tokens get AES-256-GCM encrypted at rest. We refresh on
-              the right schedule per platform.
-            </p>
-          </div>
-        </li>
-        <li class="flex gap-[1.1rem] py-5">
-          <div
-            class="text-accent font-extrabold text-[0.85rem] min-w-9 pt-[0.1rem] tracking-[0.04em]"
-          >
-            02
-          </div>
-          <div>
-            <h3 class="!m-0 !mb-[0.35rem] !text-base !font-bold">
-              Send a post
-            </h3>
-            <p class="text-text-muted m-0 text-[0.92rem]">
-              <code>POST /v1/posts</code> with an Idempotency-Key. Preflight rules
-              run locally before the upstream call. If something fails, you get
-              a rule id and a remediation hint, not a <code
-                >body:&nbsp;{}</code
-              >.
-            </p>
-          </div>
-        </li>
-        <li class="flex gap-[1.1rem] py-5">
-          <div
-            class="text-accent font-extrabold text-[0.85rem] min-w-9 pt-[0.1rem] tracking-[0.04em]"
-          >
-            03
-          </div>
-          <div>
-            <h3 class="!m-0 !mb-[0.35rem] !text-base !font-bold">
-              Subscribe to events
-            </h3>
-            <p class="text-text-muted m-0 text-[0.92rem]">
-              HMAC-signed webhooks for <code>post.queued</code>, <code
-                >post.published</code
-              >, <code>post.failed</code>, <code>token.expiring</code>, and <code
-                >version.deprecated</code
-              >. No polling.
-            </p>
-          </div>
-        </li>
-      </ol>
+        ))
+      }
+    </div>
+
+    <p class="lede" style="margin-top: 14px;">
+      Eight platforms in v1. Twenty plus in scope. Each platform review is a separate weeks-to-months
+      gauntlet we run on your behalf.
+    </p>
+  </section>
+
+  <hr class="dash" />
+
+  {/* ANATOMY OF A FAILURE */}
+  <section class="section">
+    <h2 class="h-caps">ANATOMY OF A FAILURE</h2>
+    <div class="subtitle center">structured every time, no empty 500s</div>
+
+    <div class="envelope">
+      <div class="head-bar">
+        <span>HTTP/1.1 422 Unprocessable Entity</span>
+        <span>application/json</span>
+      </div>
+      <div class="body">
+        <div class="field"><span class="k">code</span><span class="v b">preflight_failed</span></div>
+        <div class="field"><span class="k">rule</span><span class="v acc b">bluesky.text.max_graphemes</span></div>
+        <div class="field"><span class="k">platform</span><span class="v">bluesky</span></div>
+        <div class="field"><span class="k">platform_version</span><span class="v">atproto-2026-04</span></div>
+        <div class="field"><span class="k">message</span><span class="v">Text is 312 graphemes; Bluesky allows at most 300.</span></div>
+        <div class="field"><span class="k">remediation</span><span class="v">Trim the text to 300 graphemes or fewer.</span></div>
+        <div class="field"><span class="k">doc_url</span><span class="v acc">docs.letmepost.dev/errors/preflight_failed</span></div>
+        <div class="field"><span class="k">rule_url</span><span class="v acc">docs.letmepost.dev/preflight/bluesky-text-max_graphemes</span></div>
+        <div class="field"><span class="k">request_id</span><span class="v">req_01HXY7Z8K9MNB1P2QR3STVW</span></div>
+        <div class="field"><span class="k">trace_id</span><span class="v">01jb7q9c4e5f6g7h8i9k0lm1np</span></div>
+      </div>
+    </div>
+
+    <p class="lede" style="margin-top: 12px;">
+      Every non-2xx carries the same shape. Greppable, actionable, linkable.
+      Eleven stable error codes, each with its own docs page.
+    </p>
+  </section>
+
+  <hr class="dash" />
+
+  {/* For agents */}
+  <section class="section">
+    <h2 class="h-mixed">For agents, letmepost speaks <span class="acc">MCP</span>.</h2>
+    <p class="subtitle left">a hosted server + a stdio binary on npm</p>
+
+    <div class="mcp">
+      <div>
+        <p style="margin-top: 0;">A hosted MCP server at <code>api.letmepost.dev/mcp</code> (Streamable HTTP, stateless) and a stdio binary on npm. Twenty-one tools, autogenerated from OpenAPI. Same auth as the HTTP API. Claude, Cursor, Claude Code, opencode, any MCP-aware client drives the full surface.</p>
+        <p><a href="/agents">Read the agents landing →</a></p>
+      </div>
+      <pre class="config">{`{
+  "mcpServers": {
+    "letmepost": {
+      "command": "npx",
+      "args":    ["@letmepost/mcp@latest"],
+      "env":     { "LMP_API_KEY": "lmp_live_…" }
+    }
+  }
+}`}</pre>
     </div>
   </section>
 
-  <!-- Principles -->
-  <section
-    class="section"
-  >
-    <div class="container">
-      <h2 class="!mt-0">Four principles, no exceptions.</h2>
+  <hr class="dash" />
 
-      <div class="py-5">
-        <div
-          class="text-accent text-[0.78rem] tracking-[0.04em] mb-[0.4rem] font-extrabold"
-        >
-          01 · Preflight, not postflight
-        </div>
-        <p class="text-text-muted m-0">
-          Every documented rule runs locally before the platform sees the
-          request. That covers character counts, media formats, audit states,
-          and URN patterns.
-        </p>
-      </div>
+  {/* Tariff sheet */}
+  <section class="section">
+    <h2 class="h-mixed">Tariff sheet, per org, <span class="acc">never per profile.</span></h2>
+    <p class="subtitle left">flat-rate · self-host stays free forever</p>
 
-      <div class="py-5">
-        <div
-          class="text-accent text-[0.78rem] tracking-[0.04em] mb-[0.4rem] font-extrabold"
-        >
-          02 · Transparent errors
-        </div>
-        <p class="text-text-muted m-0">
-          No empty <code>{"{ body: {}, message: \"\" }"}</code>. Every failure
-          ships with a stable code, the specific rule that failed, the raw
-          upstream body, and a remediation hint.
-        </p>
-      </div>
+    <table class="tariff">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Posts / mo</th>
+          <th class="r">Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="tier">Free<span class="who">Personal · single-platform automations</span></td>
+          <td>50</td>
+          <td class="r"><span class="price">$0</span></td>
+        </tr>
+        <tr class="hi">
+          <td class="tier">Pro <span class="stars">★</span><span class="who">Indie SaaS · agencies under 50 clients</span></td>
+          <td>5,000</td>
+          <td class="r"><span class="price">$79</span></td>
+        </tr>
+        <tr>
+          <td class="tier">Business<span class="who">Embedded social · uptime SLA · white-label OAuth</span></td>
+          <td>25,000</td>
+          <td class="r"><span class="price">$299</span></td>
+        </tr>
+        <tr>
+          <td class="tier">Self-host<span class="who">Same image · BYO Postgres + Redis · Apache 2.0</span></td>
+          <td>∞</td>
+          <td class="r"><span class="price">$0</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="lede" style="margin-top: 8px;">
+      Profiles, accounts, team members, webhook endpoints, API keys: <b>all free</b>.
+      Hard caps with 80% + 100% webhooks. No surprise overages.
+      <a href="/pricing">Full pricing →</a>
+    </p>
+  </section>
 
-      <div class="py-5">
-        <div
-          class="text-accent text-[0.78rem] tracking-[0.04em] mb-[0.4rem] font-extrabold"
-        >
-          03 · Versions we pin for you
-        </div>
-        <p class="text-text-muted m-0">
-          LinkedIn sunset five API versions in six months. We pin the header,
-          track upcoming deprecations, and upgrade internally. Your workflow
-          doesn&apos;t break at 2&nbsp;a.m.
-        </p>
-      </div>
+  <hr class="dash" />
 
-      <div class="py-5">
-        <div
-          class="text-accent text-[0.78rem] tracking-[0.04em] mb-[0.4rem] font-extrabold"
-        >
-          04 · Idempotency by default
-        </div>
-        <p class="text-text-muted m-0">
-          Every write accepts an <code>Idempotency-Key</code>. Retries are
-          safe. No double-posting loops when a worker restarts mid-publish.
-        </p>
-      </div>
+  {/* Fine print */}
+  <section class="section">
+    <h2 class="h-mixed">Fine print.</h2>
+    <p class="subtitle left">questions you'd ask in a code review</p>
+
+    <div class="faq">
+      {
+        faqs.map((f) => (
+          <div class="item-q">
+            <p class="q">{f.q}</p>
+            <p class="a" set:html={f.a} />
+          </div>
+        ))
+      }
     </div>
   </section>
 
-  <!-- Endpoints -->
-  <section
-    class="section"
-  >
-    <div class="container">
-      <h2 class="!mt-0">What you can do.</h2>
-      <p class="text-text-muted">
-        The v1 API surface. Small on purpose. One primitive, done well.
-      </p>
+  <hr class="double" />
 
-      <ul class="list-none p-0 mt-6 mb-4">
-        {
-          endpoints.map((e) => (
-            <li class="py-[1.15rem]">
-              <div class="flex items-center gap-3 mb-[0.4rem]">
-                <span
-                  class={`text-[0.68rem] font-bold tracking-[0.08em] py-[0.2rem] px-[0.55rem] border border-current leading-none uppercase min-w-[3.5rem] text-center ${methodClasses[e.method]}`}
-                >
-                  {e.method}
-                </span>
-                <code class="font-semibold text-[0.95rem] !bg-transparent !p-0 !text-text">
-                  {e.path}
-                </code>
-              </div>
-              <p class="text-text-muted m-0 text-[0.9rem] pl-[4.25rem] max-[520px]:pl-0">
-                {e.desc}
-              </p>
-            </li>
-          ))
-        }
-      </ul>
+  {/* FINAL CTA */}
+  <section class="section" style="text-align: center;">
+    <h2 class="h-caps" style="margin-bottom: 8px;">KICK THE TIRES.</h2>
+    <p class="lede" style="margin: 6px auto 18px; text-align: center;">
+      Star the repo. Send your first post in ninety seconds.<br />
+      File an issue when something's weird. We're building in the open.
+    </p>
+    <div class="ctas" style="justify-content: center;">
+      <a
+        href="https://dashboard.letmepost.dev"
+        class="btn pri"
+        data-analytics-event="cta.clicked"
+        data-analytics-props='{"location":"home-final","target":"dashboard","page":"home","label":"Start free"}'
+      >START FREE →</a>
+      <a
+        href="https://github.com/letmepost/letmepost.dev"
+        class="btn"
+        target="_blank"
+        rel="noopener"
+        data-analytics-event="external.github_clicked"
+        data-analytics-props='{"from_page":"home","location":"home-final"}'
+      >GITHUB ↗</a>
     </div>
   </section>
 
+  <Closeout
+    codeLine="000 LMP 0001 · 2026-05-23 · 14:21Z"
+    links={[
+      { href: "https://docs.letmepost.dev", label: "docs" },
+      { href: "https://github.com/letmepost/letmepost.dev", label: "github" },
+      { href: "https://status.letmepost.dev", label: "status" },
+      { href: "/privacy", label: "privacy" },
+      { href: "/terms", label: "terms" },
+    ]}
+  />
 
-  <!-- FAQs -->
-  <section
-    id="faq"
-    class="section"
-  >
-    <div class="container">
-      <h2 class="!mt-0">FAQs.</h2>
+  <Tape bottom />
 
-      <dl class="m-0 mt-6 mb-4 p-0">
-        {
-          faqs.map((f) => (
-            <div class="py-[1.15rem]">
-              <dt class="flex gap-[0.6rem] font-bold text-text m-0 mb-2 text-[0.95rem] before:content-['Q'] before:text-accent before:font-extrabold">
-                {f.q}
-              </dt>
-              <dd
-                class="flex gap-[0.6rem] text-text-muted m-0 text-[0.9rem] before:content-['A'] before:text-accent before:font-extrabold"
-              >
-                <span set:html={f.a} />
-              </dd>
-            </div>
-          ))
-        }
-      </dl>
+  {/* Right rail — technical annotations */}
+  <aside class="marg" aria-label="Technical notes" slot="rightRail">
+    <div class="note">
+      <span class="tag">Method</span>
+      Every <b>POST</b> runs through 80 preflight rules locally before the platform sees the request. The rule that fires is named on the failure envelope.
     </div>
-  </section>
-
-  <!-- Final CTA -->
-  <section
-    class="section"
-  >
-    <div class="container">
-      <h2 class="!mt-0">Kick the tires.</h2>
-      <p class="text-text-muted">
-        Star the repo. Send your first Bluesky post. File an issue when
-        something&apos;s weird. We&apos;re building in the open.
-      </p>
-      <div class="flex gap-[0.6rem] flex-wrap">
-        <a
-          class="btn btn-primary"
-          href="https://github.com/letmepost/letmepost.dev"
-          target="_blank"
-          rel="noopener"
-          data-analytics-event="external.github_clicked"
-          data-analytics-props='{"from_page":"home","location":"home-final"}'
-        >Star on GitHub <Icon name="ph:arrow-up-right" width={13} height={13} /></a>
-        <a
-          class="btn btn-secondary"
-          href="/contact"
-          data-analytics-event="cta.clicked"
-          data-analytics-props='{"location":"home-final","target":"contact","page":"home","label":"Get in touch"}'
-        >Get in touch</a>
-      </div>
+    <div class="note">
+      <span class="tag">Idempotency</span>
+      Every write accepts <b>Idempotency-Key</b>. Retries return the cached response for 24h. Conflicting bodies surface as <code>idempotency_conflict</code> (HTTP 409).
     </div>
-  </section>
+    <div class="note">
+      <span class="tag">Webhooks</span>
+      HMAC-SHA256 signed.<br />
+      <b>post.queued</b>, post.published, post.failed, post.rejected, <b>token.expiring</b>, token.revoked, version.deprecated, quota.warning.
+    </div>
+    <div class="note">
+      <span class="tag">Errors</span>
+      Eleven stable codes, each with its own docs page. Plus the rule id that fired, the pinned platform version, and a remediation hint.
+    </div>
+    <div class="note">
+      <span class="tag">Self-host</span>
+      <code>docker compose up</code> against your own Postgres + Redis. BYO platform credentials. Same image as hosted.
+    </div>
+    <div class="note">
+      <span class="tag">Contact</span>
+      File an issue on the repo or email <b>rose@letmepost.dev</b>. There's no priority-routing tier because there's only one person to route to.
+    </div>
+  </aside>
 </BaseLayout>
