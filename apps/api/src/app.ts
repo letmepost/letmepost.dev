@@ -19,9 +19,14 @@ import {
 } from "./routes/accounts.js";
 import { apiKeyRoutes } from "./routes/api-keys.js";
 import { authRoutes } from "./routes/auth.js";
+import {
+  billingRoutes,
+  createBillingRoutes,
+} from "./routes/billing.js";
 import { dataDeletion } from "./routes/data-deletion.js";
 import { deauth } from "./routes/deauth.js";
 import { health } from "./routes/health.js";
+import { lemonSqueezy } from "./routes/lemonsqueezy.js";
 import { mcp } from "./routes/mcp.js";
 import { media } from "./routes/media.js";
 import { oauthExchange } from "./routes/oauth-exchange.js";
@@ -151,6 +156,10 @@ export function createApp(options: AppOptions = {}) {
           : {}),
       }),
     );
+    app.route(
+      "/v1/billing",
+      createBillingRoutes({ sessionMiddleware: injectSession }),
+    );
   } else {
     app.route("/v1/webhook-endpoints", webhookEndpointRoutes);
     app.route("/v1/profiles", profileRoutes);
@@ -162,11 +171,14 @@ export function createApp(options: AppOptions = {}) {
     } else {
       app.route("/v1/accounts", accountRoutes);
     }
+    app.route("/v1/billing", billingRoutes);
   }
 
   app.route("/health", health);
   app.route("/posts", posts);
   app.route("/v1/posts", posts);
+  // Inbound Lemon Squeezy webhooks. Public, signature-verified.
+  app.route("/v1/lemonsqueezy", lemonSqueezy);
   app.route("/v1/media", media);
   // Hosted MCP endpoint. Streamable HTTP transport, stateless mode, gated
   // by the same API-key auth as /v1/*. Custom domain mcp.letmepost.dev
