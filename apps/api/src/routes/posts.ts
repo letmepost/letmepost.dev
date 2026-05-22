@@ -14,6 +14,7 @@ import {
   type PublishResult,
   type WebhookEventType,
 } from "@letmepost/schemas";
+import { checkAndIncrementQuota } from "../billing/quota.js";
 import { posts as postsTable, type Post } from "../db/schema/posts.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyAuth } from "../middleware/api-key.js";
@@ -206,6 +207,17 @@ posts.post(
     for (const { account, input } of resolved) {
       preflightForAccount(account, input);
     }
+
+    // ─── Billing quota gate ─────────────────────────────────────────────────
+    // Idempotent replays never reach this code path. The idempotency
+    // middleware short-circuits with the stored response before the handler
+    // runs, so a retried key cannot double-charge the counter.
+    //
+    // Cost is one slot per target. Infinity quotas (self_host, grandfather,
+    // enterprise) skip the cap entirely inside checkAndIncrementQuota.
+    await checkAndIncrementQuota(c.var.db, organizationId, resolved.length, {
+      webhookDispatcher: c.var.webhookDispatcher,
+    });
 
     // ─── Scheduled path ──────────────────────────────────────────────────────
     if (multi.scheduledAt) {
