@@ -35,4 +35,9 @@ export const queryKeys = {
     list: (filters: unknown) => ["posts", "list", filters] as const,
     detail: (id: string) => ["posts", "detail", id] as const,
   },
+  billing: {
+    subscription: () => ["billing", "subscription"] as const,
+    usage: () => ["billing", "usage"] as const,
+    invoices: () => ["billing", "invoices"] as const,
+  },
 } as const;
