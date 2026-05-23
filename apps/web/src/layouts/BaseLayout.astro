@@ -6,6 +6,7 @@ import NavRail from "../components/NavRail.astro";
 import MobilePill from "../components/MobilePill.astro";
 import MobileSheet from "../components/MobileSheet.astro";
 import StickyCTA from "../components/StickyCTA.astro";
+import Footer from "../components/Footer.astro";
 
 /**
  * The marketing site's shared chrome: 3-column receipt layout with a
@@ -180,6 +181,8 @@ const ctaConfig =
         <aside class="marg" aria-hidden="true"></aside>
       </slot>
     </div>
+
+    <Footer />
 
     <MobilePill links={pillLinks} />
     <MobileSheet />

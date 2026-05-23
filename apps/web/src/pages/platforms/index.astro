@@ -1,0 +1,241 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { Icon } from "astro-icon/components";
+import Tape from "../../components/Tape.astro";
+import Closeout from "../../components/Closeout.astro";
+import { PLATFORMS } from "../../data/platforms.ts";
+
+/**
+ * Platforms index — one long grid, no filtering. The status pill on
+ * each card carries the live/in-review/planned signal; the page itself
+ * doesn't need section headers or filter chips to make that point.
+ */
+
+const phosphor: Record<string, string> = {
+  bluesky: "ph:butterfly",
+  twitter: "ph:x-logo",
+  pinterest: "ph:pinterest-logo",
+  instagram: "ph:instagram-logo",
+  facebook: "ph:facebook-logo",
+  threads: "ph:threads-logo",
+  linkedin: "ph:linkedin-logo",
+  youtube: "ph:youtube-logo",
+};
+
+const statusBucket = (status: string): "live" | "in-review" | "planned" => {
+  if (status === "live" || status === "trial") return "live";
+  if (status === "pending") return "in-review";
+  return "planned";
+};
+
+const statusLabel: Record<string, string> = {
+  live: "live",
+  "in-review": "in review",
+  planned: "planned",
+};
+
+// Sort live first, then in-review, then planned — same visual hierarchy
+// the old categorized version had, just collapsed into a single grid.
+const order = { live: 0, "in-review": 1, planned: 2 } as const;
+const platforms = [...PLATFORMS]
+  .map((p) => ({ ...p, bucket: statusBucket(p.status) }))
+  .sort((a, b) => order[a.bucket] - order[b.bucket]);
+
+const counts = {
+  live: platforms.filter((p) => p.bucket === "live").length,
+  inReview: platforms.filter((p) => p.bucket === "in-review").length,
+  planned: platforms.filter((p) => p.bucket === "planned").length,
+};
+const total = PLATFORMS.length;
+---
+
+<BaseLayout
+  title="Platforms"
+  description={`${total} social platforms in v1. Bluesky, X, and Pinterest are live. Instagram, Facebook, Threads, and LinkedIn are in platform review. TikTok lands in v2.`}
+>
+  <Fragment slot="navStatus">
+    <div class="nav-section">Live</div>
+    <div class="status-card">
+      <div class="row">
+        <span class="k"><span class="pulse" aria-hidden="true"></span> Build</span>
+        <span class="v ok">v0.4.2</span>
+      </div>
+      <div class="row"><span class="k">Live</span><span class="v ok">{counts.live} platforms</span></div>
+      <div class="row"><span class="k">In review</span><span class="v">{counts.inReview} platforms</span></div>
+      <div class="row"><span class="k">Planned</span><span class="v">{counts.planned} platform{counts.planned === 1 ? "" : "s"}</span></div>
+    </div>
+  </Fragment>
+
+  <Fragment slot="navColophon">
+    <div class="colophon">
+      Each row flips to <b>live</b> the moment platform review clears. No artificial gates.
+    </div>
+  </Fragment>
+
+  <Tape />
+
+  <header class="page-head" data-sticky-anchor>
+    <div class="crumb"><a href="/">letmepost</a> / platforms</div>
+    <h1 class="page-h1">
+      {total} platforms in v1. <span class="acc">Twenty plus next.</span>
+    </h1>
+    <p class="lede">
+      Each row is a publisher we shipped. The status pill is the developer-portal
+      review we're sitting in, not feature-completeness. Bluesky, X, and Pinterest
+      are live today. Instagram, Facebook, Threads, and LinkedIn flip the day each
+      approval clears.
+    </p>
+  </header>
+
+  <hr class="dash" />
+
+  {/* One long grid — no category headers, no filter chips. The pill
+      on each card carries the status. Ordered live → in-review →
+      planned so the eye reaches working stuff first. */}
+  <div class="pgrid">
+    {
+      platforms.map((p) => (
+        <a href={`/platforms/${p.slug}`} class={`pcard ${p.bucket}`}>
+          <span class="glyph">
+            <Icon name={phosphor[p.slug] ?? "ph:circle"} width={20} height={20} />
+          </span>
+          <div class="body">
+            <div class="top">
+              <span class="name">{p.name}</span>
+              <span class="pip">{statusLabel[p.bucket]}</span>
+            </div>
+            <div class="tagline">{p.tagline}</div>
+            <p class="detail">{p.detail}</p>
+          </div>
+        </a>
+      ))
+    }
+  </div>
+
+  <hr class="double" />
+
+  <Closeout
+    thanks="* * * SHIPPING THE WEDGE * * *"
+    codeLine={`000 LMP PLAT · ${total} PLATFORMS · v1`}
+    links={[
+      { href: "/", label: "home" },
+      { href: "https://docs.letmepost.dev", label: "docs" },
+      { href: "https://github.com/letmepost/letmepost.dev", label: "github" },
+    ]}
+  />
+  <Tape bottom />
+
+  {/* Right rail — platform notes */}
+  <aside class="marg" aria-label="Notes" slot="rightRail">
+    <div class="note">
+      <span class="tag">No artificial gates</span>
+      <b>Live</b> means published end-to-end today. <b>In review</b> means the publisher is shipped and tested against developer-tier accounts; approval flips Dev Mode to Live.
+    </div>
+    <div class="note">
+      <span class="tag">Review timelines</span>
+      Meta App Review: <b>4–8 weeks</b>. LinkedIn MDP: <b>8–12 weeks</b>. Pinterest Standard Access: <b>4 weeks</b>. Each subject to reviewer queue.
+    </div>
+    <div class="note">
+      <span class="tag">Self-host BYO</span>
+      Self-hosters can <b>BYO platform credentials</b> for any platform and skip our shared review entirely.
+    </div>
+    <div class="note">
+      <span class="tag">Version pinning</span>
+      Every platform has its API version pinned in a single config value. <code>GET /v1/platform-versions</code> exposes the current pins.
+    </div>
+    <div class="note">
+      <span class="tag">Add a platform</span>
+      Open an issue with the platform name + your use case. Customer-pulled additions get prioritized.
+    </div>
+  </aside>
+</BaseLayout>
+
+<style is:global>
+  /* ── /platforms index ─────────────────────────────────── */
+
+  .pgrid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    border: 1px solid var(--r-line);
+    margin: 14px 0 8px;
+  }
+  .pcard {
+    padding: 20px 22px;
+    border-right: 1px dashed var(--r-very);
+    border-bottom: 1px dashed var(--r-very);
+    background: var(--r-paper);
+    display: grid; grid-template-columns: 36px 1fr;
+    gap: 14px;
+    text-decoration: none; color: inherit;
+    transition: background 100ms;
+    position: relative;
+  }
+  .pcard:nth-child(2n) { border-right: 0; }
+  .pcard:nth-last-child(-n+2) { border-bottom: 0; }
+  .pcard:hover { background: var(--r-accent-soft); }
+  .pcard .glyph {
+    width: 32px; height: 32px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--r-ink);
+    border: 1px solid var(--r-line);
+    background: var(--r-paper-deep);
+  }
+  .pcard .body { min-width: 0; }
+  .pcard .top {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 4px; gap: 8px;
+  }
+  .pcard .name {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 16px; line-height: 1.2; color: var(--r-ink);
+  }
+  .pcard .pip {
+    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 3px 7px; border: 1px solid var(--r-line);
+    white-space: nowrap; line-height: 1;
+  }
+  .pcard.live .pip {
+    background: var(--r-accent); color: var(--r-paper); border-color: var(--r-accent);
+  }
+  .pcard.in-review .pip { color: var(--r-ink); border-color: var(--r-ink); }
+  .pcard.planned .pip { color: var(--r-very); }
+  .pcard .tagline {
+    font-size: 11px; color: var(--r-very);
+    letter-spacing: 0.04em; margin-bottom: 8px;
+  }
+  .pcard .detail {
+    font-size: 12px; line-height: 1.55; color: var(--r-dim); margin: 0;
+  }
+  .pcard .detail code { background: var(--r-paper-deep); padding: 0 4px; }
+
+  .oos {
+    margin-top: 28px;
+    padding: 20px 22px;
+    border: 1px dashed var(--r-very);
+    background: var(--r-paper-deep);
+  }
+  .oos h3 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 13px; margin: 0 0 8px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--r-ink);
+  }
+  .oos p { margin: 0 0 8px; font-size: 12.5px; color: var(--r-dim); }
+  .oos p code { background: var(--r-paper); padding: 0 4px; }
+  .oos ul {
+    list-style: none; padding: 0; margin: 8px 0 0;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px;
+  }
+  .oos ul li {
+    font-size: 12px; color: var(--r-dim);
+    padding: 4px 0;
+  }
+  .oos ul li::before { content: '× '; color: var(--r-very); font-weight: 700; }
+  .oos ul li b { color: var(--r-fg); font-weight: 700; }
+
+  @media (max-width: 700px) {
+    .pgrid { grid-template-columns: 1fr; }
+    .pcard { border-right: 0; }
+    .pcard:nth-last-child(2) { border-bottom: 1px dashed var(--r-very); }
+    .oos ul { grid-template-columns: 1fr; }
+  }
+</style>

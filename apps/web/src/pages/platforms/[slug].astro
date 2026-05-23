@@ -1,8 +1,38 @@
 ---
-import BaseLayout from "../../layouts/BaseLayout.astro";
-import { Code } from "astro:components";
+import BaseLayout, { type JsonLdGraph } from "../../layouts/BaseLayout.astro";
 import { Icon } from "astro-icon/components";
+import Tape from "../../components/Tape.astro";
+import Closeout from "../../components/Closeout.astro";
 import { PLATFORMS, type Platform } from "../../data/platforms.ts";
+import { PLATFORM_CONTENT } from "../../data/platform-content.ts";
+import { highlight } from "../../lib/highlight.ts";
+
+/**
+ * Per-platform landing page. Receipt design from platform.html +
+ * platform-bluesky.html. Content per platform comes from
+ * data/platform-content.ts; canonical product status comes from
+ * PLATFORMS (which mirrors @letmepost/schemas/platform-state).
+ *
+ * Page sections, in order:
+ *   1. Centered hero (h1 + sub + lede + CTAs + mini-code)
+ *   2. VS comparison ("direct" vs letmepost)
+ *   3. Highlight block (status-aware callout)
+ *   4. Playground (try-it card)
+ *   5. Content-type pills
+ *   6. How it works (3 steps)
+ *   7. Feature grid (4 cards)
+ *   8. Big code example
+ *   9. Error-reference link
+ *  10. FAQ
+ *  11. One API · 8 platforms cross-sell
+ *  12. Learn more 3-card row
+ *  13. Final CTA
+ *  14. Closeout
+ *
+ * These pages are intentionally long — they're the Google-Ads landing
+ * surface. Marketing copy stays in platform-content.ts so the template
+ * is a clean render of those fields.
+ */
 
 export function getStaticPaths() {
   return PLATFORMS.map((platform) => ({
@@ -16,115 +46,38 @@ interface Props {
 }
 
 const { platform } = Astro.props;
+const content = PLATFORM_CONTENT[platform.slug];
 
-const STATUS_COPY: Record<Platform["status"], { label: string; color: string }> = {
-  live: { label: "Live", color: "var(--color-success, var(--color-accent))" },
-  trial: { label: "Trial", color: "var(--color-accent)" },
-  pending: { label: "Pending platform review", color: "var(--color-accent)" },
-  planned: { label: "Planned", color: "var(--color-text-muted)" },
+const phosphor: Record<string, string> = {
+  bluesky: "ph:butterfly",
+  twitter: "ph:x-logo",
+  pinterest: "ph:pinterest-logo",
+  instagram: "ph:instagram-logo",
+  facebook: "ph:facebook-logo",
+  threads: "ph:threads-logo",
+  linkedin: "ph:linkedin-logo",
+  youtube: "ph:youtube-logo",
 };
-const status = STATUS_COPY[platform.status];
 
-// Per-platform code sample. Bluesky is the only platform shipping today
-// so it uses a real example body; the others use the same shape with
-// the platform's slug — accurate to the API contract, just not yet
-// publishable end-to-end.
-const platformValue = platform.slug === "twitter" ? "twitter" : platform.slug;
-const codeSample = `// One POST. Same shape on every platform.
-// Idempotency keys make retries safe; preflight runs before upstream.
-
-await fetch("https://api.letmepost.dev/v1/posts", {
-  method: "POST",
-  headers: {
-    Authorization: "Bearer lmp_live_…",
-    "Idempotency-Key": crypto.randomUUID(),
-  },
-  body: JSON.stringify({
-    account: { platform: "${platformValue}", id: "acc_…" },
-    text: "Shipping to ${platform.name} via letmepost.dev",
-${
-  platform.videoSupport
-    ? `    media: [{ kind: "video", mediaId: "med_…" }],\n`
-    : `    media: [{ kind: "image", mediaId: "med_…", altText: "…" }],\n`
-}  }),
-});`;
-
-const contentTypes: { label: string; icon: string; supported: boolean }[] = [
-  { label: "Text", icon: "text-aa", supported: true },
-  { label: "Images", icon: "image", supported: true },
-  { label: "Video", icon: "video-camera", supported: platform.videoSupport },
-  {
-    label: "Carousel",
-    icon: "frame-corners",
-    supported: platform.carouselSupport,
-  },
-];
-
-const howItWorks = [
-  {
-    n: "01",
-    title: "Mint an API key",
-    body: "Sign in to the dashboard and create a Bearer key. Per-org by default; scope to a single profile if you want extra isolation.",
-  },
-  {
-    n: "02",
-    title: `Connect a ${platform.name} account`,
-    body:
-      platform.slug === "bluesky"
-        ? "Generate an app password at bsky.app/settings/app-passwords and submit it via /v1/accounts/connect/bluesky/complete. No OAuth review."
-        : platform.slug === "facebook" || platform.slug === "instagram"
-          ? "POST /v1/accounts/connect/facebook starts Facebook Login for Business. One consent grants Pages + linked IG Business in a single fan-out."
-          : `POST /v1/accounts/connect/${platform.slug} returns the OAuth authorize URL. Redirect the user; the callback completes the handshake and stores the encrypted token.`,
-  },
-  {
-    n: "03",
-    title: "Send a post",
-    body: "POST /v1/posts with the connected account id. Preflight rules run locally; webhooks fire on every state transition.",
-  },
-];
-
-const features = [
-  {
-    icon: "lightning",
-    title: "Preflight, not postflight",
-    body: `Every documented ${platform.name} constraint runs locally before the upstream call — no opaque platform 400s.`,
-  },
-  {
-    icon: "lock-key",
-    title: "Tokens encrypted at rest",
-    body: "AES-256-GCM envelope encryption with per-row data-keys. Refresh handled on the platform's schedule.",
-  },
-  {
-    icon: "shuffle",
-    title: "Idempotency by default",
-    body: "Idempotency-Key on every write. Retries are safe; double-posting from a worker restart isn't a thing.",
-  },
-];
+const statusBucket = (status: string): "live" | "in-review" | "planned" => {
+  if (status === "live" || status === "trial") return "live";
+  if (status === "pending") return "in-review";
+  return "planned";
+};
+const bucket = statusBucket(platform.status);
 
 const siteUrl = Astro.site!.toString().replace(/\/$/, "");
 
-/**
- * Two structured-data graphs:
- *   - BreadcrumbList lights up the breadcrumb display on Google's SERP
- *   - SoftwareApplication tells search engines this is an API integration,
- *     which can surface as a richer result for ICP-shape queries
- *     ("twitter publishing api", etc).
- */
-const breadcrumbJsonLd = {
+const breadcrumbJsonLd: JsonLdGraph = {
   "@context": "https://schema.org",
   "@type": "BreadcrumbList",
   itemListElement: [
-    {
-      "@type": "ListItem",
-      position: 1,
-      name: "Home",
-      item: `${siteUrl}/`,
-    },
+    { "@type": "ListItem", position: 1, name: "Home", item: `${siteUrl}/` },
     {
       "@type": "ListItem",
       position: 2,
       name: "Platforms",
-      item: `${siteUrl}/#platforms`,
+      item: `${siteUrl}/platforms/`,
     },
     {
       "@type": "ListItem",
@@ -135,7 +88,7 @@ const breadcrumbJsonLd = {
   ],
 };
 
-const softwareJsonLd = {
+const softwareJsonLd: JsonLdGraph = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: `${platform.name} API via letmepost.dev`,
@@ -150,258 +103,750 @@ const softwareJsonLd = {
   },
   publisher: { "@id": `${siteUrl}/#organization` },
 };
+
+// All 8 platforms for the cross-sell grid at the bottom.
+const allPlatforms = PLATFORMS.map((p) => ({
+  slug: p.slug,
+  name: p.name,
+  icon: phosphor[p.slug] ?? "ph:circle",
+  current: p.slug === platform.slug,
+  bucket: statusBucket(p.status),
+}));
+
+// Default learn-more triplet — overridable in content if needed later.
+const learnMore = [
+  { title: "Pricing", body: "Per-org flat rate", href: "/pricing" },
+  {
+    title: `${platform.name} guide`,
+    body: "Complete dev guide",
+    href: `https://docs.letmepost.dev/platforms/${platform.slug}`,
+  },
+  {
+    title: "API reference",
+    body: "OpenAPI 3.1 spec",
+    href: "https://docs.letmepost.dev/api-reference",
+  },
+];
 ---
 
 <BaseLayout
-  title={`${platform.name} API`}
-  description={`Publish to ${platform.name} via letmepost.dev — preflight validation, idempotency keys, transparent errors.`}
+  title={`Publish to ${platform.name}`}
+  description={`Publish to ${platform.name} via letmepost.dev. ${platform.tagline}.`}
   ogType="product"
   jsonLd={[breadcrumbJsonLd, softwareJsonLd]}
 >
-  {/* Status marker — read by the central Analytics script so the
-      `platform_page.viewed` event can attach the correct status without
-      duplicating the resolver in two places. */}
+  <Fragment slot="navColophon">
+    <div class="colophon" set:html={content.colophon} />
+  </Fragment>
+
+  <Tape />
+
+  {/* Analytics marker for Analytics.astro's platform_page.viewed event */}
   <span
-    data-platform-status={platform.status === "live" ? "live" : "coming-soon"}
+    data-platform-status={bucket === "live" ? "live" : "coming-soon"}
     hidden
   ></span>
 
-  <!-- Hero -->
-  <section class="section-hero">
-    <div class="container">
-      {/* Pre-headline meta line: status + tagline + back-link, all
-          tiny and quiet. The platform name + icon carry the page
-          via the h1 below. */}
-      <div class="flex flex-wrap items-center gap-3 mb-9 text-[0.85rem] text-text-muted">
-        <a
-          href="/#platforms"
-          class="inline-flex items-center gap-1.5 no-underline text-text-muted hover:text-accent transition-colors"
-        >
-          <Icon name="ph:arrow-left" width={11} height={11} />
-          All platforms
-        </a>
-        <span class="opacity-40">·</span>
-        <span class="inline-flex items-center gap-1.5">
-          <span
-            class="inline-block w-[7px] h-[7px]"
-            style={`background: ${status.color};`}
-            aria-hidden="true"
-          ></span>
-          {status.label}
+  <div class="crumb" style="padding: 28px 0 0;">
+    <a href="/">letmepost</a> / <a href="/platforms">platforms</a> / {platform.name}
+  </div>
+
+  {/* HERO */}
+  <header class="plat-h" data-sticky-anchor>
+    <h1>
+      {content.heroH1.prefix}{" "}
+      <span class="under">{content.heroH1.underlined}</span>
+      {content.heroH1.suffix}
+    </h1>
+    <div class="h-sub">{content.heroSub}</div>
+    <p class="lede" set:html={content.heroLede} />
+    <div class="ctas">
+      <a
+        href="https://dashboard.letmepost.dev"
+        class="btn pri"
+        data-analytics-event="cta.clicked"
+        data-analytics-props={JSON.stringify({
+          location: "hero",
+          target: "dashboard",
+          page: "platform-detail",
+          label: `Start free — ${platform.name}`,
+        })}
+      >START FREE →</a>
+      <a
+        href={`https://docs.letmepost.dev/platforms/${platform.slug}`}
+        class="btn"
+      >VIEW API DOCS</a>
+    </div>
+    {content.reassurance && (
+      <div class="reassurance" set:html={content.reassurance} />
+    )}
+
+    <div class="mini-code">
+      <div class="hd">
+        <span class="dots">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
         </span>
-        <span class="opacity-40">·</span>
-        <span>{platform.tagline}</span>
+        <span>POST /v1/posts</span>
+        <span>·</span>
       </div>
+      <pre set:html={highlight("json", content.miniCode)} />
+    </div>
+  </header>
 
-      <div class="flex items-center gap-5 mb-2">
-        <Icon name={`ph:${platform.icon}`} width={48} height={48} class="text-text" />
-        <h1 class="!m-0">{platform.name}</h1>
+  <hr class="dash" />
+
+  {/* VS COMPARISON */}
+  <section class="section" style="text-align: center;">
+    <div class="vs-head">{content.vsHead}</div>
+    <div class="compare" style="text-align: left;">
+      <div class="col">
+        <h3>{platform.name} Direct</h3>
+        <ul>
+          {
+            content.vsDirect.map((p) => (
+              <li>
+                <span set:html={p.body} />
+              </li>
+            ))
+          }
+        </ul>
       </div>
+      <div class="col">
+        <h3>letmepost API</h3>
+        <ul>
+          {
+            content.vsLetmepost.map((p) => (
+              <li>
+                <span set:html={p.body} />
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+    {content.costBanner && (
+      <div class={`cost-banner ${content.costBanner.tone}`}>
+        <span set:html={content.costBanner.body} />
+      </div>
+    )}
+  </section>
 
-      <p class="text-[1.2rem] leading-[1.65] mt-7 mb-10 text-text-secondary">
-        {platform.pitch}
-      </p>
+  {/* HIGHLIGHT BLOCK */}
+  {content.highlight && (
+    <>
+      <hr class="dash" />
+      <section class="section">
+        <div class={`highlight-block ${content.highlight.tone}`}>
+          <h3>{content.highlight.title}</h3>
+          <p set:html={content.highlight.body} />
+        </div>
+      </section>
+    </>
+  )}
 
-      <div class="flex gap-[0.7rem] flex-wrap">
+  <hr class="dash" />
+
+  {/* PLAYGROUND */}
+  <section class="section">
+    <h2 class="h-caps">PLAYGROUND</h2>
+    <div class="subtitle center">connect, configure, post</div>
+    <div class="playground">
+      <div class="pg-hd">
+        {
+          content.playground.steps.map((step, i) => (
+            <span class={`step ${i === 0 ? "" : "dim"}`}>▸ {step}</span>
+          ))
+        }
+      </div>
+      <div class="pg-body">
+        <p set:html={content.playground.body} />
         <a
-          class="btn btn-primary"
-          href="https://dashboard.letmepost.dev"
+          href={content.playground.cta.href}
+          class="btn pri"
           data-analytics-event="cta.clicked"
           data-analytics-props={JSON.stringify({
-            location: "hero",
-            target: "dashboard",
+            location: "playground",
+            target: "dashboard-connect",
             page: "platform-detail",
-            label: `Start building free — ${platform.name}`,
+            platform: platform.slug,
           })}
-        >
-          Start building free
-          <Icon name="ph:arrow-up-right" width={13} height={13} />
-        </a>
-        <a
-          class="btn btn-secondary"
-          href="https://docs.letmepost.dev/quickstart"
-          data-analytics-event="docs.link_clicked"
-          data-analytics-props={JSON.stringify({
-            from_page: "platform-detail",
-            to_section: "quickstart",
-          })}
-        >
-          Quickstart
-        </a>
-      </div>
-
-      <p class="text-[0.85rem] mt-6 text-text-muted">
-        No credit card required · Free during alpha ·
-        <a
-          href="https://docs.letmepost.dev/api-reference"
-          class="text-accent"
-          data-analytics-event="docs.link_clicked"
-          data-analytics-props={JSON.stringify({
-            from_page: "platform-detail",
-            to_section: "api-reference",
-          })}
-        >API reference →</a>
-      </p>
-    </div>
-  </section>
-
-  <!-- Code sample -->
-  <section class="section-tight">
-    <div class="container">
-      <div class="border border-border-strong bg-code-bg">
-        <div
-          class="flex items-center gap-[0.5rem] py-[0.75rem] px-[1rem] border-b border-[hsl(24_10%_16%)] text-[0.75rem] text-code-muted tracking-[0.02em]"
-        >
-          <span class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#ff5f57]" aria-hidden="true"></span>
-          <span class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#febc2e]" aria-hidden="true"></span>
-          <span class="w-[11px] h-[11px] rounded-full inline-block shrink-0 bg-[#28c840]" aria-hidden="true"></span>
-          <span class="ml-[0.7rem]">post-to-{platform.slug}.ts</span>
+        >{content.playground.cta.label}</a>
+        <div class="pg-result">
+          <span class="check">✓</span>
+          <b>{content.playground.result}</b>
+          <span class="cf">{content.playground.resultCaption}</span>
         </div>
-        <Code code={codeSample} lang="ts" theme="github-dark-dimmed" />
       </div>
     </div>
   </section>
 
-  <!-- Constraints + gotcha -->
+  <hr class="dash" />
+
+  {/* CONTENT TYPES */}
   <section class="section">
-    <div class="container">
-      <h2 class="!mt-0">What ships on day one.</h2>
-      <p class="text-text-muted">
-        {platform.detail}
-      </p>
-
-      {platform.gotcha ? (
-        <div
-          class="border-l-4 mt-7 py-4 px-5"
-          style="border-color: var(--color-accent); background: var(--color-accent-soft);"
-        >
-          <div class="text-[0.78rem] uppercase tracking-[0.1em] text-accent font-bold mb-2">Heads up</div>
-          <p class="m-0 text-[0.98rem] text-text-secondary">{platform.gotcha}</p>
-        </div>
-      ) : null}
-    </div>
-  </section>
-
-  <!-- Demo placeholder -->
-  <section class="section">
-    <div class="container">
-      <div class="text-[0.78rem] uppercase tracking-[0.1em] text-text-muted mb-4 font-bold">Playground</div>
-      <div
-        class="border border-dashed border-border-strong p-10 text-center"
-      >
-        <Icon
-          name="ph:play-circle"
-          width={36}
-          height={36}
-          class="mx-auto mb-4 text-text-muted"
-        />
-        <h3 class="!mt-0 !mb-2 !text-[1.1rem]">Live {platform.name} demo coming soon</h3>
-        <p class="text-text-muted text-[0.95rem] m-0 max-w-[36rem] mx-auto">
-          Connect an account and send a real post through the API — no signup form, no credit card. Watch this space.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- Content types -->
-  <section class="section">
-    <div class="container">
-      <div class="text-[0.78rem] uppercase tracking-[0.1em] text-text-muted mb-4 font-bold">Content types</div>
-      <div class="flex gap-[0.6rem] flex-wrap">
-        {contentTypes.map((ct) => (
-          <span
-            class={`inline-flex items-center gap-[0.55rem] py-[0.55rem] px-[0.95rem] text-[0.9rem] border ${
-              ct.supported
-                ? "border-border-strong text-text"
-                : "border-border text-text-muted opacity-50 line-through"
-            }`}
-          >
-            <Icon name={`ph:${ct.icon}`} width={15} height={15} />
-            {ct.label}
-          </span>
-        ))}
-      </div>
-      <p class="text-[0.85rem] mt-5 text-text-muted">
-        Crossed-out types aren't supported on {platform.name} in v1 — see <a href="https://docs.letmepost.dev/preflight" class="text-accent">preflight rules</a> for the exact ceilings.
-      </p>
-    </div>
-  </section>
-
-  <!-- How it works -->
-  <section class="section">
-    <div class="container">
-      <h2 class="!mt-0">How it works.</h2>
-      <p class="text-text-muted">Three steps. Minutes, not days.</p>
-
-      <ol class="list-none p-0 mt-8 mb-4">
-        {howItWorks.map((step) => (
-          <li class="flex gap-[1.4rem] py-6 border-t border-border first:border-t-0">
-            <div class="text-accent font-extrabold text-[0.95rem] min-w-10 pt-[0.15rem] tracking-[0.04em]">
-              {step.n}
-            </div>
-            <div>
-              <h3 class="!m-0 !mb-[0.5rem] !text-[1.1rem] !font-bold">
-                {step.title}
-              </h3>
-              <p class="text-text-muted m-0 text-[1rem] leading-[1.65]">{step.body}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
-    </div>
-  </section>
-
-  <!-- Features grid -->
-  <section class="section">
-    <div class="container">
-      <h2 class="!mt-0">Why letmepost vs going direct.</h2>
-
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 mt-8">
-        {features.map((feat) => (
-          <div class="border border-border-strong p-7">
-            <Icon name={`ph:${feat.icon}`} width={24} height={24} class="text-accent mb-4" />
-            <h3 class="!m-0 !mb-3 !text-[1rem] !font-bold">{feat.title}</h3>
-            <p class="text-text-muted m-0 text-[0.93rem] leading-[1.6]">{feat.body}</p>
+    <h2 class="h-caps">CONTENT TYPES</h2>
+    <div class="subtitle center">every {platform.name.toLowerCase()} surface, one shape</div>
+    <div class="content-types">
+      {
+        content.contentTypes.map((ct) => (
+          <div class="pill">
+            <Icon name={`ph:${ct.icon}`} width={14} height={14} />
+            <b>{ct.label}</b>
+            {ct.note && (
+              <span style="color: var(--r-very); font-size: 11px;">· {ct.note}</span>
+            )}
           </div>
-        ))}
-      </div>
+        ))
+      }
     </div>
   </section>
 
-  <!-- Final CTA -->
+  <hr class="dash" />
+
+  {/* HOW IT WORKS */}
   <section class="section">
-    <div class="container">
-      <h2 class="!mt-0">Ready to ship?</h2>
-      <p class="text-text-muted">
-        Star the repo. Connect a {platform.name} account. Send your first post in under 90 seconds.
-      </p>
-      <div class="flex gap-[0.7rem] flex-wrap mt-2">
-        <a
-          class="btn btn-primary"
-          href="https://dashboard.letmepost.dev"
-          data-analytics-event="cta.clicked"
-          data-analytics-props={JSON.stringify({
-            location: "platform-page",
-            target: "dashboard",
-            page: "platform-detail",
-            label: `Start building free — ${platform.name} final`,
-          })}
-        >
-          Start building free
-          <Icon name="ph:arrow-up-right" width={13} height={13} />
-        </a>
-        <a
-          class="btn btn-secondary"
-          href={`https://docs.letmepost.dev/platforms/${platform.slug === "facebook" ? "facebook" : platform.slug}`}
-          data-analytics-event="docs.link_clicked"
-          data-analytics-props={JSON.stringify({
-            from_page: "platform-detail",
-            to_section: `platforms/${platform.slug}`,
-          })}
-        >
-          {platform.name} docs
-        </a>
-      </div>
+    <h2 class="h-caps">HOW IT WORKS</h2>
+    <div class="subtitle center">three steps · under two minutes</div>
+    <div class="steps">
+      {
+        content.steps.map((s) => (
+          <div class="step">
+            <div>
+              <h4>{s.title}</h4>
+              <p set:html={s.body} />
+            </div>
+          </div>
+        ))
+      }
     </div>
   </section>
+
+  <hr class="dash" />
+
+  {/* FEATURES GRID */}
+  <section class="section">
+    <h2 class="h-caps">FEATURES</h2>
+    <div class="subtitle center">what we built so you don't</div>
+    <div class="features-grid">
+      {
+        content.features.map((f) => (
+          <div class="feat">
+            <div class="ico">
+              <Icon name={`ph:${f.icon}`} width={14} height={14} />
+            </div>
+            <h4>{f.title}</h4>
+            <p set:html={f.body} />
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <hr class="dash" />
+
+  {/* CODE EXAMPLE */}
+  <section class="section">
+    <h2 class="h-caps">CODE EXAMPLE</h2>
+    <div class="subtitle center">{content.codeExample.caption}</div>
+    <div class="code-big">
+      <div class="hd">
+        <span class="dots">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          {content.codeExample.file}
+        </span>
+        <span>·</span>
+      </div>
+      <pre set:html={highlight("ts", content.codeExample.code)} />
+    </div>
+  </section>
+
+  {/* ERROR REFERENCE LINK */}
+  {content.errorRef && (
+    <>
+      <hr class="dash" />
+      <section class="section">
+        <div class="err-ref-link">
+          <div>
+            <h4>{content.errorRef.title}</h4>
+            <p>{content.errorRef.body}</p>
+          </div>
+          <a href={content.errorRef.href}>VIEW ERROR REFERENCE →</a>
+        </div>
+      </section>
+    </>
+  )}
+
+  <hr class="dash" />
+
+  {/* FAQ */}
+  <section class="section">
+    <h2 class="h-caps">COMMON QUESTIONS</h2>
+    <div class="subtitle center">{content.faqSubtitle}</div>
+    <div class="faq">
+      {
+        content.faqs.map((f) => (
+          <div class="item-q">
+            <p class="q">{f.q}</p>
+            <p class="a" set:html={f.a} />
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <hr class="dash" />
+
+  {/* ONE API · 8 PLATFORMS */}
+  <section class="section">
+    <h2 class="h-caps">ONE API · {allPlatforms.length} PLATFORMS</h2>
+    <div class="subtitle center">{platform.name.toLowerCase()} is just one of them</div>
+    <div class="all-plats">
+      {
+        allPlatforms.map((p) => (
+          <a href={`/platforms/${p.slug}`} class={p.current ? "current" : ""}>
+            <Icon name={p.icon} width={16} height={16} />
+            {p.name}
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <hr class="dash" />
+
+  {/* LEARN MORE */}
+  <section class="section">
+    <h2 class="h-caps">LEARN MORE</h2>
+    <div class="learn-more">
+      {
+        learnMore.map((l) => (
+          <a href={l.href}>
+            <h4>{l.title}</h4>
+            <p>{l.body}</p>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <hr class="double" />
+
+  {/* FINAL CTA */}
+  <section class="section" style="text-align: center;">
+    <h2 class="h-caps">{content.finalCtaH2}</h2>
+    <p class="lede" style="margin: 8px auto 18px; text-align: center;" set:html={content.finalCtaLede} />
+    <div class="ctas" style="justify-content: center;">
+      <a
+        href="https://dashboard.letmepost.dev"
+        class="btn pri"
+        data-analytics-event="cta.clicked"
+        data-analytics-props={JSON.stringify({
+          location: "platform-final",
+          target: "dashboard",
+          page: "platform-detail",
+          platform: platform.slug,
+        })}
+      >{content.finalCtaPrimaryLabel}</a>
+      <a href={content.finalCtaSecondaryHref} class="btn">{content.finalCtaSecondaryLabel}</a>
+    </div>
+  </section>
+
+  <Closeout
+    thanks={content.closeoutThanks}
+    codeLine={content.closeoutCodeLine}
+    links={[
+      { href: "/platforms", label: "all platforms" },
+      {
+        href: `https://docs.letmepost.dev/platforms/${platform.slug}`,
+        label: "platform docs ↗",
+      },
+      { href: "https://github.com/letmepost/letmepost.dev", label: "source" },
+    ]}
+  />
+  <Tape bottom />
+
+  <aside class="marg" aria-label="Notes" slot="rightRail">
+    {
+      content.marg.map((n) => (
+        <div class="note">
+          <span class="tag">{n.tag}</span>
+          <span set:html={n.body} />
+        </div>
+      ))
+    }
+  </aside>
 </BaseLayout>
+
+<style is:global>
+  /* ── /platforms/[slug] — shared platform-page styles ─── */
+
+  /* Hero — centered, big h1 with accent-underlined platform name */
+  .plat-h {
+    padding: 36px 0 18px;
+    text-align: center;
+  }
+  .plat-h h1 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 38px; line-height: 1.08; letter-spacing: -0.025em;
+    margin: 0 0 8px; text-wrap: balance;
+    color: var(--r-ink);
+  }
+  .plat-h h1 .acc { color: var(--r-accent); }
+  .plat-h h1 .under {
+    text-decoration: underline; text-decoration-thickness: 4px;
+    text-decoration-color: var(--r-accent); text-underline-offset: 7px;
+  }
+  .plat-h .h-sub {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 22px; color: var(--r-accent);
+    line-height: 1.1; letter-spacing: -0.02em;
+    margin: 0 0 18px;
+  }
+  .plat-h .lede {
+    font-size: 14.5px; color: var(--r-dim); line-height: 1.6;
+    max-width: 540px; margin: 0 auto 22px;
+  }
+  .plat-h .lede b { color: var(--r-ink); }
+  .plat-h .lede a { color: var(--r-accent); }
+  .plat-h .ctas { justify-content: center; }
+  .plat-h .reassurance {
+    color: var(--r-very); margin-top: 12px;
+    font-size: var(--r-fs-xs); letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .plat-h .reassurance a { color: var(--r-accent); }
+
+  /* Mini code preview */
+  .mini-code {
+    margin: 22px auto 0;
+    max-width: 580px;
+    background: var(--r-code-bg);
+    color: var(--r-code-fg);
+    border: 1px solid var(--r-code-line);
+    font-size: 12.5px;
+    text-align: left;
+  }
+  .mini-code .hd {
+    padding: 8px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--r-code-line);
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--r-code-dim);
+  }
+  .mini-code .hd .dots { display: inline-flex; gap: 6px; }
+  .mini-code .hd .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .mini-code .hd .dot.r { background: #ff5f57; }
+  .mini-code .hd .dot.y { background: #febc2e; }
+  .mini-code .hd .dot.g { background: #28c840; }
+  .mini-code pre {
+    padding: 14px 16px;
+    line-height: 1.65;
+    overflow-x: auto;
+  }
+
+  /* VS comparison */
+  .vs-head {
+    text-align: center; font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--r-accent);
+    font-weight: 700;
+    padding: 6px 14px; border: 1px dashed var(--r-accent); background: var(--r-accent-soft);
+    display: inline-block; margin-bottom: 18px;
+  }
+  .compare {
+    display: grid; grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--r-line);
+    margin: 8px 0;
+  }
+  .compare .col {
+    padding: 22px 24px;
+    background: var(--r-paper);
+  }
+  .compare .col:first-child {
+    border-right: 1px dashed var(--r-very);
+    background: var(--r-paper-deep);
+  }
+  .compare .col h3 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 14px; margin: 0 0 14px;
+    letter-spacing: 0.04em;
+    color: var(--r-ink);
+  }
+  .compare .col:first-child h3 { color: var(--r-dim); }
+  .compare .col:last-child h3 { color: var(--r-accent); }
+  .compare ul { list-style: none; padding: 0; margin: 0; }
+  .compare ul li {
+    padding: 6px 0;
+    font-size: 12.5px; line-height: 1.5;
+    display: grid; grid-template-columns: 18px 1fr; gap: 6px;
+    color: var(--r-dim);
+  }
+  .compare .col:first-child ul li::before { content: '✗'; color: #c14a4a; font-weight: 700; }
+  .compare .col:last-child ul li::before { content: '✓'; color: var(--r-accent); font-weight: 700; }
+  .compare .col li b { color: var(--r-ink); }
+  .compare .col li code { background: var(--r-paper); padding: 0 4px; font-size: 0.92em; }
+  .compare .col:first-child li code { background: var(--r-paper); }
+
+  /* Cost banner — tone-aware */
+  .cost-banner {
+    padding: 14px 18px;
+    margin: 14px 0;
+    border-left: 4px solid;
+    font-size: 13px; line-height: 1.5;
+    text-align: left;
+  }
+  .cost-banner.good {
+    background: var(--r-accent-soft);
+    border-left-color: var(--r-accent);
+    color: var(--r-fg);
+  }
+  .cost-banner.bad {
+    background: rgba(193, 74, 74, 0.10);
+    border-left-color: #c14a4a;
+    color: var(--r-fg);
+  }
+  .cost-banner b { color: var(--r-ink); font-weight: 700; }
+
+  /* Highlight block */
+  .highlight-block {
+    margin: 14px 0;
+    padding: 18px 22px;
+    border: 1px solid;
+  }
+  .highlight-block.good {
+    background: var(--r-accent-soft);
+    border-color: var(--r-accent);
+  }
+  .highlight-block.warn {
+    background: rgba(193, 74, 74, 0.08);
+    border-color: rgba(193, 74, 74, 0.4);
+  }
+  .highlight-block h3 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase;
+    margin: 0 0 8px;
+  }
+  .highlight-block.good h3 { color: var(--r-accent); }
+  .highlight-block.warn h3 { color: #c14a4a; }
+  .highlight-block p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--r-fg); }
+  .highlight-block p b { color: var(--r-ink); font-weight: 700; }
+  .highlight-block p code { background: var(--r-paper-deep); padding: 0 4px; }
+
+  /* Playground / try-it */
+  .playground {
+    margin: 14px 0;
+    border: 1px solid var(--r-line);
+    background: var(--r-paper);
+  }
+  .playground .pg-hd {
+    display: flex; padding: 10px 16px;
+    border-bottom: 1px dashed var(--r-very);
+    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--r-very); gap: 16px;
+  }
+  .playground .pg-hd .step { color: var(--r-accent); font-weight: 700; }
+  .playground .pg-hd .step.dim { color: var(--r-very); font-weight: 400; }
+  .playground .pg-body {
+    padding: 28px 24px;
+    text-align: center;
+  }
+  .playground .pg-body p {
+    margin: 0 0 18px; font-size: 13px; color: var(--r-dim);
+  }
+  .playground .pg-body p b { color: var(--r-ink); }
+  .playground .pg-body p code { background: var(--r-paper-deep); padding: 0 4px; }
+  .playground .pg-result {
+    margin-top: 16px;
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--r-accent-soft); border: 1px dashed var(--r-accent);
+    font-size: 12px;
+  }
+  .playground .pg-result .check {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--r-accent); color: var(--r-paper);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+  }
+  .playground .pg-result b { color: var(--r-ink); }
+  .playground .pg-result .cf {
+    font-size: 9px; color: var(--r-very); letter-spacing: 0.1em; text-transform: uppercase;
+    margin-left: 8px;
+  }
+
+  /* Content types — pill row */
+  .content-types {
+    display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;
+  }
+  .content-types .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--r-line);
+    background: var(--r-paper);
+    font-size: 12px;
+    color: var(--r-fg);
+  }
+  .content-types .pill svg { color: var(--r-accent); }
+  .content-types .pill b { font-weight: 700; color: var(--r-ink); }
+
+  /* How it works */
+  .steps { counter-reset: step; margin: 8px 0; }
+  .steps .step {
+    counter-increment: step;
+    padding: 12px 0;
+    display: grid; grid-template-columns: 36px 1fr;
+    gap: 14px;
+    border-bottom: 1px dotted var(--r-very);
+  }
+  .steps .step:last-child { border-bottom: 0; }
+  .steps .step::before {
+    content: counter(step, decimal-leading-zero) '.';
+    font-family: var(--r-mono); font-weight: 700; color: var(--r-accent);
+    font-size: 13px; letter-spacing: 0.04em;
+  }
+  .steps .step h4 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 14px; margin: 0 0 4px;
+    color: var(--r-ink);
+  }
+  .steps .step p {
+    margin: 0; font-size: 12.5px; color: var(--r-dim); line-height: 1.55;
+  }
+  .steps .step p b { color: var(--r-ink); }
+  .steps .step p code { background: var(--r-accent-soft); padding: 0 4px; }
+
+  /* Feature grid */
+  .features-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 0;
+    border: 1px solid var(--r-line);
+    margin: 14px 0;
+  }
+  .features-grid .feat {
+    padding: 18px 20px;
+    background: var(--r-paper);
+    border-right: 1px dashed var(--r-very);
+    border-bottom: 1px dashed var(--r-very);
+  }
+  .features-grid .feat:nth-child(2n) { border-right: 0; }
+  .features-grid .feat:nth-last-child(-n+2) { border-bottom: 0; }
+  .features-grid .feat .ico {
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--r-accent-soft); color: var(--r-accent);
+    margin-bottom: 10px;
+  }
+  .features-grid .feat h4 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 14px; margin: 0 0 6px;
+    color: var(--r-ink);
+  }
+  .features-grid .feat p {
+    margin: 0; font-size: 12.5px; color: var(--r-dim); line-height: 1.55;
+  }
+  .features-grid .feat p code {
+    background: var(--r-accent-soft); padding: 0 4px;
+  }
+
+  /* Big code example */
+  .code-big {
+    margin: 14px 0;
+    background: var(--r-code-bg);
+    color: var(--r-code-fg);
+    border: 1px solid var(--r-code-line);
+    font-size: 12.5px;
+  }
+  .code-big .hd {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--r-code-line);
+    font-size: 11px; letter-spacing: 0.1em;
+    color: var(--r-code-dim);
+  }
+  .code-big .hd .dots { display: inline-flex; gap: 6px; align-items: center; }
+  .code-big .hd .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .code-big .hd .dot.r { background: #ff5f57; }
+  .code-big .hd .dot.y { background: #febc2e; }
+  .code-big .hd .dot.g { background: #28c840; }
+  .code-big pre { padding: 18px 22px; line-height: 1.7; overflow-x: auto; }
+
+  /* Error reference link card */
+  .err-ref-link {
+    margin: 14px 0;
+    padding: 16px 18px;
+    border: 1px solid var(--r-line); background: var(--r-paper);
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 16px; align-items: center;
+  }
+  .err-ref-link h4 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 14px; margin: 0 0 4px;
+    color: var(--r-ink);
+  }
+  .err-ref-link p { margin: 0; font-size: 12px; color: var(--r-dim); }
+  .err-ref-link a {
+    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--r-accent); white-space: nowrap;
+    text-decoration: none;
+  }
+  .err-ref-link a:hover { text-decoration: underline; text-decoration-style: dotted; }
+
+  /* All 8 platforms cross-sell grid */
+  .all-plats {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 0;
+    border: 1px solid var(--r-line);
+    margin: 14px 0;
+  }
+  .all-plats a {
+    padding: 10px 14px;
+    display: grid; grid-template-columns: 20px 1fr;
+    gap: 10px; align-items: center;
+    text-decoration: none; color: var(--r-fg);
+    border-right: 1px dashed var(--r-very);
+    border-bottom: 1px dashed var(--r-very);
+    font-size: 12px;
+    background: var(--r-paper);
+    transition: background 100ms;
+  }
+  .all-plats a:nth-child(2n) { border-right: 0; }
+  .all-plats a:nth-last-child(-n+2) { border-bottom: 0; }
+  .all-plats a:hover { background: var(--r-accent-soft); color: var(--r-accent); }
+  .all-plats a.current { background: var(--r-accent-soft); font-weight: 700; color: var(--r-ink); }
+  .all-plats a.current::after { content: ' ←'; color: var(--r-accent); }
+
+  /* Learn-more 3-card row */
+  .learn-more {
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px; margin: 14px 0;
+  }
+  .learn-more a {
+    padding: 16px 18px;
+    border: 1px solid var(--r-line); background: var(--r-paper);
+    text-decoration: none; color: var(--r-fg);
+    transition: border-color 100ms;
+  }
+  .learn-more a:hover { border-color: var(--r-accent); }
+  .learn-more a h4 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 13px; margin: 0 0 4px;
+    color: var(--r-ink);
+  }
+  .learn-more a h4::after { content: ' →'; color: var(--r-accent); }
+  .learn-more a p {
+    margin: 0; font-size: 11px; color: var(--r-very);
+    letter-spacing: 0.06em;
+  }
+
+  @media (max-width: 700px) {
+    .plat-h h1 { font-size: 28px; }
+    .plat-h .h-sub { font-size: 18px; }
+    .compare { grid-template-columns: 1fr; }
+    .compare .col:first-child { border-right: 0; border-bottom: 1px dashed var(--r-very); }
+    .features-grid { grid-template-columns: 1fr; }
+    .features-grid .feat { border-right: 0; }
+    .features-grid .feat:nth-last-child(2) { border-bottom: 1px dashed var(--r-very); }
+    .learn-more { grid-template-columns: 1fr; }
+    .all-plats { grid-template-columns: 1fr; }
+    .all-plats a { border-right: 0; }
+    .err-ref-link { grid-template-columns: 1fr; }
+  }
+</style>
