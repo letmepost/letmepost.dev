@@ -14,8 +14,6 @@ export const ErrorCode = z.enum([
   "idempotency_conflict",
   "rate_limited",
   "quota_exceeded",
-  "payment_required",
-  "feature_not_in_plan",
 ]);
 export type ErrorCode = z.infer<typeof ErrorCode>;
 

@@ -1,12 +1,8 @@
 import { LRUCache } from "lru-cache";
 import type { ResolvedTier } from "./tier.js";
 
-/**
- * In-process LRU cache for resolved tiers. 30s TTL keeps the cache fresh
- * while still letting hot publish loops skip the DB. Webhook handlers call
- * `invalidate(orgId)` after mutating billing_subscriptions; the cross-process
- * `invalidate.ts` module fans that out across the worker + web pods.
- */
+// 30s TTL: short enough that a missed pub/sub message self-heals quickly,
+// long enough to spare the DB on hot publish loops.
 const TTL_MS = 30_000;
 const MAX_ENTRIES = 10_000;
 

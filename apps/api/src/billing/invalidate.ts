@@ -2,15 +2,6 @@ import type { Redis } from "ioredis";
 import { createRedisConnection } from "../queue/connection.js";
 import { tierCache } from "./cache.js";
 
-/**
- * Cross-process tier cache invalidation. Web + worker pods each subscribe to
- * the `billing:invalidate` Redis channel; publishing an org id clears that
- * key from every pod's in-process LRU.
- *
- * Falls back gracefully when Redis isn't reachable. Local publish still
- * clears the in-process cache, which is the only path that matters for the
- * single-process test runner.
- */
 export const BILLING_INVALIDATE_CHANNEL = "billing:invalidate";
 
 let publisher: Redis | null = null;
@@ -21,11 +12,8 @@ function getPublisher(): Redis {
   return publisher;
 }
 
-/**
- * Drop the cached tier locally and broadcast the same op to every other pod.
- * Always clears the in-process entry; the Redis publish is best-effort and
- * is swallowed on failure so a Redis outage can't break the publish path.
- */
+// Drop the local cache entry and broadcast the invalidation. Redis publish
+// is best-effort: a Redis outage cannot break a successful publish path.
 export async function invalidateOrgTier(orgId: string): Promise<void> {
   tierCache.invalidate(orgId);
   try {
@@ -35,10 +23,7 @@ export async function invalidateOrgTier(orgId: string): Promise<void> {
   }
 }
 
-/**
- * Start the listener. Idempotent — call once per process. Returns a stop
- * function so tests / shutdown handlers can tear it down.
- */
+// Idempotent: call once per process. Returns a stop function for shutdown.
 export function startTierInvalidationListener(): () => Promise<void> {
   if (subscriber) {
     return async () => {};
