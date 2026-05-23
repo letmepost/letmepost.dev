@@ -29,7 +29,7 @@ import {
 const server = setupServer();
 
 beforeAll(() => {
-  server.listen({ onUnhandledRequest: "bypass" });
+  server.listen({ onUnhandledRequest: "error" });
 });
 afterEach(() => {
   server.resetHandlers();

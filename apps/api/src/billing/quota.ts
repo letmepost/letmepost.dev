@@ -13,26 +13,19 @@ export type QuotaResult = {
   resetAt: Date;
 };
 
-type ThresholdMark = "warning_80_sent_at" | "exceeded_sent_at";
+// Drizzle TS column names (NOT the DB column names) so `set` targets a
+// real key. Using snake_case here was a real bug: drizzle silently dropped
+// the assignment and every call dispatched.
+type ThresholdMark = "warning80SentAt" | "exceededSentAt";
 
-/**
- * Atomic post-quota check + increment. The single UPSERT in `tryIncrement`
- * is the load-bearing guarantee: two concurrent requests can't double-spend
- * the last slot under the cap.
- *
- * Flow:
- *   1. Resolve the org's effective tier. Infinity quota -> skip everything.
- *   2. Run the conditional UPSERT. If RETURNING is empty, the cap was hit;
- *      throw `quota_exceeded` (and emit `quota.exceeded` once per period).
- *   3. If the new count crossed 80% and we haven't yet, emit `quota.warning`
- *      and mark `warning_80_sent_at` so we don't spam.
- */
+// Atomic post-quota check + increment. The conditional UPSERT in
+// tryIncrement is the load-bearing guarantee: two concurrent requests
+// cannot double-spend the last slot under the cap.
 export async function checkAndIncrementQuota(
   db: DrizzleClient,
   orgId: string,
   cost: number,
   options: {
-    /** Inject a webhook dispatcher so threshold events can fan out. Optional. */
     webhookDispatcher?: WebhookDispatcher;
   } = {},
 ): Promise<QuotaResult> {
@@ -45,10 +38,36 @@ export async function checkAndIncrementQuota(
   const quota = tier.quotaPerMonth;
 
   if (!Number.isFinite(quota)) {
-    // Infinity quota — self_host / grandfather / enterprise. Still useful to
-    // record the count so the dashboard can show usage, but we don't gate.
+    // Infinity quota (self_host, grandfather). Still record the count so
+    // the dashboard usage view has data, but skip the gate.
     const newCount = await unboundedIncrement(db, orgId, period, cost);
     return { newCount, quota, period, resetAt };
+  }
+
+  // Reject single requests that exceed the entire quota up front; the
+  // ON CONFLICT predicate in tryIncrement only fires on the second-and-later
+  // insert for a period, so a single `cost > quota` first insert would
+  // otherwise land unconditionally.
+  if (cost > quota) {
+    await markThresholdAndDispatch(db, orgId, period, "exceededSentAt", {
+      tier,
+      quota,
+      resetAt,
+      currentCount: await readCurrentCount(db, orgId, period),
+      ...(options.webhookDispatcher
+        ? { webhookDispatcher: options.webhookDispatcher }
+        : {}),
+      eventType: "quota.exceeded",
+    });
+    throw new LetmepostError({
+      code: "quota_exceeded",
+      status: 429,
+      message: `Request cost (${cost}) exceeds the monthly quota (${quota}).`,
+      rule: "billing.posts.monthly_cap",
+      remediation:
+        "Reduce the number of targets per request or upgrade your plan.",
+      platformResponse: { period, quota, cost, resetAt: resetAt.toISOString() },
+    });
   }
 
   const newCount = await tryIncrement(db, orgId, period, cost, quota);
@@ -56,7 +75,7 @@ export async function checkAndIncrementQuota(
   if (newCount === null) {
     // Increment rejected — cap hit. Emit a one-shot `quota.exceeded` so the
     // org's webhook integrators see it once per period.
-    await markThresholdAndDispatch(db, orgId, period, "exceeded_sent_at", {
+    await markThresholdAndDispatch(db, orgId, period, "exceededSentAt", {
       tier,
       quota,
       resetAt,
@@ -85,7 +104,7 @@ export async function checkAndIncrementQuota(
   // 80% threshold notice — only fires when we cross the line. The mark column
   // is sticky for the rest of the period.
   if (quota > 0 && newCount >= Math.floor(quota * 0.8)) {
-    await markThresholdAndDispatch(db, orgId, period, "warning_80_sent_at", {
+    await markThresholdAndDispatch(db, orgId, period, "warning80SentAt", {
       tier,
       quota,
       resetAt,
@@ -100,14 +119,8 @@ export async function checkAndIncrementQuota(
   return { newCount, quota, period, resetAt };
 }
 
-/**
- * Conditional atomic UPSERT. On conflict we add the cost only when the new
- * total stays at or under the quota. RETURNING is empty when the WHERE
- * filter rejects the update, which is how we detect "would have exceeded".
- *
- * Returns the new posts_count when the increment landed, or `null` when the
- * cap was hit.
- */
+// Conditional atomic UPSERT. On conflict we add the cost only when the
+// total stays under the quota. Returns null when the cap was hit.
 async function tryIncrement(
   db: DrizzleClient,
   orgId: string,
@@ -132,10 +145,7 @@ async function tryIncrement(
   return row ? row.postsCount : null;
 }
 
-/**
- * Increment without the cap guard, for Infinity-quota tiers. We still write
- * so the dashboard usage view has data; just no rejection path.
- */
+// Increment without the cap guard, for Infinity-quota tiers.
 async function unboundedIncrement(
   db: DrizzleClient,
   orgId: string,
@@ -175,11 +185,8 @@ async function readCurrentCount(
   return row?.postsCount ?? 0;
 }
 
-/**
- * Atomically mark the threshold column and dispatch the matching webhook
- * event. The UPDATE ... WHERE IS NULL pattern guarantees we only fire once
- * per period even when racing two concurrent publish handlers.
- */
+// UPDATE ... WHERE column IS NULL guarantees only one writer fires the
+// dispatch per period, even when racing concurrent publish handlers.
 async function markThresholdAndDispatch(
   db: DrizzleClient,
   orgId: string,
@@ -205,7 +212,7 @@ async function markThresholdAndDispatch(
         eq(billingUsage.organizationId, orgId),
         eq(billingUsage.period, period),
         isNull(
-          column === "warning_80_sent_at"
+          column === "warning80SentAt"
             ? billingUsage.warning80SentAt
             : billingUsage.exceededSentAt,
         ),
