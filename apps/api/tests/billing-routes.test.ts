@@ -40,13 +40,49 @@ beforeEach(() => {
 const describeIfDb = canRunDbTests ? describe : describe.skip;
 
 describeIfDb("billing routes", () => {
-  it("POST /v1/billing/checkout builds a URL with custom_data for org + user", async () => {
+  it("POST /v1/billing/checkout posts custom_data to the LS Checkouts API and returns its URL", async () => {
     const prev = {
       pro: process.env.LMSQ_VARIANT_PRO,
       store: process.env.LMSQ_STORE_ID,
+      base: process.env.LMSQ_API_BASE,
+      key: process.env.LMSQ_API_KEY,
     };
     process.env.LMSQ_VARIANT_PRO = "v_pro_123";
     process.env.LMSQ_STORE_ID = "teststore";
+    process.env.LMSQ_API_BASE = "https://ls.test/v1";
+    process.env.LMSQ_API_KEY = "test-token";
+
+    let received: {
+      storeId?: string | undefined;
+      variantId?: string | undefined;
+      custom?: Record<string, string> | undefined;
+    } = {};
+    server.use(
+      http.post("https://ls.test/v1/checkouts", async ({ request }) => {
+        const body = (await request.json()) as {
+          data?: {
+            attributes?: { checkout_data?: { custom?: Record<string, string> } };
+            relationships?: {
+              store?: { data?: { id?: string } };
+              variant?: { data?: { id?: string } };
+            };
+          };
+        };
+        received = {
+          storeId: body.data?.relationships?.store?.data?.id,
+          variantId: body.data?.relationships?.variant?.data?.id,
+          custom: body.data?.attributes?.checkout_data?.custom,
+        };
+        return HttpResponse.json({
+          data: {
+            attributes: {
+              url: "https://letmepost.lemonsqueezy.com/checkout/buy/abc?signature=xyz",
+            },
+          },
+        });
+      }),
+    );
+
     try {
       const { db } = await getTestDb();
       await runInTransaction(db, async (tx) => {
@@ -60,24 +96,33 @@ describeIfDb("billing routes", () => {
         });
         const res = await app.request("/v1/billing/checkout", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Origin: "http://localhost:3001",
+          },
           body: JSON.stringify({ targetTier: "pro" }),
         });
         expect(res.status).toBe(200);
         const body = (await res.json()) as { url: string };
-        expect(body.url).toMatch(/lemonsqueezy\.com\/checkout\/buy\/v_pro_123/);
-        expect(body.url).toContain(
-          `checkout%5Bcustom%5D%5Borganization_id%5D=${fixture.organizationId}`,
+        expect(body.url).toBe(
+          "https://letmepost.lemonsqueezy.com/checkout/buy/abc?signature=xyz",
         );
-        expect(body.url).toContain(
-          `checkout%5Bcustom%5D%5Buser_id%5D=${fixture.userId}`,
-        );
+        expect(received.storeId).toBe("teststore");
+        expect(received.variantId).toBe("v_pro_123");
+        expect(received.custom).toEqual({
+          organization_id: fixture.organizationId,
+          user_id: fixture.userId,
+        });
       });
     } finally {
       if (prev.pro === undefined) delete process.env.LMSQ_VARIANT_PRO;
       else process.env.LMSQ_VARIANT_PRO = prev.pro;
       if (prev.store === undefined) delete process.env.LMSQ_STORE_ID;
       else process.env.LMSQ_STORE_ID = prev.store;
+      if (prev.base === undefined) delete process.env.LMSQ_API_BASE;
+      else process.env.LMSQ_API_BASE = prev.base;
+      if (prev.key === undefined) delete process.env.LMSQ_API_KEY;
+      else process.env.LMSQ_API_KEY = prev.key;
     }
   });
 
@@ -119,6 +164,7 @@ describeIfDb("billing routes", () => {
         });
         const res = await app.request("/v1/billing/portal", {
           method: "POST",
+          headers: { Origin: "http://localhost:3001" },
         });
         expect(res.status).toBe(200);
         const body = (await res.json()) as { url: string };
@@ -165,6 +211,59 @@ describeIfDb("billing routes", () => {
       if (prev === undefined) delete process.env.BILLING_ENABLED;
       else process.env.BILLING_ENABLED = prev;
     }
+  });
+
+  it("POST /v1/billing/cancel rejects untrusted Origin (CSRF defense)", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      await tx.insert(billingSubscriptions).values({
+        organizationId: fixture.organizationId,
+        tier: "pro",
+        status: "active",
+        lsSubscriptionId: "sub_99",
+      });
+      const app = createApp({
+        db: tx,
+        testSession: {
+          userId: fixture.userId,
+          organizationId: fixture.organizationId,
+        },
+      });
+      const res = await app.request("/v1/billing/cancel", {
+        method: "POST",
+        headers: { Origin: "https://evil.example" },
+      });
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as {
+        error: { code: string; message: string };
+      };
+      expect(body.error.code).toBe("unauthorized");
+    });
+  });
+
+  it("POST /v1/billing/cancel rejects missing Origin", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      await tx.insert(billingSubscriptions).values({
+        organizationId: fixture.organizationId,
+        tier: "pro",
+        status: "active",
+        lsSubscriptionId: "sub_99",
+      });
+      const app = createApp({
+        db: tx,
+        testSession: {
+          userId: fixture.userId,
+          organizationId: fixture.organizationId,
+        },
+      });
+      const res = await app.request("/v1/billing/cancel", {
+        method: "POST",
+      });
+      expect(res.status).toBe(403);
+    });
   });
 
   it("GET /v1/billing/usage returns the current-period counter shape", async () => {

@@ -17,9 +17,10 @@ import { periodFor, periodResetAt } from "../billing/period.js";
 import { getOrgTier } from "../billing/tier.js";
 import { billingSubscriptions } from "../db/schema/billing_subscriptions.js";
 import { billingUsage } from "../db/schema/billing_usage.js";
-import { member } from "../db/schema/auth.js";
 import { LetmepostError } from "../errors.js";
+import { originGuard } from "../middleware/origin-guard.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import { requireAdmin } from "../middleware/require-admin.js";
 import { requireSession } from "../middleware/session.js";
 
 export type BillingRoutesOptions = {
@@ -36,30 +37,6 @@ const InvoiceQuery = z.object({
   perPage: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-/**
- * Assert the signed-in user is an owner or admin on the active org. Members
- * still need to view billing state (so they can see why a publish is failing
- * with quota_exceeded) so the read routes leave this off; write routes call
- * it explicitly.
- */
-async function requireAdmin(
-  c: Parameters<MiddlewareHandler>[0],
-): Promise<void> {
-  const { userId, organizationId } = c.var.session;
-  const [row] = await c.var.db
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
-    .limit(1);
-  if (!row || (row.role !== "owner" && row.role !== "admin")) {
-    throw new LetmepostError({
-      code: "unauthorized",
-      status: 403,
-      message: "Only org owners and admins can manage billing.",
-    });
-  }
-}
-
 export function createBillingRoutes(
   opts: BillingRoutesOptions = {},
 ): Hono {
@@ -67,9 +44,10 @@ export function createBillingRoutes(
   const sessionMw = opts.sessionMiddleware ?? requireSession();
 
   app.use("*", sessionMw);
+  app.use("*", originGuard());
   app.use("*", rateLimit());
 
-  /** GET /v1/billing/subscription — current tier + status. */
+  // GET /v1/billing/subscription: current tier + status.
   app.get("/subscription", async (c) => {
     const { organizationId } = c.var.session;
     const tier = await getOrgTier(c.var.db, organizationId);
@@ -83,9 +61,13 @@ export function createBillingRoutes(
         ? tier.logRetentionDays
         : null,
       grandfathered: tier.grandfathered,
+      grandfatheredUntil: tier.grandfatheredUntil?.toISOString() ?? null,
       delinquent: tier.delinquent,
       source: tier.source,
+      currentPeriodStart: tier.currentPeriodStart?.toISOString() ?? null,
       currentPeriodEnd: tier.currentPeriodEnd?.toISOString() ?? null,
+      cancelAtPeriodEnd: tier.cancelAtPeriodEnd,
+      cancelledAt: tier.cancelledAt?.toISOString() ?? null,
     });
   });
 

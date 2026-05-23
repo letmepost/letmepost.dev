@@ -72,13 +72,14 @@ describe("billing/lemonsqueezy/variants — tierForVariant", () => {
 });
 
 describeIfDb("POST /v1/lemonsqueezy/webhook", () => {
-  it("rejects requests with a bad signature (400) and records the audit row", async () => {
+  it("rejects requests with a bad signature (401) and writes no audit row", async () => {
     const prev = process.env.LMSQ_WEBHOOK_SECRET;
     process.env.LMSQ_WEBHOOK_SECRET = "test-secret";
     try {
       const { db } = await getTestDb();
       await runInTransaction(db, async (tx) => {
         const body = JSON.stringify({ meta: { event_name: "subscription_created" } });
+        const before = await tx.select().from(billingEvents);
         const app = createApp({ db: tx });
         const res = await app.request("/v1/lemonsqueezy/webhook", {
           method: "POST",
@@ -86,17 +87,19 @@ describeIfDb("POST /v1/lemonsqueezy/webhook", () => {
             "Content-Type": "application/json",
             "X-Signature": "not-a-real-sig",
             "X-Event-Name": "subscription_created",
-            "X-Event-Id": "evt_bad_sig",
           },
           body,
         });
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(401);
+        const json = (await res.json()) as {
+          error: { code: string; message: string };
+        };
+        expect(json.error.code).toBe("unauthenticated");
 
-        const [row] = await tx
-          .select()
-          .from(billingEvents)
-          .where(eq(billingEvents.lsEventId, "evt_bad_sig"));
-        expect(row?.signatureValid).toBe(false);
+        // Bad-sig requests must NOT create a billing_events row, otherwise
+        // an attacker can fill the table with attacker-controlled JSON.
+        const after = await tx.select().from(billingEvents);
+        expect(after.length).toBe(before.length);
       });
     } finally {
       if (prev === undefined) delete process.env.LMSQ_WEBHOOK_SECRET;
@@ -104,7 +107,7 @@ describeIfDb("POST /v1/lemonsqueezy/webhook", () => {
     }
   });
 
-  it("dedupes replays keyed on X-Event-Id", async () => {
+  it("dedupes replays keyed on body hash", async () => {
     const prev = process.env.LMSQ_WEBHOOK_SECRET;
     process.env.LMSQ_WEBHOOK_SECRET = "test-secret";
     try {
@@ -124,7 +127,6 @@ describeIfDb("POST /v1/lemonsqueezy/webhook", () => {
           "Content-Type": "application/json",
           "X-Signature": sig,
           "X-Event-Name": "subscription_payment_refunded",
-          "X-Event-Id": "evt_dedupe_probe",
         };
         const first = await app.request("/v1/lemonsqueezy/webhook", {
           method: "POST",
@@ -185,7 +187,6 @@ describeIfDb("POST /v1/lemonsqueezy/webhook", () => {
             "Content-Type": "application/json",
             "X-Signature": sig,
             "X-Event-Name": "subscription_created",
-            "X-Event-Id": "evt_pro_created",
           },
           body,
         });
@@ -257,7 +258,6 @@ describeIfDb("POST /v1/lemonsqueezy/webhook", () => {
             "Content-Type": "application/json",
             "X-Signature": sig,
             "X-Event-Name": "subscription_cancelled",
-            "X-Event-Id": "evt_cancel_1",
           },
           body,
         });
@@ -316,7 +316,6 @@ describeIfDb("POST /v1/lemonsqueezy/webhook", () => {
             "Content-Type": "application/json",
             "X-Signature": sig,
             "X-Event-Name": "subscription_payment_success",
-            "X-Event-Id": "evt_ooo_pay_success",
           },
           body,
         });

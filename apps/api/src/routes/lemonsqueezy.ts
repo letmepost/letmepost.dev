@@ -12,18 +12,12 @@ import { LetmepostError } from "../errors.js";
 
 export const lemonSqueezy = new Hono();
 
-/**
- * POST /v1/lemonsqueezy/webhook
- *
- * Unauthenticated; signature-verified via HMAC-SHA256 against the raw body.
- * Every inbound event is persisted in `billing_events` so we have an audit
- * trail even for events with bad signatures. Duplicate `X-Event-Id` values
- * land as `{ ok: true, deduped: true }` and never run the handler twice.
- *
- * Handlers are idempotent against row state, so an out-of-order replay
- * (e.g. payment_success arriving after subscription_cancelled) lands as
- * a no-op rather than corrupting the row.
- */
+// POST /v1/lemonsqueezy/webhook
+//
+// Unauthenticated, signature-verified via HMAC-SHA256 against the raw body.
+// Lemon Squeezy does not send a per-event unique header, so dedupe is keyed
+// on SHA-256 of the raw body: identical retries collapse, distinct events
+// stay distinct.
 lemonSqueezy.post("/webhook", async (c) => {
   const rawBody = await c.req.raw.clone().text();
   const signature = c.req.header("X-Signature");
@@ -38,17 +32,18 @@ lemonSqueezy.post("/webhook", async (c) => {
     });
   }
 
-  // Lemon Squeezy does not send a per-event unique header. To dedupe retries
-  // of the same payload, derive a stable event id from SHA-256 of the raw
-  // body. Identical retries hash to the same id, distinct events hash
-  // differently.
-  const eventId = createHash("sha256").update(rawBody).digest("hex");
+  // Verify the signature BEFORE touching the DB. Bad-sig requests get dropped
+  // cheap so an attacker cannot fill billing_events with unique payloads.
+  if (!verifyLemonSqueezySignature(rawBody, signature, secret)) {
+    console.warn("[lemonsqueezy] rejected webhook with invalid signature");
+    throw new LetmepostError({
+      code: "unauthenticated",
+      status: 401,
+      message: "Invalid Lemon Squeezy webhook signature.",
+    });
+  }
 
-  const signatureValid = verifyLemonSqueezySignature(
-    rawBody,
-    signature,
-    secret,
-  );
+  const eventId = createHash("sha256").update(rawBody).digest("hex");
 
   let payload: LemonSqueezyPayload | null = null;
   try {
@@ -69,7 +64,7 @@ lemonSqueezy.post("/webhook", async (c) => {
       lsEventId: eventId,
       lsEventName: eventName,
       payload: payload as unknown as Record<string, unknown> | null,
-      signatureValid,
+      signatureValid: true,
       organizationId: orgIdFromPayload,
     })
     .onConflictDoNothing({ target: billingEvents.lsEventId })
@@ -79,10 +74,6 @@ lemonSqueezy.post("/webhook", async (c) => {
     return c.json({ ok: true, deduped: true });
   }
   const rowId = inserted[0]!.id;
-
-  if (!signatureValid) {
-    return c.json({ ok: false, error: "invalid_signature" }, 400);
-  }
 
   const handler = EVENT_HANDLERS[eventName];
   if (!handler) {
@@ -106,10 +97,19 @@ lemonSqueezy.post("/webhook", async (c) => {
       handler,
     );
 
+    // Surface payload-shape problems in the audit row so misconfigured
+    // checkout URLs ("forgot to pass custom_data.organization_id") are
+    // findable instead of indistinguishable from a no-op event.
+    const processingError =
+      result.mutated || result.organizationId
+        ? null
+        : "missing_organization_id_in_custom_data";
+
     await c.var.db
       .update(billingEvents)
       .set({
         processedAt: new Date(),
+        ...(processingError ? { processingError } : {}),
         ...(result.organizationId
           ? { organizationId: result.organizationId }
           : {}),

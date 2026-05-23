@@ -68,6 +68,38 @@ function asString(value: unknown): string | null {
   return null;
 }
 
+type LsStatus =
+  | "active"
+  | "past_due"
+  | "delinquent"
+  | "cancelled"
+  | "expired"
+  | "paused";
+
+// LS status values: active, on_trial, paused, past_due, unpaid, cancelled,
+// expired. We collapse on_trial into "active" (we don't model trials yet) and
+// rename "unpaid" to "delinquent" (4 failed retries) to match our schema.
+function mapLsStatus(raw: unknown): LsStatus | null {
+  if (typeof raw !== "string") return null;
+  switch (raw) {
+    case "active":
+    case "on_trial":
+      return "active";
+    case "paused":
+      return "paused";
+    case "past_due":
+      return "past_due";
+    case "unpaid":
+      return "delinquent";
+    case "cancelled":
+      return "cancelled";
+    case "expired":
+      return "expired";
+    default:
+      return null;
+  }
+}
+
 async function dispatchSafe(
   dispatcher: WebhookDispatcher | undefined,
   organizationId: string,
@@ -127,8 +159,12 @@ export async function handleSubscriptionCreatedOrUpdated(
   const customerId = asString(a.customer_id);
   const periodStart = parseDate(a.renews_at) ?? parseDate(a.created_at);
   const periodEnd = parseDate(a.ends_at) ?? parseDate(a.renews_at);
-  const cancelled = a.cancelled === true;
-  const status = cancelled ? "cancelled" : "active";
+  const cancelAtPeriodEnd = a.cancelled === true;
+  // Read LS's own status field rather than inferring from `cancelled`. A
+  // subscription_updated event for a past_due sub must not overwrite the
+  // dunning state set by an earlier payment_failed event.
+  const status =
+    mapLsStatus(a.status) ?? (cancelAtPeriodEnd ? "cancelled" : "active");
 
   await ctx.db
     .insert(billingSubscriptions)
@@ -142,7 +178,7 @@ export async function handleSubscriptionCreatedOrUpdated(
       lsProductId: productId,
       currentPeriodStart: periodStart,
       currentPeriodEnd: periodEnd,
-      cancelAtPeriodEnd: cancelled,
+      cancelAtPeriodEnd,
     })
     .onConflictDoUpdate({
       target: billingSubscriptions.organizationId,
@@ -155,7 +191,7 @@ export async function handleSubscriptionCreatedOrUpdated(
         lsProductId: productId,
         currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,
-        cancelAtPeriodEnd: cancelled,
+        cancelAtPeriodEnd,
       },
     });
 
@@ -227,13 +263,17 @@ export async function handleSubscriptionResumed(
 ): Promise<HandlerResult> {
   const orgId = customDataOrgId(ctx.payload);
   const lsSubId = subscriptionId(ctx.payload);
+  const a = attrs(ctx.payload) ?? {};
   if (!orgId) {
     return { organizationId: null, lsSubscriptionId: lsSubId, mutated: false };
   }
+  // Resume usually lands as "active" but defer to LS if it sends something
+  // else (e.g. past_due if the resume happens while a payment is retrying).
+  const status = mapLsStatus(a.status) ?? "active";
   await ctx.db
     .update(billingSubscriptions)
     .set({
-      status: "active",
+      status,
       cancelAtPeriodEnd: false,
       cancelledAt: null,
     })
@@ -309,12 +349,20 @@ export async function handleSubscriptionPaymentSuccess(
   const periodEnd = parseDate(a.renews_at);
   const before = await loadCurrent(ctx.db, orgId);
 
+  // Default to "active" because payment succeeded, but defer to LS's own
+  // status if it disagrees (e.g. on_trial → still active, cancelled stays
+  // cancelled even if the user is on a paid-up period that auto-paid).
+  const status = mapLsStatus(a.status) ?? "active";
+  // cancelAtPeriodEnd is preserved from the row. A user can cancel-at-end
+  // and still have a renewal payment auto-charge mid-period before LS
+  // realises the cancellation; we don't want to silently undo their intent.
+
   await ctx.db
     .update(billingSubscriptions)
     .set({
-      status: "active",
+      status,
       paymentFailedAt: null,
-      ...(before?.status === "delinquent"
+      ...(before?.status === "delinquent" || before?.status === "past_due"
         ? { paymentRecoveredAt: new Date() }
         : {}),
       ...(periodStart ? { currentPeriodStart: periodStart } : {}),
@@ -322,7 +370,7 @@ export async function handleSubscriptionPaymentSuccess(
     })
     .where(eq(billingSubscriptions.organizationId, orgId));
 
-  if (before?.status === "delinquent") {
+  if (before?.status === "delinquent" || before?.status === "past_due") {
     await dispatchSafe(ctx.webhookDispatcher, orgId, "billing.recovered", {
       ls_subscription_id: lsSubId,
       recoveredAt: new Date().toISOString(),
