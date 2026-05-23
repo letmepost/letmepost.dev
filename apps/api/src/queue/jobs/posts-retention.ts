@@ -5,14 +5,10 @@ import { billingSubscriptions } from "../../db/schema/billing_subscriptions.js";
 import { organization } from "../../db/schema/auth.js";
 import { posts as postsTable } from "../../db/schema/posts.js";
 
-/**
- * Log retention sweep. Runs nightly. For every org, deletes `posts` rows
- * older than that org's tier's logRetentionDays. Infinity retention orgs
- * (self_host, enterprise) skip the delete entirely.
- *
- * Reads tier from the row directly. The cache doesn't matter here — this
- * is a slow batch and we want the canonical value.
- */
+// Nightly log retention sweep. Deletes `posts` rows older than each org's
+// tier-specific logRetentionDays. Infinity-retention orgs (self_host) skip
+// the delete entirely. Reads tier from the row, not the cache, because this
+// is a slow batch and we want the canonical value.
 export async function runPostsRetention(
   db: DrizzleClient,
   options: { now?: Date } = {},
