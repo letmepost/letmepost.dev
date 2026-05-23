@@ -1,11 +1,31 @@
 import { eq } from "drizzle-orm";
 import type { DrizzleClient } from "../db/index.js";
+import { organization } from "../db/schema/auth.js";
 import {
   billingSubscriptions,
   type BillingSubscription,
 } from "../db/schema/billing_subscriptions.js";
 import { tierCache } from "./cache.js";
 import { TIERS, type BillingTier } from "./tiers.js";
+
+const GRANDFATHER_DAYS = 60;
+
+// Compute the grandfather end date for an org that pre-existed the billing
+// rollout. Returns null when BILLING_ANNOUNCED_AT is unset, when the org
+// was created on or after that date, or when announced-at + 60d has
+// already passed.
+function computeGrandfatheredUntil(orgCreatedAt: Date | null): Date | null {
+  const raw = process.env.BILLING_ANNOUNCED_AT;
+  if (!raw) return null;
+  const announcedAt = new Date(raw);
+  if (Number.isNaN(announcedAt.getTime())) return null;
+  if (!orgCreatedAt || orgCreatedAt >= announcedAt) return null;
+  const until = new Date(
+    announcedAt.getTime() + GRANDFATHER_DAYS * 24 * 60 * 60 * 1000,
+  );
+  if (until <= new Date()) return null;
+  return until;
+}
 
 export type BillingStatus = BillingSubscription["status"];
 
@@ -15,17 +35,19 @@ export type ResolvedTier = {
   quotaPerMonth: number;
   logRetentionDays: number;
   grandfathered: boolean;
+  grandfatheredUntil: Date | null;
   delinquent: boolean;
   source:
     | "billing_disabled"
     | "grandfather"
     | "subscription"
     | "default_free";
-  /**
-   * End of the current billing period for paid tiers. Set for the cancelled
-   * grace path so the caller can show "service ends on X" copy.
-   */
+  currentPeriodStart: Date | null;
+  // End of the current billing period for paid tiers. Set for the cancelled
+  // grace path so callers can render "service ends on X" copy.
   currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+  cancelledAt: Date | null;
 };
 
 function billingEnabled(): boolean {
@@ -39,26 +61,16 @@ function syntheticSelfHost(): ResolvedTier {
     quotaPerMonth: TIERS.self_host.quotaPerMonth,
     logRetentionDays: TIERS.self_host.logRetentionDays,
     grandfathered: false,
+    grandfatheredUntil: null,
     delinquent: false,
     source: "billing_disabled",
+    currentPeriodStart: null,
     currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+    cancelledAt: null,
   };
 }
 
-/**
- * Resolve the effective tier for an org. See the rules block above each
- * branch; the order matters because the rules layer on top of each other.
- *
- * 1. BILLING_ENABLED !== "true" -> self_host synthetic, never touches DB.
- * 2. No subscription row -> lazily insert a free row, return free.
- * 3. `grandfathered_until > now` -> keep tier, force quota = Infinity.
- * 4. `status === "delinquent"` -> keep tier, force quota = free quota.
- * 5. `status === "cancelled"` and still inside the paid period -> keep tier.
- * 6. Otherwise the row tier wins.
- *
- * The 30s LRU cache short-circuits the DB read on hot paths; webhook
- * handlers invalidate the cache when they mutate the row.
- */
 export async function getOrgTier(
   db: DrizzleClient,
   orgId: string,
@@ -86,18 +98,29 @@ async function resolveFromDb(
     .limit(1);
 
   if (!row) {
+    // Lazy backfill: existing orgs created before BILLING_ANNOUNCED_AT get
+    // a 60-day grace window stamped on the row at first read. New orgs
+    // (created on or after announce) get nothing here.
+    const [orgRow] = await db
+      .select({ createdAt: organization.createdAt })
+      .from(organization)
+      .where(eq(organization.id, orgId))
+      .limit(1);
+    const grandfatheredUntil = computeGrandfatheredUntil(
+      orgRow?.createdAt ?? null,
+    );
     const inserted = await db
       .insert(billingSubscriptions)
       .values({
         organizationId: orgId,
         tier: "free",
         status: "free",
+        ...(grandfatheredUntil ? { grandfatheredUntil } : {}),
       })
       .onConflictDoNothing({ target: billingSubscriptions.organizationId })
       .returning();
     row = inserted[0];
     if (!row) {
-      // Lost the insert race — re-read what the other writer wrote.
       const reread = await db
         .select()
         .from(billingSubscriptions)
@@ -114,17 +137,28 @@ async function resolveFromDb(
       quotaPerMonth: TIERS.free.quotaPerMonth,
       logRetentionDays: TIERS.free.logRetentionDays,
       grandfathered: false,
+      grandfatheredUntil: null,
       delinquent: false,
       source: "default_free",
+      currentPeriodStart: null,
       currentPeriodEnd: null,
+      cancelAtPeriodEnd: false,
+      cancelledAt: null,
     };
   }
 
   const now = new Date();
   const tier = row.tier as BillingTier;
   const constants = TIERS[tier];
+  const common = {
+    currentPeriodStart: row.currentPeriodStart ?? null,
+    currentPeriodEnd: row.currentPeriodEnd ?? null,
+    cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    cancelledAt: row.cancelledAt ?? null,
+    grandfatheredUntil: row.grandfatheredUntil ?? null,
+  };
 
-  // 3. Grandfather window.
+  // Grandfather window.
   if (row.grandfatheredUntil && row.grandfatheredUntil > now) {
     return {
       tier,
@@ -134,12 +168,12 @@ async function resolveFromDb(
       grandfathered: true,
       delinquent: false,
       source: "grandfather",
-      currentPeriodEnd: row.currentPeriodEnd ?? null,
+      ...common,
     };
   }
 
-  // 4. Delinquent — keep the tier label so the dashboard shows the right
-  // upgrade path, but cap the active quota at the free tier.
+  // Delinquent: keep tier label so the dashboard renders the right upgrade
+  // path, but cap the active quota at free-tier limits.
   if (row.status === "delinquent") {
     return {
       tier,
@@ -149,11 +183,11 @@ async function resolveFromDb(
       grandfathered: false,
       delinquent: true,
       source: "subscription",
-      currentPeriodEnd: row.currentPeriodEnd ?? null,
+      ...common,
     };
   }
 
-  // 5. Cancelled but still inside the paid period -> keep paid tier.
+  // Cancelled but still inside the paid period: keep paid tier.
   if (
     row.status === "cancelled" &&
     row.currentPeriodEnd &&
@@ -167,11 +201,10 @@ async function resolveFromDb(
       grandfathered: false,
       delinquent: false,
       source: "subscription",
-      currentPeriodEnd: row.currentPeriodEnd,
+      ...common,
     };
   }
 
-  // 6. Default — read tier off the row.
   return {
     tier,
     status: row.status,
@@ -180,6 +213,6 @@ async function resolveFromDb(
     grandfathered: false,
     delinquent: false,
     source: row.tier === "free" ? "default_free" : "subscription",
-    currentPeriodEnd: row.currentPeriodEnd ?? null,
+    ...common,
   };
 }

@@ -494,7 +494,9 @@ function UsageCardInner({
             {usage.postsCount.toLocaleString()}
             <span className="text-muted-foreground"> / </span>
             <span className="text-muted-foreground">
-              {unlimited ? "Unlimited" : usage.quota.toLocaleString()}
+              {unlimited || usage.quota === null
+                ? "Unlimited"
+                : usage.quota.toLocaleString()}
             </span>
           </div>
           {!unlimited ? (
@@ -606,13 +608,13 @@ function InvoicesSection() {
               {rows.map((inv) => (
                 <TableRow key={inv.id}>
                   <TableCell className="font-mono text-xs">
-                    {inv.number}
+                    {inv.number ?? "-"}
                   </TableCell>
                   <TableCell className="tabular-nums text-xs">
-                    {formatDate(inv.issuedAt)}
+                    {formatDate(inv.createdAt)}
                   </TableCell>
                   <TableCell className="tabular-nums text-xs">
-                    {formatMoney(inv.amount, inv.currency)}
+                    {formatMoney(inv.total, inv.currency)}
                   </TableCell>
                   <TableCell>
                     <Badge
@@ -625,14 +627,14 @@ function InvoicesSection() {
                       }
                       className="capitalize"
                     >
-                      {inv.status}
+                      {inv.status ?? "-"}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    {inv.pdfUrl ? (
+                    {inv.invoiceUrl ? (
                       <Button asChild variant="ghost" size="sm">
                         <a
-                          href={inv.pdfUrl}
+                          href={inv.invoiceUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
@@ -641,7 +643,7 @@ function InvoicesSection() {
                         </a>
                       </Button>
                     ) : (
-                      <span className="text-xs text-muted-foreground">—</span>
+                      <span className="text-xs text-muted-foreground">-</span>
                     )}
                   </TableCell>
                 </TableRow>

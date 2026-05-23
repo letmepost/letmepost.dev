@@ -1,15 +1,6 @@
-/**
- * Client-side shape mirror of the `/v1/billing/*` contract.
- *
- * Kept loose-typed (no zod) since this lives in a different bundle from the
- * API server. If a field comes back missing the UI renders gracefully — the
- * underlying subscription record might predate the field.
- *
- * TanStack Query hooks follow the same pattern as the rest of the dashboard:
- * `useFooQuery` / `useFooMutation`, all keys live under `queryKeys.billing`
- * in `query-keys.ts`, mutations call `queryClient.invalidateQueries` on
- * success so the surrounding UI catches up.
- */
+// Client-side shape mirror of /v1/billing/*. Field names match the API
+// response 1:1 so the dashboard never re-keys. Hooks live alongside the
+// types because they share types.
 
 import {
   useInfiniteQuery,
@@ -20,12 +11,7 @@ import {
 import { apiFetch } from "./api";
 import { queryKeys } from "./query-keys";
 
-export type BillingTier =
-  | "free"
-  | "pro"
-  | "business"
-  | "enterprise"
-  | "self_host";
+export type BillingTier = "free" | "pro" | "business" | "self_host";
 
 export type BillingStatus =
   | "free"
@@ -39,44 +25,43 @@ export type BillingStatus =
 export type Subscription = {
   tier: BillingTier;
   status: BillingStatus;
+  quotaPerMonth: number | null;
+  logRetentionDays: number | null;
+  grandfathered: boolean;
+  grandfatheredUntil: string | null;
+  delinquent: boolean;
+  source: "billing_disabled" | "grandfather" | "subscription" | "default_free";
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   cancelledAt: string | null;
-  grandfathered: boolean;
-  grandfatheredUntil: string | null;
-  delinquent: boolean;
 };
 
 export type Usage = {
   period: string;
   postsCount: number;
-  quota: number;
+  quota: number | null;
   percent: number;
   resetAt: string;
 };
 
 export type Invoice = {
   id: string;
-  number: string;
-  amount: number;
-  currency: string;
-  status: "paid" | "refunded" | "void" | "pending";
-  issuedAt: string;
-  pdfUrl: string | null;
+  number: string | null;
+  total: number | null;
+  currency: string | null;
+  status: string | null;
+  createdAt: string | null;
+  invoiceUrl: string | null;
 };
 
 export type InvoicePage = {
   data: Invoice[];
-  nextCursor: string | null;
+  nextPage: number | null;
 };
 
-/**
- * Canonical tier facts. Mirrors the pricing copy on the marketing site
- * (`apps/web/src/pages/pricing.astro`) but expressed as a typed constant so
- * the dashboard can render plan cards, quota maths, and upgrade flows from a
- * single source of truth. Update both when pricing shifts.
- */
+// Per-tier copy + numbers. Mirrors apps/web/src/pages/pricing.astro and the
+// API's TIERS constant; update all three when pricing shifts.
 export const TIERS = {
   free: {
     name: "Free",
@@ -122,14 +107,6 @@ export const TIERS = {
       "Priority Slack + email, 4h response",
     ],
   },
-  enterprise: {
-    name: "Enterprise",
-    price: null,
-    quotaPerMonth: null,
-    logRetentionDays: 365,
-    tagline: "SSO, custom SLA, DPA.",
-    features: [],
-  },
   self_host: {
     name: "Self-host",
     price: 0,
@@ -150,16 +127,12 @@ export const TIERS = {
   }
 >;
 
-/**
- * Tier ordering for upgrade/downgrade comparisons. Higher index = higher
- * tier. Enterprise + self_host live off the ladder; comparison helpers
- * below treat them specially.
- */
+// Upgrade/downgrade ordering. Higher rank means higher tier. self_host
+// is off the commercial ladder.
 const TIER_RANK: Record<BillingTier, number> = {
   free: 0,
   pro: 1,
   business: 2,
-  enterprise: 3,
   self_host: -1,
 };
 
@@ -167,10 +140,11 @@ export function compareTiers(a: BillingTier, b: BillingTier): number {
   return TIER_RANK[a] - TIER_RANK[b];
 }
 
-/** True when quota should render as "Unlimited" instead of a number. */
+// True when quota should render as "Unlimited" instead of a number. The
+// API returns null for Infinity tiers (self_host, grandfather) so this is
+// a simple null check, not a magic number.
 export function isUnlimitedQuota(quota: number | null | undefined): boolean {
-  if (quota === null || quota === undefined) return true;
-  return quota >= 1_000_000;
+  return quota === null || quota === undefined;
 }
 
 // ───────────────────────── queries ─────────────────────────
@@ -196,12 +170,11 @@ export function useInvoices() {
   return useInfiniteQuery<InvoicePage>({
     queryKey: queryKeys.billing.invoices(),
     queryFn: ({ pageParam }) => {
-      const cursor = pageParam as string | null;
-      const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-      return apiFetch<InvoicePage>(`/v1/billing/invoices${qs}`);
+      const page = (pageParam as number | null) ?? 1;
+      return apiFetch<InvoicePage>(`/v1/billing/invoices?page=${page}`);
     },
-    initialPageParam: null as string | null,
-    getNextPageParam: (last) => last.nextCursor,
+    initialPageParam: 1 as number | null,
+    getNextPageParam: (last) => last.nextPage,
   });
 }
 
@@ -263,24 +236,29 @@ export function useReactivateSubscription() {
 
 // ───────────────────────── formatters ─────────────────────────
 
-/** Format cents → "$12.34" for invoice rows. Falls back to raw on bad input. */
-export function formatMoney(amountCents: number, currency: string): string {
+// Format cents into "$12.34". Falls back to raw on bad input.
+export function formatMoney(
+  amountCents: number | null | undefined,
+  currency: string | null | undefined,
+): string {
+  if (amountCents === null || amountCents === undefined) return "-";
+  const cur = (currency ?? "USD").toUpperCase();
   try {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
-      currency: currency.toUpperCase(),
+      currency: cur,
       minimumFractionDigits: 2,
     }).format(amountCents / 100);
   } catch {
-    return `${(amountCents / 100).toFixed(2)} ${currency.toUpperCase()}`;
+    return `${(amountCents / 100).toFixed(2)} ${cur}`;
   }
 }
 
-/** ISO timestamp → "May 22, 2026". Returns "—" for null/invalid. */
+// ISO timestamp into "May 22, 2026". Returns "-" for null or invalid input.
 export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "-";
   return d.toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",

@@ -77,7 +77,9 @@ export function SidebarUsageMeter() {
                 {usage.data.postsCount.toLocaleString()}
                 <span className="text-sidebar-foreground/50">
                   {" / "}
-                  {unlimited ? "∞" : usage.data.quota.toLocaleString()}
+                  {unlimited || usage.data.quota === null
+                    ? "∞"
+                    : usage.data.quota.toLocaleString()}
                 </span>
               </span>
             </div>

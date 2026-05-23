@@ -154,9 +154,6 @@ function TierCard({
 }) {
   const tier = TIERS[tierId];
   const isCurrent = tierId === currentTier;
-  // Treat enterprise as above-business for direction calculations even
-  // though it isn't a card here — keeps the upgrade/downgrade math clean
-  // if a customer with enterprise lands on this page somehow.
   const direction = compareTiers(tierId, currentTier);
   const highlight = tierId === "pro";
 
