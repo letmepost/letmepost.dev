@@ -1,0 +1,207 @@
+---
+title: TikTok
+description: TikTok Content Posting API. OAuth 2.0 PKCE + push_by_file upload to the user's inbox. SELF_ONLY privacy on audit / sandbox accounts.
+icon: tiktok
+iconType: brands
+---
+
+<Warning>
+**Before you start.** TikTok gates the Direct Post (`video.publish`) scope behind a separate App Review. Until that clears, posts go to the **upload inbox** with `privacy=SELF_ONLY` and the user manually confirms publish in the TikTok app. Public posting unlocks the moment review is approved — no code change needed; letmepost re-reads the privacy allowlist on every token refresh.
+</Warning>
+
+## Quick reference
+
+| Limit / capability | Value |
+|---|---|
+| Caption (text) | ≤ 2,200 characters |
+| Hashtag count | ≤ 100 |
+| Media items per post | **1 video** (no photo posts on unaudited apps) |
+| Video formats | mp4, mov, mpeg, avi, flv, webm |
+| Video size | ≤ 4,000,000,000 bytes (4 GB push_by_file) |
+| Video duration | 3 s minimum, 10 min maximum (audit accounts typically capped to 60 s) |
+| Video resolution | ≥ 540 px on short edge (1080 x 1920 recommended) |
+| Aspect ratio | 9:16 preferred; 1:1 and 16:9 accepted with a warning |
+| Privacy | `public_to_everyone`, `mutual_follow_friend`, `self_only` — forced to `self_only` on audit accounts |
+| Branded content | `brandContentToggle` OR `brandOrganicToggle` (mutually exclusive) |
+| Post types supported | single video |
+| Scheduling | Yes (via `scheduledAt`) |
+| Reply / first comment | Not supported in v1 |
+| Inbox / DM | Not supported in v1 |
+| Analytics | Not supported in v1 |
+
+## Connect an account
+
+`POST /v1/accounts/connect/tiktok`. OAuth 2.0 with PKCE. After the callback the provider:
+
+1. Calls `GET /v2/user/info/` to pin `platformAccountId` to the real TikTok `open_id`.
+2. Calls `POST /v2/post/publish/creator_info/query/` to snapshot the privacy allowlist; accounts with only `SELF_ONLY` are flagged as `auditState: "audit"` and the publisher forces `SELF_ONLY` on every post until that flips.
+
+### Scopes
+
+```
+user.info.basic     — required to mint platform_account_id at connect
+video.upload        — upload-inbox path (push_by_file)
+```
+
+Extended (not requested by default): `video.publish` (Direct Post), `video.list`.
+
+### Token lifecycle
+
+24-hour access tokens; 365-day refresh tokens that roll on every use. The provider refreshes 1 hour before expiry; subscribe to [`token.expiring`](/webhooks/token-expiring) to know when a re-auth window is coming.
+
+## Post a video
+
+```json tiktok-video-post.json
+{
+  "targets": [
+    {
+      "accountId": "...",
+      "options": {
+        "platform": "tiktok",
+        "privacy": "self_only",
+        "disableComment": false,
+        "disableDuet": false,
+        "disableStitch": false
+      }
+    }
+  ],
+  "text": "Walkthrough #demo",
+  "media": [{ "kind": "video", "mediaId": "med_…" }]
+}
+```
+
+### Privacy
+
+`privacy` accepts three values: `public_to_everyone`, `mutual_follow_friend`, `self_only`. Audit / sandbox accounts always end up as `SELF_ONLY` regardless of what you pass — letmepost rewrites the request and attaches a `tiktok.audit.self_only` warning so the caller knows we did so.
+
+### Branded content
+
+`brandContentToggle: true` flags the post as a paid partnership. `brandOrganicToggle: true` flags it as content for your own brand. TikTok rejects requests that set both — preflight catches it with `tiktok.branded_content.mutual_exclusive`.
+
+## Code samples
+
+<CodeGroup>
+```bash curl
+curl https://api.letmepost.dev/v1/posts \
+  -H "Authorization: Bearer lmp_live_…" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "targets": [
+      {
+        "accountId": "acc_…",
+        "options": { "platform": "tiktok", "privacy": "self_only" }
+      }
+    ],
+    "text": "Walkthrough #demo",
+    "media": [{ "kind": "video", "mediaId": "med_…" }]
+  }'
+```
+
+```ts TypeScript
+import { Letmepost } from "@letmepost/sdk";
+
+const lmp = new Letmepost({ apiKey: process.env.LETMEPOST_API_KEY! });
+
+await lmp.posts.create({
+  targets: [
+    {
+      accountId: "acc_…",
+      options: { platform: "tiktok", privacy: "self_only" },
+    },
+  ],
+  text: "Walkthrough #demo",
+  media: [{ kind: "video", mediaId: "med_…" }],
+});
+```
+
+```python Python
+from letmepost import Letmepost
+
+lmp = Letmepost(api_key=os.environ["LETMEPOST_API_KEY"])
+
+lmp.posts.create(
+    targets=[
+        {
+            "accountId": "acc_…",
+            "options": {"platform": "tiktok", "privacy": "self_only"},
+        }
+    ],
+    text="Walkthrough #demo",
+    media=[{"kind": "video", "mediaId": "med_…"}],
+)
+```
+
+```go Go
+client := letmepost.New(os.Getenv("LETMEPOST_API_KEY"))
+
+client.Posts.Create(ctx, letmepost.CreatePostRequest{
+    Targets: []letmepost.PostTarget{{
+        AccountID: "acc_…",
+        Options: &letmepost.TargetOptions{
+            Platform: "tiktok",
+            Privacy:  "self_only",
+        },
+    }},
+    Text:  "Walkthrough #demo",
+    Media: []letmepost.MediaInput{{Kind: "video", MediaID: "med_…"}},
+})
+```
+</CodeGroup>
+
+## How publishing works under the hood
+
+TikTok's Content Posting API is asynchronous. The publisher:
+
+1. Calls `POST /v2/post/publish/inbox/video/init/` with `source: "FILE_UPLOAD"`, `video_size`, `chunk_size`, `total_chunk_count`. Returns `upload_url` + `publish_id`.
+2. PUTs the video bytes to `upload_url`. Files under 64 MiB go in one request; larger files chunk at 10 MiB with explicit `Content-Range` headers.
+3. Returns `status: "publishing"` with the `publish_id` stamped on `cid` so the caller can correlate by id.
+4. A BullMQ worker polls `POST /v2/post/publish/status/fetch/` on a bucketed schedule (5 s → 30 s → 2 min) until TikTok reaches a terminal state.
+5. Terminal `PUBLISH_COMPLETE` → `post.published` webhook with the public TikTok URL. Terminal `FAILED` → `post.failed` with the upstream reason. The 30-minute deadline turns into `post.failed` with `tiktok.publish.pending`.
+
+The `SEND_TO_USER_INBOX` state is also treated as terminal-published — TikTok's upload-inbox flow IS the documented end-state for audit-mode posts. The user confirms publish in their TikTok app; we have no API signal for that final tap.
+
+## Wisdom (platform-specific things that bite)
+
+<Tip>
+- **Audit / sandbox accounts can only post SELF_ONLY.** letmepost reads the privacy allowlist via `creator_info` at connect time and on every refresh; SELF_ONLY-only accounts are flagged `auditState: "audit"` and every post is rewritten regardless of the caller's intent. A warning fires so you know we did so.
+- **The Direct Post (`video.publish`) scope is a separate App Review.** Without it, posts go to the user's TikTok inbox for manual confirmation. There's no API signal for the user tapping publish, so the worker treats `SEND_TO_USER_INBOX` as terminal-published.
+- **ffprobe is needed for duration / resolution preflight.** Without ffprobe installed locally, letmepost emits a `tiktok.video.probe_unavailable` warning and lets the upload proceed; TikTok's own preflight will catch resolution issues at publish time.
+- **Aspect ratio 9:16 is strongly preferred.** 1:1 and 16:9 work but emit `tiktok.video.aspect_non_vertical`. Anything else trips `tiktok.video.aspect_unusual`.
+- **Refresh tokens roll on every use.** TikTok issues a new `refresh_token` on each refresh; letmepost stores it. If you bypass the refresh worker and call the upstream endpoint yourself, persist the new refresh token — discarding it silently shortens the next refresh window.
+- **`push_by_file` only.** `pull_by_url` requires media-domain verification on developer.tiktokapis.com which letmepost has not completed; v1 uploads always go through the chunked PUT path.
+</Tip>
+
+## Common errors
+
+| Error rule | What it means | How to fix |
+|---|---|---|
+| `tiktok.media.required` | No media on the post | Attach `media: [{ kind: "video", … }]`. |
+| `tiktok.media.single_only` | More than one media item | Send a single video item. |
+| `tiktok.media.video_required` | Non-video media (e.g. image) | TikTok unaudited apps only support video posts. |
+| `tiktok.text.max_chars` | Caption > 2,200 characters | Shorten the caption. |
+| `tiktok.text.hashtag_max` | More than 100 hashtags in caption | Reduce hashtag count. |
+| `tiktok.file_format.invalid` | Video mime not in TikTok's allowlist | Use mp4, mov, mpeg, avi, flv, or webm. |
+| `tiktok.video.size_max` | Video > 4 GB | Compress under 4 GB. |
+| `tiktok.video.too_short` | Duration < 3 s (detected via ffprobe) | Use a video at least 3 s long. |
+| `tiktok.video.too_long` | Duration > 10 min | Trim to 10 min or under. |
+| `tiktok.resolution.unsupported` | Short edge < 540 px | Use 1080 x 1920 (or any 540+ short-edge resolution). |
+| `tiktok.audit.self_only` (warning) | Privacy rewritten to SELF_ONLY on audit account | Wait for `video.publish` review approval to post publicly. |
+| `tiktok.privacy.not_allowed` | Requested privacy not in account allowlist | Use one of the privacy levels surfaced in the error. |
+| `tiktok.branded_content.mutual_exclusive` | Both brand toggles set | Set exactly one of `brandContentToggle` / `brandOrganicToggle`. |
+| `tiktok.publish.failed` | TikTok rejected the upload async | Check `fail_reason` on the webhook payload. |
+| `tiktok.publish.pending` | Poll deadline exceeded (30 min) | The upload may still finish in the user's TikTok inbox; re-check via the app. |
+
+## What you can't do (yet)
+
+- Photo carousels (unaudited apps).
+- Direct Post (public publishing without user confirmation) until `video.publish` clears review.
+- pull_by_url uploads (domain verification gate).
+- Reading post engagement, comments, or analytics.
+- TikTok Live, Shop, DMs.
+
+## API reference
+
+- [`POST /v1/posts`](/api-reference/posts/create) — primary publish.
+- [`POST /v1/media`](/api-reference/media/create) — upload video bytes for `mediaId` references.
+- [`POST /v1/accounts/connect/tiktok`](/api-reference/accounts/connect-tiktok) — start a TikTok OAuth flow.

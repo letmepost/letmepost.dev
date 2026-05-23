@@ -139,6 +139,20 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
     carouselSupport: true,
   },
   {
+    slug: "tiktok",
+    name: "TikTok",
+    icon: "tiktok-logo",
+    tagline: "Content Posting API · upload-inbox in v1",
+    pitch:
+      "OAuth 2.0 PKCE + push_by_file upload to the user's TikTok inbox. App-review for the Direct Post scope is in progress; until then, sandbox / audit accounts post privacy=SELF_ONLY and the user confirms publish in the TikTok app.",
+    detail:
+      "Content Posting API · MP4 / MOV / MPEG video · 4 GB push_by_file ceiling · privacy forced to SELF_ONLY on audit accounts",
+    videoSupport: true,
+    carouselSupport: false,
+    gotcha:
+      "App is in audit / sandbox state — uploads land in the user's TikTok inbox for manual publish. Direct Post unlocks once `video.publish` clears review.",
+  },
+  {
     slug: "threads",
     name: "Threads",
     icon: "threads-logo",

@@ -27,6 +27,9 @@ import {
   validateThreadsText,
 } from "../threads/preflight.js";
 import type { ThreadsTokenMetadata } from "../threads/provider.js";
+import { tiktokPublisher } from "../tiktok/publisher.js";
+import { validateTikTokInput } from "../tiktok/preflight.js";
+import type { TikTokTokenMetadata } from "../tiktok/provider.js";
 import { assertTwitterLaunchCap } from "../twitter/launch-cap.js";
 import { twitterPublisher } from "../twitter/publisher.js";
 import {
@@ -73,6 +76,15 @@ export type PublishInput = {
   threads?: { replyToId?: string };
   /** X / Twitter-specific overrides (replyToTweetId, quoteTweetId). */
   twitter?: { replyToTweetId?: string; quoteTweetId?: string };
+  /** TikTok-specific per-post overrides (privacy, comment / duet / stitch toggles, branded content). */
+  tiktok?: {
+    privacy?: "public_to_everyone" | "mutual_follow_friend" | "self_only";
+    disableComment?: boolean;
+    disableDuet?: boolean;
+    disableStitch?: boolean;
+    brandContentToggle?: boolean;
+    brandOrganicToggle?: boolean;
+  };
 };
 
 /**
@@ -182,6 +194,30 @@ export function preflightForAccount(
             'Pass `media: [{ kind: "image", url | mediaId }]` on the request body.',
         });
       }
+      return;
+    }
+    case "tiktok": {
+      // TikTok cheap preflight: caption length, media presence, hashtag
+      // count, brand-content mutual exclusivity, audit-state privacy
+      // override. Audit state + privacy options come from the stored
+      // tokenMetadata when available.
+      const meta = (account.tokenMetadata ?? {}) as TikTokTokenMetadata;
+      const args: Parameters<typeof validateTikTokInput>[0] = {
+        media: media as Parameters<typeof validateTikTokInput>[0]["media"],
+      };
+      if (input.text !== undefined) args.text = input.text;
+      if (input.tiktok?.privacy !== undefined) args.privacy = input.tiktok.privacy;
+      if (input.tiktok?.brandContentToggle !== undefined) {
+        args.brandContentToggle = input.tiktok.brandContentToggle;
+      }
+      if (input.tiktok?.brandOrganicToggle !== undefined) {
+        args.brandOrganicToggle = input.tiktok.brandOrganicToggle;
+      }
+      if (meta.auditState !== undefined) args.auditState = meta.auditState;
+      if (meta.privacyLevelOptions !== undefined) {
+        args.privacyLevelOptions = meta.privacyLevelOptions;
+      }
+      validateTikTokInput(args);
       return;
     }
     default:
@@ -382,6 +418,57 @@ export async function publishForAccount(
             : {}),
         },
       );
+    }
+    case "tiktok": {
+      // TikTok: surface the cached creator_info audit-state snapshot to
+      // the publisher so it can rewrite privacy without an extra
+      // round-trip. The publisher still defends at request-time, so a
+      // stale snapshot does no harm beyond a single failed upload.
+      const meta = (account.tokenMetadata ?? {}) as TikTokTokenMetadata;
+      if (!input.media || input.media.length === 0) {
+        throw new LetmepostError({
+          code: "validation_failed",
+          status: 400,
+          platform: "tiktok",
+          message: "TikTok posts require exactly one video.",
+          rule: "tiktok.media.required",
+          remediation:
+            'Pass `media: [{ kind: "video", mediaId | url }]` on the request body.',
+        });
+      }
+      const creds: Parameters<typeof tiktokPublisher.publish>[0] = {
+        accessToken: account.token,
+      };
+      if (meta.auditState !== undefined) creds.auditState = meta.auditState;
+      if (meta.privacyLevelOptions !== undefined) {
+        creds.privacyLevelOptions = meta.privacyLevelOptions;
+      }
+      const publishInput: Parameters<typeof tiktokPublisher.publish>[1] = {
+        media: input.media,
+      };
+      if (input.text !== undefined) publishInput.text = input.text;
+      if (input.tiktok?.privacy !== undefined) {
+        publishInput.privacy = input.tiktok.privacy;
+      }
+      if (input.tiktok?.disableComment !== undefined) {
+        publishInput.disableComment = input.tiktok.disableComment;
+      }
+      if (input.tiktok?.disableDuet !== undefined) {
+        publishInput.disableDuet = input.tiktok.disableDuet;
+      }
+      if (input.tiktok?.disableStitch !== undefined) {
+        publishInput.disableStitch = input.tiktok.disableStitch;
+      }
+      if (input.tiktok?.brandContentToggle !== undefined) {
+        publishInput.brandContentToggle = input.tiktok.brandContentToggle;
+      }
+      if (input.tiktok?.brandOrganicToggle !== undefined) {
+        publishInput.brandOrganicToggle = input.tiktok.brandOrganicToggle;
+      }
+      if (input.mediaContext !== undefined) {
+        publishInput.mediaContext = input.mediaContext;
+      }
+      return tiktokPublisher.publish(creds, publishInput);
     }
     default:
       throw new LetmepostError({

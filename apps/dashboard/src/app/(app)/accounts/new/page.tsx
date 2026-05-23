@@ -42,6 +42,7 @@ const LABELS: Record<ConnectablePlatform, string> = {
   linkedin: "LinkedIn",
   pinterest: "Pinterest",
   threads: "Threads",
+  tiktok: "TikTok",
   twitter: "Twitter / X",
 };
 

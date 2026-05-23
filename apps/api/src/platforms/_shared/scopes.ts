@@ -124,6 +124,17 @@ const SCOPES: Record<Platform, PlatformScopeSet> = {
     write: ["tweet.write", "tweet.read", "users.read", "offline.access"],
     extended: ["like.read", "follows.read"],
   },
+  tiktok: {
+    kind: "oauth",
+    // TikTok Content Posting API scopes. `video.upload` covers the
+    // upload-inbox path (push_by_file → user inbox → user manually
+    // confirms publish in TikTok's app). The audited `video.publish`
+    // (Direct Post) scope is NOT requested in v1 because TikTok has not
+    // approved it on our app yet; preflight forces SELF_ONLY on audit
+    // accounts to stay inside what the current scope set permits.
+    write: ["user.info.basic", "video.upload"],
+    extended: ["video.publish", "video.list"],
+  },
 };
 
 export function writeScopesFor(platform: Platform): readonly string[] {

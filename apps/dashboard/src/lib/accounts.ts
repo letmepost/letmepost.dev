@@ -59,6 +59,7 @@ export const CONNECTABLE_PLATFORMS = [
   "linkedin",
   "pinterest",
   "threads",
+  "tiktok",
   "twitter",
 ] as const;
 export type ConnectablePlatform = (typeof CONNECTABLE_PLATFORMS)[number];

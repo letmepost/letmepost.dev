@@ -91,6 +91,7 @@
           "platforms/facebook",
           "platforms/threads",
           "platforms/pinterest",
+          "platforms/tiktok",
           "platforms/bluesky"
         ]
       },

@@ -31,6 +31,7 @@ export const PLATFORM_STATE: Record<Platform, PlatformState> = {
   facebook: "pending",
   instagram: "pending",
   threads: "pending",
+  tiktok: "pending",
 };
 
 export function platformState(p: Platform): PlatformState {

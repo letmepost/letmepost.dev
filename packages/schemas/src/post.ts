@@ -51,6 +51,29 @@ export const FACEBOOK_MAX_GRAPHEMES = 63_206;
 export const FACEBOOK_IMAGE_MAX_BYTES = 4_000_000; // photo upload via /photos
 export const FACEBOOK_VIDEO_MAX_BYTES = 4_000_000_000; // /videos endpoint accepts up to 4GB
 
+// TikTok (Content Posting API, OAuth 2.0 PKCE).
+// Sandbox / audit-state apps cannot post publicly: privacy is forced to
+// SELF_ONLY until TikTok finishes review. The `pull_by_url` upload mode
+// requires a domain-verification step we have not done yet, so v1 uses
+// `push_by_file` with the upload-inbox path (video.upload scope rather
+// than the still-pending video.publish / Direct Post scope).
+export const TIKTOK_MAX_CAPTION_CHARS = 2200;
+export const TIKTOK_MAX_HASHTAG_COUNT = 100;
+export const TIKTOK_VIDEO_MAX_BYTES = 4 * 1024 * 1024 * 1024; // 4 GB push_by_file ceiling
+// 3s minimum, 10min ceiling on audited apps. Sandbox accounts are usually
+// capped to 60s; preflight emits a warning rather than a hard fail because
+// the actual ceiling is per-account and TikTok doesn't expose it through
+// the creator_info endpoint.
+export const TIKTOK_VIDEO_MIN_DURATION_SECONDS = 3;
+export const TIKTOK_VIDEO_MAX_DURATION_SECONDS = 600;
+export const TIKTOK_SANDBOX_DURATION_WARN_SECONDS = 60;
+// Minimum is 540 on the short edge; TikTok recommends 1080x1920 for
+// best display quality. Resolution below the minimum surfaces as a hard
+// preflight fail (tiktok_resolution_unsupported).
+export const TIKTOK_VIDEO_MIN_SHORT_EDGE_PX = 540;
+export const TIKTOK_CHUNK_SIZE_BYTES = 10 * 1024 * 1024; // 10 MiB; TikTok max 64MiB, min 5MiB
+export const TIKTOK_SINGLE_CHUNK_THRESHOLD_BYTES = 64 * 1024 * 1024;
+
 // Instagram Business (Graph API). All Instagram publishing goes through
 // the two-step container flow: create with media_url → poll status →
 // publish. URLs MUST be publicly reachable; private/Drive URLs surface
@@ -172,6 +195,31 @@ export const TargetOptions = z
     z.object({
       platform: z.literal("threads"),
       replyToId: z.string().min(1).optional(),
+    }),
+    z.object({
+      platform: z.literal("tiktok"),
+      // Privacy level surfaced to TikTok. SELF_ONLY is forced on audit/
+      // sandbox accounts regardless of caller intent; preflight rewrites
+      // public_to_everyone / mutual_follow_friend to self_only and emits
+      // a `tiktok_audit_self_only` warning. Default is self_only so a
+      // caller who omits this on an audited account doesn't get a vague
+      // 400 from upstream.
+      privacy: z
+        .enum(["public_to_everyone", "mutual_follow_friend", "self_only"])
+        .optional(),
+      // Each toggle is a separate field on TikTok's Content Posting API
+      // request body. Default `false` — TikTok defaults to allowing each
+      // and we mirror that, but callers can opt out per-post.
+      disableComment: z.boolean().optional(),
+      disableDuet: z.boolean().optional(),
+      disableStitch: z.boolean().optional(),
+      // Branded content disclosure. `brandOrganicToggle` is "your own
+      // brand"; `brandContentToggle` is "paid partnership". Both default
+      // false; setting either requires the connected account to have
+      // agreed to TikTok's branded-content rules in their settings, and
+      // mutual exclusivity is enforced by TikTok at publish time.
+      brandContentToggle: z.boolean().optional(),
+      brandOrganicToggle: z.boolean().optional(),
     }),
     // Empty-option platforms — included so callers get a clean
     // `targets.options.platform_mismatch` rule on platform/account

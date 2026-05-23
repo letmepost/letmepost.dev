@@ -595,6 +595,25 @@ function buildPublishInputForTarget(
         thr.replyToId = target.options.replyToId;
       }
       input.threads = thr;
+    } else if (target.options.platform === "tiktok") {
+      const tt: NonNullable<PublishInput["tiktok"]> = {};
+      if (target.options.privacy !== undefined) tt.privacy = target.options.privacy;
+      if (target.options.disableComment !== undefined) {
+        tt.disableComment = target.options.disableComment;
+      }
+      if (target.options.disableDuet !== undefined) {
+        tt.disableDuet = target.options.disableDuet;
+      }
+      if (target.options.disableStitch !== undefined) {
+        tt.disableStitch = target.options.disableStitch;
+      }
+      if (target.options.brandContentToggle !== undefined) {
+        tt.brandContentToggle = target.options.brandContentToggle;
+      }
+      if (target.options.brandOrganicToggle !== undefined) {
+        tt.brandOrganicToggle = target.options.brandOrganicToggle;
+      }
+      input.tiktok = tt;
     }
   }
 

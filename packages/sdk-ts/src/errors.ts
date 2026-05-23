@@ -28,6 +28,7 @@ export type Platform =
   | "linkedin"
   | "pinterest"
   | "threads"
+  | "tiktok"
   | "twitter";
 
 export interface ErrorEnvelope {

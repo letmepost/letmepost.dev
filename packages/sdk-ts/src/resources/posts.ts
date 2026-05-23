@@ -33,6 +33,15 @@ export type TargetOptions =
       coverImageUrl?: string;
     }
   | { platform: "threads"; replyToId?: string }
+  | {
+      platform: "tiktok";
+      privacy?: "public_to_everyone" | "mutual_follow_friend" | "self_only";
+      disableComment?: boolean;
+      disableDuet?: boolean;
+      disableStitch?: boolean;
+      brandContentToggle?: boolean;
+      brandOrganicToggle?: boolean;
+    }
   | { platform: "bluesky" }
   | { platform: "facebook" }
   | { platform: "instagram" }

@@ -22,6 +22,7 @@ export const QUEUE_NAMES = {
   webhookDeliver: "webhook-deliver",
   billing: "billing",
   onboardingEmail: "onboarding-email",
+  tiktokPublishStatusPoll: "tiktok-publish-status-poll",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -99,6 +100,34 @@ export type OnboardingEmailJobData = {
   kind: OnboardingEmailKind;
 };
 
+/**
+ * Poll TikTok for the terminal state of a previously initiated publish.
+ *
+ * Backoff schedule (delay before THIS attempt):
+ *   - attempt 0-12 :  5s   (covers the first minute of fast polling)
+ *   - attempt 13-22:  30s  (next ~5 minutes of medium polling)
+ *   - attempt 23+  :  120s (up to the 30-minute terminal-state cap)
+ *
+ * Worker enqueues the next attempt with the appropriate delay rather
+ * than relying on BullMQ's exponential backoff so the schedule stays
+ * explicit + grepable.
+ */
+export type TikTokPublishStatusPollJobData = {
+  /** letmepost posts row id; the worker stamps results back onto it. */
+  postId: string;
+  /** TikTok publish_id from the inbox-init response. */
+  publishId: string;
+  /** platform_accounts row id — used to look up the access token. */
+  platformAccountId: string;
+  organizationId: string;
+  /** Number of polls that have already happened. Drives backoff. */
+  attempt: number;
+  /** ms-since-epoch. Worker stops polling at this deadline (30 min default). */
+  deadlineAt: number;
+  /** Correlates the inbound request that produced this poll. */
+  requestId?: string;
+};
+
 const defaultJobOptions: QueueOptions["defaultJobOptions"] = {
   removeOnComplete: { age: 7 * 24 * 60 * 60, count: 1000 },
   removeOnFail: { age: 30 * 24 * 60 * 60 },
@@ -120,6 +149,8 @@ let _refreshTokenQueue: Queue<RefreshTokenJobData> | null = null;
 let _webhookDeliverQueue: Queue<WebhookDeliverJobData> | null = null;
 let _billingQueue: Queue<BillingJobData> | null = null;
 let _onboardingEmailQueue: Queue<OnboardingEmailJobData> | null = null;
+let _tiktokPublishStatusPollQueue: Queue<TikTokPublishStatusPollJobData> | null =
+  null;
 
 export function getPublishQueue(): Queue<PublishJobData> {
   if (!_publishQueue)
@@ -163,6 +194,34 @@ export function getOnboardingEmailQueue(): Queue<OnboardingEmailJobData> {
   return _onboardingEmailQueue;
 }
 
+export function getTikTokPublishStatusPollQueue(): Queue<TikTokPublishStatusPollJobData> {
+  if (!_tiktokPublishStatusPollQueue) {
+    _tiktokPublishStatusPollQueue = buildQueue(
+      QUEUE_NAMES.tiktokPublishStatusPoll,
+    ) as Queue<TikTokPublishStatusPollJobData>;
+  }
+  return _tiktokPublishStatusPollQueue;
+}
+
+/**
+ * Compute the delay-in-ms before the next status poll. Bucketed schedule:
+ *
+ *   attempt 0-12  →  5s   (first minute of fast polling)
+ *   attempt 13-22 →  30s  (next ~5 minutes of medium polling)
+ *   attempt 23+   →  120s (slow steady state up to 30 minutes total)
+ *
+ * Kept here (not the worker) so it's reusable by the enqueuer and unit
+ * tested in isolation.
+ */
+export function tiktokPublishStatusPollDelayMs(attempt: number): number {
+  if (attempt < 12) return 5_000;
+  if (attempt < 22) return 30_000;
+  return 120_000;
+}
+
+/** Default deadline for the full poll cycle — 30 minutes from start. */
+export const TIKTOK_PUBLISH_STATUS_POLL_DEADLINE_MS = 30 * 60_000;
+
 /**
  * Retry policy for webhook delivery — see `src/webhooks/deliver.ts` for the
  * rationale. 8 attempts with exponential backoff starting at 5s. After the
@@ -182,6 +241,7 @@ export async function closeAllQueues(): Promise<void> {
     _webhookDeliverQueue?.close(),
     _billingQueue?.close(),
     _onboardingEmailQueue?.close(),
+    _tiktokPublishStatusPollQueue?.close(),
   ]);
   _publishQueue = null;
   _validateQueue = null;
@@ -189,4 +249,5 @@ export async function closeAllQueues(): Promise<void> {
   _webhookDeliverQueue = null;
   _billingQueue = null;
   _onboardingEmailQueue = null;
+  _tiktokPublishStatusPollQueue = null;
 }

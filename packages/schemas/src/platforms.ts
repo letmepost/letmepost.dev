@@ -7,8 +7,9 @@ export const Platform = z.enum([
   "linkedin",
   "pinterest",
   "threads",
+  "tiktok",
   "twitter",
-  // Future: "youtube"  (tiktok deferred to v2)
+  // Future: "youtube"
 ]);
 export type Platform = z.infer<typeof Platform>;
 

@@ -5,6 +5,7 @@ import { linkedinProvider } from "./linkedin/provider.js";
 import { metaProvider } from "./meta/provider.js";
 import { pinterestProvider } from "./pinterest/provider.js";
 import { threadsProvider } from "./threads/provider.js";
+import { tiktokProvider } from "./tiktok/provider.js";
 import { twitterProvider } from "./twitter/provider.js";
 
 /**
@@ -32,6 +33,7 @@ registerProvider(linkedinProvider);
 registerProvider(metaProvider);
 registerProvider(pinterestProvider);
 registerProvider(threadsProvider);
+registerProvider(tiktokProvider);
 registerProvider(twitterProvider);
 
 export { getProvider, listRegisteredProviders } from "./_shared/provider.js";
