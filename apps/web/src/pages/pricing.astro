@@ -42,17 +42,12 @@ const faqs = [
     q: "Refunds?",
     a: 'If something we built is broken and we can\'t fix it in the period, yes. Email <a href="mailto:rose@letmepost.dev">rose@letmepost.dev</a>.',
   },
-  {
-    q: "Founding-member offer terms?",
-    a: "Sign up during the first 30 days after billing is announced. Locks in $40/mo on Pro. Forfeit if you cancel, you can't pause and re-claim. Available to the first ~200 customers.",
-  },
 ];
 ---
 
 <BaseLayout
   title="Pricing"
   description="Per-org pricing, never per-profile. Free tier for evaluation, $79/mo Pro for real workloads, $299/mo Business for embedded SaaS. Self-host stays free forever under Apache 2.0."
-  stripWidth={720}
 >
   <Tape />
 
@@ -124,46 +119,13 @@ const faqs = [
         </ul>
         <a href="https://dashboard.letmepost.dev" class="btn">Start Business</a>
       </div>
-
-      <div class="tier">
-        <div class="name">Self-host</div>
-        <div class="who">Run our exact image on your own infra. Same code as hosted. No feature gate.</div>
-        <div class="price">$0<small>/mo</small></div>
-        <div class="quota">QUOTA · <b>∞ (your infra)</b></div>
-        <ul>
-          <li>Full API surface</li>
-          <li>BYO Postgres + Redis</li>
-          <li>BYO platform credentials</li>
-          <li>Docker compose up</li>
-          <li>Forever free, Apache 2.0</li>
-          <li>Community Discord</li>
-        </ul>
-        <a href="https://docs.letmepost.dev/self-host" class="btn">Read the guide</a>
-      </div>
     </div>
 
     <p class="lede" style="margin-top: 14px;">
       Beyond Business (volume, SSO, SCIM, custom SLA, DPA)?
       <a href="mailto:rose@letmepost.dev">Email us.</a>
       No enterprise card on the page because the answer is "let's talk".
-    </p>
-  </section>
-
-  <hr class="dash" />
-
-  {/* FOUNDING-MEMBER OFFER */}
-  <section class="section">
-    <div class="founding">
-      <div class="l">
-        <h3><b>Founding-member offer</b>, first 30 days after billing turns on</h3>
-        <p>Lock in <b>$40/mo for life</b> on the Pro tier. Available to anyone who signs up during the alpha window. Forfeit on cancel.</p>
-      </div>
-      <div class="r">
-        $40<small>/mo · for life</small>
-      </div>
-    </div>
-    <p class="lede" style="margin-top: 10px;">
-      Alpha customers also get a <b>60-day grace window</b> after billing is announced before charges begin. We will not surprise-bill anyone.
+      Self-host? <a href="https://docs.letmepost.dev/self-host">It stays free forever under Apache 2.0.</a>
     </p>
   </section>
 
@@ -356,7 +318,7 @@ const faqs = [
      no pricing tables at all. */
 
   .tiers {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
     margin: 14px 0 18px;
     border: 1px solid var(--r-line);
   }
@@ -512,15 +474,8 @@ const faqs = [
   .cta-strip .ctas { justify-content: center; }
 
   @media (max-width: 820px) {
-    .tiers { grid-template-columns: 1fr 1fr; }
-    .tier:nth-child(2) { border-right: 0; }
-    .tier:nth-child(1), .tier:nth-child(2) { border-bottom: 1px dashed var(--r-very); }
-  }
-  @media (max-width: 540px) {
     .tiers { grid-template-columns: 1fr; }
     .tier { border-right: 0; border-bottom: 1px dashed var(--r-very); }
     .tier:last-child { border-bottom: 0; }
-    .founding { grid-template-columns: 1fr; text-align: center; }
-    .founding .r { text-align: center; }
   }
 </style>

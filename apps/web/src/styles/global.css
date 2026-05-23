@@ -84,7 +84,7 @@
   --r-fs-sm: 12px;
   --r-fs-xs: 10px;
 
-  --r-strip-w: 640px;
+  --r-strip-w: 700px;
   --r-nav-w:   200px;
   --r-marg-w:  200px;
   --r-gutter:  32px;
@@ -223,7 +223,11 @@ hr.double {
   align-self: start;
   padding-top: 24px;
   font-size: var(--r-fs-sm);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+.nav-rail::-webkit-scrollbar { display: none; }
 .nav-rail .brand {
   font-size: 12px;
   letter-spacing: 0.36em;
@@ -548,11 +552,16 @@ h1.page-h1 .under {
 .code-block .tab.on { color: var(--r-code-fg); border-bottom-color: var(--r-accent); }
 .code-block pre { padding: 14px 16px; overflow-x: auto; line-height: 1.7; }
 .code-block pre[hidden] { display: none; }
-.code-block .tok-k { color: var(--r-accent); }
-.code-block .tok-s { color: #d4c79b; }
-.code-block .tok-n { color: #8fb8b0; }
-.code-block .tok-c { color: var(--r-code-dim); font-style: italic; }
-.code-block .tok-p { color: #a8a8a8; }
+
+/* Syntax tokens — global so every code container (.code-block,
+   .mini-code, .code-big, .envelope, .mcp .config, …) gets the same
+   palette. The receipt design's hand-written demos use these class
+   names verbatim. */
+.tok-k { color: var(--r-accent); }
+.tok-s { color: #d4c79b; }
+.tok-n { color: #8fb8b0; }
+.tok-c { color: var(--r-code-dim); font-style: italic; }
+.tok-p { color: #a8a8a8; }
 
 .inline-cmd {
   background: var(--r-code-bg); color: var(--r-code-fg);

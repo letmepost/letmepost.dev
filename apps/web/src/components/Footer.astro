@@ -1,39 +1,305 @@
 ---
-import { Icon } from "astro-icon/components";
-const year = new Date().getFullYear();
+/**
+ * Site footer. Receipt-themed "closeout strip" with five link columns,
+ * a barcode, and a thank-you stamp. Sits below the page's main content
+ * on every BaseLayout-using route.
+ *
+ * Links that don't have a route or live external destination yet are
+ * commented out here rather than rendered as 404 traps. Restoring one
+ * is a single-line uncomment when the page lands.
+ *
+ * Note: each `<li>` is intentionally a single text + inline structure
+ * so the receipt layout's typography stays tidy. No CSS Grid trickery
+ * on the list rows like the platform-page compare table needed.
+ */
+
+const barWidths = [
+  2, 1, 3, 1, 2, 1, 2, 3, 1, 2, 1, 3, 2, 1, 2, 1, 3, 2, 1, 2,
+  1, 2, 3, 1, 2, 1, 3, 1, 2, 1, 3, 2, 1,
+];
 ---
 
-<footer class="bg-transparent pt-10 pb-6 text-[0.85rem] mt-16">
-  <div class="container">
-    <div class="mb-7">
-      <div class="font-extrabold tracking-[-0.02em] mb-1.5">letmepost.dev</div>
-      <p class="text-text-muted">
-        Open-source social media publishing API.<br />
-        Fails loudly, not silently.
-      </p>
+<footer class="footer-receipt">
+  <div class="tape-top" aria-hidden="true"></div>
+  <div class="inner">
+
+    <div class="head">
+      <div class="brand">LETMEPOST</div>
+      <div class="sub">letmepost.dev · open-source social publishing api · apache-2.0</div>
     </div>
 
-    <div class="flex flex-wrap gap-x-6 gap-y-1 mb-6">
-      <a href="/#platforms" class="no-underline text-text transition-colors hover:text-accent">Platforms</a>
-      <a href="/status" class="no-underline text-text transition-colors hover:text-accent">Status</a>
-      <a
-        class="inline-flex items-center gap-1 no-underline text-text transition-colors hover:text-accent"
-        href="https://github.com/rosekamallove/letmepost.dev"
-        rel="noopener"
-        target="_blank"
-        data-analytics-event="external.github_clicked"
-        data-analytics-props='{"location":"footer"}'
-      >
-        GitHub <Icon name="ph:arrow-up-right" width={12} height={12} />
-      </a>
-      <a href="/privacy" class="no-underline text-text transition-colors hover:text-accent">Privacy</a>
-      <a href="/terms" class="no-underline text-text transition-colors hover:text-accent">Terms</a>
-      <a href="/data-deletion" class="no-underline text-text transition-colors hover:text-accent">Data deletion</a>
-      <a href="/contact" class="no-underline text-text transition-colors hover:text-accent">Contact</a>
+    <div class="cols">
+
+      <div class="col">
+        <h4><span class="n">01</span> Product</h4>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/api/publishing">Publishing API</a></li>
+          <li><a href="/api/media">Media API</a></li>
+          <li><a href="/api/webhooks">Webhooks</a></li>
+          <li><a href="/pricing">Pricing</a></li>
+          {/* /tools was removed earlier — uncomment when it returns
+              <li><a href="/tools">Tools <span class="badge">14</span></a></li>
+          */}
+          <li><a href="https://docs.letmepost.dev/changelog">Changelog</a></li>
+        </ul>
+      </div>
+
+      <div class="col">
+        <h4><span class="n">02</span> Integration</h4>
+        <ul>
+          <li>
+            <a href="/platforms/bluesky">
+              Bluesky <span class="badge live">live</span>
+            </a>
+          </li>
+          <li>
+            <a href="/platforms/twitter">
+              X (Twitter) <span class="badge live">live</span>
+            </a>
+          </li>
+          <li>
+            <a href="/platforms/pinterest">
+              Pinterest <span class="badge live">live</span>
+            </a>
+          </li>
+          <li><a href="/platforms/instagram">Instagram</a></li>
+          <li><a href="/platforms/facebook">Facebook</a></li>
+          <li><a href="/platforms/threads">Threads</a></li>
+          <li><a href="/platforms/linkedin">LinkedIn</a></li>
+          {/* TikTok is v2 scope; route does not exist yet
+              <li><a href="/platforms/tiktok">TikTok <span class="badge soon">v2</span></a></li>
+          */}
+        </ul>
+      </div>
+
+      <div class="col">
+        <h4><span class="n">03</span> Company</h4>
+        <ul>
+          {/* /about page not built yet
+              <li><a href="/about">About</a></li>
+          */}
+          <li><a href="/blog">Blog</a></li>
+          <li>
+            <a href="/agents">
+              For agents <span class="badge new">MCP</span>
+            </a>
+          </li>
+          <li><a href="/status">Status</a></li>
+          {/* /security page not built yet
+              <li><a href="/security">Security</a></li>
+          */}
+          <li><a href="/privacy">Privacy</a></li>
+          <li><a href="/terms">Terms</a></li>
+          <li><a href="/contact">Contact</a></li>
+        </ul>
+      </div>
+
+      <div class="col">
+        <h4><span class="n">04</span> Comparison</h4>
+        <ul>
+          {/* Comparison pages — none of these exist yet. Uncomment
+              each line when the matching /vs/<competitor> page ships.
+              <li><a href="/vs/postiz">vs Postiz</a></li>
+              <li><a href="/vs/ayrshare">vs Ayrshare</a></li>
+              <li><a href="/vs/buffer">vs Buffer</a></li>
+              <li><a href="/vs/zernio">vs Zernio</a></li>
+              <li><a href="/vs/hootsuite">vs Hootsuite</a></li>
+              <li><a href="/vs/diy">vs Building it yourself</a></li>
+          */}
+          <li
+            style="color: var(--r-very); font-size: 11px; padding: 4px 0;"
+          >
+            Coming soon
+          </li>
+        </ul>
+      </div>
+
+      <div class="col">
+        <h4><span class="n">05</span> Community</h4>
+        <ul>
+          <li>
+            <a
+              href="https://github.com/letmepost/letmepost.dev"
+              target="_blank"
+              rel="noopener"
+            >GitHub</a>
+          </li>
+          {/* Discord server not provisioned yet
+              <li><a href="https://discord.gg/letmepost">Discord</a></li>
+          */}
+          <li>
+            <a
+              href="https://bsky.app/profile/letmepost.dev"
+              target="_blank"
+              rel="noopener"
+            >Bluesky</a>
+          </li>
+          <li>
+            <a
+              href="https://x.com/letmepostdotdev"
+              target="_blank"
+              rel="noopener"
+            >X</a>
+          </li>
+          <li><a href="/rss.xml">RSS feed</a></li>
+          <li>
+            <a
+              href="https://docs.letmepost.dev/contributing"
+              target="_blank"
+              rel="noopener"
+            >Contribute</a>
+          </li>
+        </ul>
+      </div>
     </div>
 
-    <div class="pt-5 border-t border-border text-text-muted">
-      © {year} letmepost.dev · Apache-2.0
+    <div class="barcode" aria-hidden="true">
+      {barWidths.map((w) => <i style={`width:${w}px`}></i>)}
     </div>
+    <div class="stamp-row">
+      * * * THANK YOU FOR SHOPPING OPEN SOURCE * * *
+    </div>
+
+    <div class="closeout-row">
+      <div></div>
+      <div class="right">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        {/* Security page not built yet — uncomment when ready
+            <a href="/security">Security</a>
+        */}
+      </div>
+    </div>
+
   </div>
+  <div class="tape-bot" aria-hidden="true"></div>
 </footer>
+
+<style is:global>
+  .footer-receipt {
+    background: var(--r-paper);
+    font-family: var(--r-mono);
+    color: var(--r-fg);
+    margin-top: 16px;
+  }
+  .footer-receipt .tape-top {
+    height: 12px;
+    background: radial-gradient(circle at 12px 12px, var(--r-bg) 6px, transparent 6.5px) repeat-x;
+    background-size: 24px 12px;
+  }
+  .footer-receipt .tape-bot {
+    height: 12px;
+    background: radial-gradient(circle at 12px 0, var(--r-bg) 6px, transparent 6.5px) repeat-x;
+    background-size: 24px 12px;
+  }
+  .footer-receipt .inner {
+    padding: 36px 48px 28px;
+    border-left: 1px dashed var(--r-very);
+    border-right: 1px dashed var(--r-very);
+    max-width: 1100px;
+    margin-inline: auto;
+  }
+  .footer-receipt .head {
+    text-align: center;
+    padding-bottom: 22px;
+    border-bottom: 2px solid var(--r-ink);
+    margin-bottom: 26px;
+  }
+  .footer-receipt .head .brand {
+    font-size: 13px; letter-spacing: 0.46em; font-weight: 700;
+    padding-left: 0.46em; margin-bottom: 6px; color: var(--r-ink);
+  }
+  .footer-receipt .head .sub {
+    font-size: 10px; letter-spacing: 0.18em; color: var(--r-very);
+    text-transform: uppercase;
+  }
+  .footer-receipt .cols {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 0;
+    margin-bottom: 26px;
+  }
+  .footer-receipt .col {
+    padding: 0 14px;
+    border-right: 1px dashed var(--r-very);
+  }
+  .footer-receipt .col:last-child { border-right: 0; }
+  .footer-receipt .col:first-child { padding-left: 0; }
+  .footer-receipt .col h4 {
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--r-accent); margin: 0 0 12px;
+    padding-bottom: 8px; border-bottom: 1px dotted var(--r-line);
+    font-weight: 700;
+  }
+  .footer-receipt .col h4 .n {
+    color: var(--r-very); margin-right: 6px; font-weight: 400;
+  }
+  .footer-receipt .col ul { list-style: none; padding: 0; margin: 0; }
+  .footer-receipt .col li { padding: 4px 0; font-size: 12px; }
+  .footer-receipt .col li a {
+    text-decoration: none; color: var(--r-fg);
+    display: inline-flex; align-items: baseline; gap: 6px;
+  }
+  .footer-receipt .col li a:hover {
+    color: var(--r-accent);
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+  }
+  .footer-receipt .col li a .badge {
+    font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--r-very); padding: 1px 5px; border: 1px solid var(--r-line);
+  }
+  .footer-receipt .col li a .badge.live {
+    color: var(--r-accent); border-color: var(--r-accent);
+  }
+  .footer-receipt .col li a .badge.new {
+    color: var(--r-paper); background: var(--r-accent);
+    border-color: var(--r-accent);
+  }
+  .footer-receipt .col li a .badge.soon { color: var(--r-very); }
+  .footer-receipt .barcode {
+    display: flex; gap: 1px; height: 30px;
+    justify-content: center; align-items: stretch;
+  }
+  .footer-receipt .barcode i {
+    display: inline-block; background: var(--r-ink);
+  }
+  .footer-receipt .stamp-row {
+    text-align: center; padding-top: 18px;
+    font-size: 9px; letter-spacing: 0.22em; color: var(--r-very);
+  }
+  .footer-receipt .closeout-row {
+    padding-top: 22px;
+    border-top: 1px dashed var(--r-very);
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 24px; align-items: center;
+  }
+  .footer-receipt .closeout-row .right {
+    grid-column: 3;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--r-very);
+    text-align: right;
+  }
+  .footer-receipt .closeout-row .right a {
+    color: var(--r-fg); margin-left: 14px; text-decoration: none;
+  }
+  .footer-receipt .closeout-row .right a:hover { color: var(--r-accent); }
+
+  @media (max-width: 900px) {
+    .footer-receipt .cols {
+      grid-template-columns: 1fr 1fr; gap: 24px;
+    }
+    .footer-receipt .col,
+    .footer-receipt .col:last-child {
+      border-right: 0; padding: 0;
+      border-bottom: 1px dashed var(--r-very);
+      padding-bottom: 14px;
+    }
+  }
+  @media (max-width: 540px) {
+    .footer-receipt .cols { grid-template-columns: 1fr; }
+    .footer-receipt .inner {
+      margin: 0 12px; padding: 28px 18px 22px;
+    }
+  }
+</style>

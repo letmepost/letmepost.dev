@@ -1,6 +1,6 @@
 ---
 import { Icon } from "astro-icon/components";
-import { PLATFORMS } from "../data/platforms.ts";
+import { PLATFORMS, APIS } from "../data/platforms.ts";
 
 interface Props {
   /** Pathname used to mark the current nav item. Defaults to Astro.url.pathname. */
@@ -16,14 +16,23 @@ function isCurrent(href: string): boolean {
   return norm(currentPath) === norm(href);
 }
 
+// Mark Platforms current on the index AND on any /platforms/[slug] page.
+function isPlatformsActive(): boolean {
+  return currentPath.startsWith("/platforms");
+}
+function isApiActive(): boolean {
+  return currentPath.startsWith("/api");
+}
+
 const platformCount = PLATFORMS.length;
+const apiCount = APIS.length;
 
 const primaryLinks = [
   { href: "/", label: "Home" },
   { href: "https://docs.letmepost.dev", label: "Docs" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/platforms", label: "Platforms", meta: String(platformCount) },
-  { href: "/tools", label: "Tools", meta: "14" },
+  { href: "/platforms", label: "Platforms", meta: String(platformCount), match: isPlatformsActive },
+  { href: "/api", label: "APIs", meta: String(apiCount), match: isApiActive },
   { href: "/blog", label: "Blog" },
   { href: "/agents", label: "For agents" },
   { href: "https://docs.letmepost.dev/changelog", label: "Changelog" },
@@ -41,9 +50,31 @@ const primaryLinks = [
   <ul class="links">
     {
       primaryLinks.map((l) => (
-        <li class={isCurrent(l.href) ? "current" : ""}>
+        <li class={(l.match ? l.match() : isCurrent(l.href)) ? "current" : ""}>
           <a href={l.href}>{l.label}</a>
           {l.meta && <span class="meta">{l.meta}</span>}
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="nav-section">By platform</div>
+  <ul class="links">
+    {
+      PLATFORMS.map((p) => (
+        <li class={isCurrent(`/platforms/${p.slug}`) ? "current" : ""}>
+          <a href={`/platforms/${p.slug}`}>{p.name}</a>
+        </li>
+      ))
+    }
+  </ul>
+
+  <div class="nav-section">By surface</div>
+  <ul class="links">
+    {
+      APIS.map((api) => (
+        <li class={isCurrent(`/api/${api.slug}`) ? "current" : ""}>
+          <a href={`/api/${api.slug}`}>{api.name}</a>
         </li>
       ))
     }
@@ -58,20 +89,6 @@ const primaryLinks = [
       <li><a href="https://status.letmepost.dev">Status</a></li>
     </ul>
   </slot>
-
-  <a
-    href="https://github.com/letmepost/letmepost.dev"
-    class="github-card"
-    target="_blank"
-    rel="noopener"
-    aria-label="View letmepost on GitHub"
-    data-analytics-event="external.github_clicked"
-    data-analytics-props='{"location":"nav-rail"}'
-  >
-    <Icon name="ph:github-logo" width={13} height={13} />
-    Star on GitHub
-    <span class="star">★ 142</span>
-  </a>
 
   <slot name="status">
     <div class="nav-section">Live</div>

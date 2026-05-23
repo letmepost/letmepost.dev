@@ -1,0 +1,609 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import { Icon } from "astro-icon/components";
+import Tape from "../components/Tape.astro";
+import Closeout from "../components/Closeout.astro";
+import { highlight } from "../lib/highlight.ts";
+
+/**
+ * For agents — MCP-native landing. Mirrors design/agents.html.
+ * Agent-themed head + clients grid + config block (4 tabs) + 21-tool
+ * inventory + OAuth flow + transport/safety info cards + pricing
+ * teaser + FAQ + final CTA + closeout.
+ *
+ * Strip width inherits the global 700 so it sits in the same column
+ * as every other page.
+ */
+
+const clients = [
+  { name: "Claude", icon: "ph:sparkle", v: "supported", accent: true },
+  { name: "Cursor", icon: "ph:cursor", v: "supported", accent: true },
+  { name: "Claude Code", icon: "ph:brackets-square", v: "supported", accent: true },
+  { name: "opencode", icon: "ph:terminal", v: "supported", accent: true },
+  { name: "Continue", icon: "ph:arrow-circle-right", v: "via MCP" },
+  { name: "Zed AI", icon: "ph:lightning", v: "via MCP" },
+  { name: "Your agent", icon: "ph:robot", v: "any MCP client" },
+  { name: "SDK direct", icon: "ph:cube", v: "HTTP / stdio" },
+];
+
+const tools = [
+  { name: "posts_create", desc: "POST /v1/posts" },
+  { name: "posts_get", desc: "GET /v1/posts/:id" },
+  { name: "posts_list", desc: "GET /v1/posts" },
+  { name: "posts_cancel", desc: "DELETE /v1/posts/:id" },
+  { name: "media_upload", desc: "POST /v1/media" },
+  { name: "media_get", desc: "GET /v1/media/:id" },
+  { name: "accounts_list", desc: "GET /v1/accounts" },
+  { name: "accounts_connect", desc: "POST /v1/accounts/connect/:platform" },
+  { name: "accounts_disconnect", desc: "DELETE /v1/accounts/:id" },
+  { name: "profiles_list", desc: "GET /v1/profiles" },
+  { name: "profiles_create", desc: "POST /v1/profiles" },
+  { name: "api_keys_list", desc: "GET /v1/api-keys" },
+  { name: "api_keys_create", desc: "POST /v1/api-keys" },
+  { name: "api_keys_revoke", desc: "DELETE /v1/api-keys/:id" },
+  { name: "webhooks_list", desc: "GET /v1/webhook-endpoints" },
+  { name: "webhooks_create", desc: "POST /v1/webhook-endpoints" },
+  { name: "webhooks_test", desc: "POST /v1/webhook-endpoints/:id/test" },
+  { name: "platform_versions_get", desc: "GET /v1/platform-versions" },
+  { name: "preflight_check", desc: "POST /v1/preflight" },
+  { name: "quota_get", desc: "GET /v1/quota" },
+  { name: "health_check", desc: "GET /v1/health" },
+];
+
+const faqs = [
+  {
+    q: "What does my agent need to know about MCP?",
+    a: "Nothing letmepost-specific. If your client speaks MCP, it can talk to us. Add the config block above, restart the client, and the tools appear in the model's tool surface automatically.",
+  },
+  {
+    q: "Do I need to write tool schemas myself?",
+    a: "No. The MCP server generates tool schemas from the OpenAPI spec at startup. New endpoints ship as new tools without an SDK update on your side.",
+  },
+  {
+    q: "API key vs OAuth, which should my agent use?",
+    a: "API key for local development and CI. OAuth 2.1 + DCR for production agents that should not embed a long-lived shared secret. Both work over the same MCP endpoints.",
+  },
+  {
+    q: "What happens if my agent retries a posts_create call?",
+    a: "If the same idempotency key was used, the cached response comes back (within 24h). No double-post. If a different idempotency key was used, you get an <code>idempotency_conflict</code> response (HTTP 409).",
+  },
+  {
+    q: "Can my agent self-host the MCP server?",
+    a: "Yes. The MCP server is part of the open-source Docker image. <code>docker compose up</code> runs it locally on port 4001. Same tool surface, your platform credentials.",
+  },
+  {
+    q: "What about audit logs?",
+    a: "Every tool call is logged with the agent's client_id (for OAuth) or last-4 of the API key. Visible in the dashboard. 30-day retention on Pro, 180 on Business.",
+  },
+  {
+    q: "Where do I report bugs in the MCP server?",
+    a: 'Open an issue on <a href="https://github.com/letmepost/letmepost.dev">the repo</a>. Tag it <code>mcp</code>. We respond within 24h on weekdays during alpha.',
+  },
+];
+
+const claudeConfig = `{
+  "mcpServers": {
+    "letmepost": {
+      "command": "npx",
+      "args":    ["-y", "@letmepost/mcp@latest"],
+      "env":     { "LMP_API_KEY": "lmp_live_…" }
+    }
+  }
+}
+
+// File lives at:
+//   macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
+//   Windows: %APPDATA%\\Claude\\claude_desktop_config.json`;
+
+const cursorConfig = `{
+  "mcpServers": {
+    "letmepost": {
+      "command": "npx",
+      "args":    ["-y", "@letmepost/mcp@latest"],
+      "env":     { "LMP_API_KEY": "lmp_live_…" }
+    }
+  }
+}
+
+// File lives at .cursor/mcp.json in your project root.`;
+
+const ccodeConfig = `{
+  "mcpServers": {
+    "letmepost": {
+      "command": "npx",
+      "args":    ["-y", "@letmepost/mcp@latest"],
+      "env":     { "LMP_API_KEY": "lmp_live_…" }
+    }
+  }
+}
+
+// Or use the hosted server with OAuth, no API key needed:
+//   claude mcp add letmepost https://api.letmepost.dev/mcp --auth oauth`;
+
+const hostedConfig = `# Hosted MCP server with OAuth 2.1 + Dynamic Client Registration.
+# Your agent registers itself; no shared secret in any config file.
+
+$ letmepost agent install --client claude-desktop \\
+    --transport https \\
+    --server https://api.letmepost.dev/mcp
+
+# Opens browser, completes OAuth dance, writes the config.
+# Re-auth happens automatically on token refresh.`;
+---
+
+<BaseLayout
+  title="For agents"
+  description="Open-source MCP server for social publishing. Claude, Cursor, Claude Code, opencode, any MCP-aware client can drive the entire letmepost API. 21 tools autogenerated from OpenAPI. OAuth 2.1 + Dynamic Client Registration."
+  pillLinks={[
+    { href: "/agents", label: "Agents" },
+    { href: "/pricing", label: "Pricing" },
+  ]}
+>
+  <Fragment slot="navSecondary">
+    <div class="nav-section">MCP resources</div>
+    <ul class="links">
+      <li><a href="https://docs.letmepost.dev/agents/mcp">MCP server docs</a></li>
+      <li><a href="https://docs.letmepost.dev/agents/cli">CLI reference</a></li>
+      <li><a href="https://www.npmjs.com/package/@letmepost/mcp">@letmepost/mcp on npm</a></li>
+      <li><a href="https://docs.letmepost.dev/agents/oauth">OAuth 2.1 + DCR</a></li>
+    </ul>
+  </Fragment>
+
+  <Fragment slot="navStatus">
+    <div class="nav-section">Live</div>
+    <div class="status-card">
+      <div class="row">
+        <span class="k"><span class="pulse" aria-hidden="true"></span> MCP</span>
+        <span class="v ok">stateless</span>
+      </div>
+      <div class="row"><span class="k">Transport</span><span class="v">Streamable HTTP</span></div>
+      <div class="row"><span class="k">Tools</span><span class="v">21</span></div>
+      <div class="row"><span class="k">Auth</span><span class="v">API key / OAuth 2.1</span></div>
+      <div class="row"><span class="k">DCR</span><span class="v ok">RFC 7591</span></div>
+    </div>
+  </Fragment>
+
+  <Fragment slot="navColophon">
+    <div class="colophon">
+      Built for engineers <b>building agents</b>, not for the SaaS-publishing crowd. Different audience, same product.
+    </div>
+  </Fragment>
+
+  <Tape />
+
+  {/* HEAD */}
+  <div class="head">
+    <div class="brand-mark">LETMEPOST</div>
+    <div class="url-line">letmepost.dev/agents · MCP-native · est. 2026</div>
+
+    <div class="ascii">+-------------------------------------+
+|       AGENT-FIRST · MCP-NATIVE      |
++-------------------------------------+</div>
+
+    <div class="stampbox agent" aria-hidden="true">
+      <div class="l1">YOUR AGENT</div>
+      <div class="l2">CAN POST</div>
+      <div class="l3">TO 8 PLATFORMS</div>
+    </div>
+
+    <div class="meta-grid">
+      <div><span class="k">SERVER</span><span class="v">api.letmepost.dev/mcp</span></div>
+      <div><span class="k">TRANSPORT</span><span class="v">Streamable HTTP</span></div>
+      <div><span class="k">TOOLS</span><span class="v">21 · autogenerated</span></div>
+      <div><span class="k">AUTH</span><span class="v">API key + OAuth 2.1</span></div>
+    </div>
+  </div>
+
+  <hr class="solid" />
+
+  {/* HERO */}
+  <section style="text-align: left;" data-sticky-anchor>
+    <h1 class="hero-h1">
+      Your AI agent can <span class="under">post.</span><br />
+      <span class="acc">One config block.</span> Eight platforms.
+    </h1>
+
+    <p class="lede">
+      <b>letmepost</b> ships a native <b>Model Context Protocol</b> server. Twenty-one tools,
+      autogenerated from the OpenAPI spec, that surface every endpoint the HTTP API exposes.
+      Claude, Cursor, Claude Code, opencode. Any MCP-aware client drives the full surface.
+      <b>OAuth 2.1 with Dynamic Client Registration</b> means your agent authenticates itself,
+      without you stamping a long-lived API key into a config file.
+    </p>
+
+    <div class="ctas">
+      <a
+        href="https://docs.letmepost.dev/agents/mcp"
+        class="btn pri"
+        data-analytics-event="docs.link_clicked"
+        data-analytics-props='{"from_page":"agents","to_section":"mcp"}'
+      >READ MCP DOCS →</a>
+      <a
+        href="https://github.com/letmepost/letmepost.dev"
+        class="btn"
+        target="_blank"
+        rel="noopener"
+        data-analytics-event="external.github_clicked"
+        data-analytics-props='{"from_page":"agents","location":"agents-hero"}'
+      >GITHUB ↗</a>
+    </div>
+    <div class="reassurance">
+      Free during alpha · Apache 2.0 source · Self-host the stdio binary
+    </div>
+  </section>
+
+  {/* CLIENTS */}
+  <div class="clients">
+    {
+      clients.map((c) => (
+        <div class="client">
+          <div class="glyph">
+            <Icon name={c.icon} width={16} height={16} />
+          </div>
+          <div class="nm">{c.name}</div>
+          <div class={`v ${c.accent ? "" : "q"}`}>{c.v}</div>
+        </div>
+      ))
+    }
+  </div>
+
+  <hr class="dash" />
+
+  {/* CONFIG */}
+  <section class="section">
+    <h2 class="h-caps">ONE CONFIG BLOCK</h2>
+    <div class="subtitle center">drop into your client. that's the install.</div>
+
+    <div
+      class="code-block"
+      data-tabs
+      data-files='{"claude":"claude_desktop_config.json","cursor":".cursor/mcp.json","ccode":".claude.json","hosted":"agent.config.json"}'
+    >
+      <div class="head-bar">
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab on" data-tab="claude">claude desktop</button>
+          <button type="button" class="tab" data-tab="cursor">cursor</button>
+          <button type="button" class="tab" data-tab="ccode">claude code</button>
+          <button type="button" class="tab" data-tab="hosted">hosted (oauth)</button>
+        </div>
+        <span class="file">claude_desktop_config.json</span>
+      </div>
+      <pre data-pane="claude" set:html={highlight("json", claudeConfig)} />
+      <pre data-pane="cursor" hidden set:html={highlight("json", cursorConfig)} />
+      <pre data-pane="ccode" hidden set:html={highlight("json", ccodeConfig)} />
+      <pre data-pane="hosted" hidden set:html={highlight("bash", hostedConfig)} />
+    </div>
+
+    <p class="lede" style="margin-top: 12px;">
+      That's the install. Restart your client, the <b>21 tools</b> appear under <code>letmepost.*</code>
+      in the tool surface. Your agent can now post.
+    </p>
+  </section>
+
+  <hr class="dash" />
+
+  {/* TOOL SURFACE */}
+  <section class="section">
+    <h2 class="h-caps">TWENTY-ONE TOOLS</h2>
+    <div class="subtitle center">autogenerated from the openapi spec at startup</div>
+
+    <p class="lede">
+      Every tool maps one-to-one to an HTTP endpoint. When we ship a new endpoint, the MCP tool
+      appears automatically. No SDK release required.
+    </p>
+
+    <div class="tools-list">
+      {
+        tools.map((t, i) => (
+          <div class="tline">
+            <span class="num">{String(i + 1).padStart(2, "0")}</span>
+            <span>
+              <code>{t.name}</code>
+              <span class="ds">{t.desc}</span>
+            </span>
+          </div>
+        ))
+      }
+    </div>
+
+    <p class="lede" style="margin-top: 14px;">
+      Each tool inherits the HTTP endpoint's full schema: argument types, validation rules, the
+      error envelope, the idempotency contract. Your agent gets typed parameters and structured
+      errors out of the box.
+    </p>
+  </section>
+
+  <hr class="dash" />
+
+  {/* AUTH FLOW */}
+  <section class="section">
+    <h2 class="h-mixed">Auth, <span class="acc">your agent registers itself.</span></h2>
+    <p class="subtitle left">oauth 2.1 + dynamic client registration (rfc 7591)</p>
+
+    <p class="lede">
+      The hosted MCP server accepts two auth modes. For local development, use an API key.
+      For production agents that should not carry a long-lived shared secret, use the
+      OAuth 2.1 flow with <b>Dynamic Client Registration</b>. Your agent registers itself as
+      an OAuth client on first run.
+    </p>
+
+    <div class="flow">
+      <div class="step">
+        <div>
+          <h4>Agent posts to <code>/oauth/register</code>.</h4>
+          <p>RFC 7591 endpoint. Returns a fresh <code>client_id</code> and <code>client_secret</code> scoped to the agent's metadata (name, redirect URIs, software statement).</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h4>Agent runs the standard OAuth 2.1 PKCE flow.</h4>
+          <p>Authorization code with PKCE. User clicks "Allow letmepost access," gets redirected back, the agent exchanges the code for an access + refresh token.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h4>Agent calls the MCP server with <code>Authorization: Bearer …</code>.</h4>
+          <p>Every MCP tool call carries the bearer. Scope-checked server-side. Errors come back in the same envelope as the HTTP API.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h4>Token refresh is automatic.</h4>
+          <p>The MCP server returns a <code>token.expiring</code> event 5 minutes before refresh. The stdio binary handles the refresh exchange transparently.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="dash" />
+
+  {/* TRANSPORT + IDEMPOTENCY */}
+  <section class="section">
+    <h2 class="h-mixed">Transport &amp; safety.</h2>
+    <p class="subtitle left">streamable http · stateless · idempotent</p>
+
+    <div class="info-2up">
+      <div class="col">
+        <h4>Transport</h4>
+        <p><b>Streamable HTTP</b> on the hosted server (api.letmepost.dev/mcp). One connection per session, streaming server-sent events for long-running operations.</p>
+        <p>The npm binary <code>@letmepost/mcp</code> runs as <b>stdio</b> for desktop clients that prefer subprocess transport (Claude Desktop, Cursor).</p>
+      </div>
+      <div class="col">
+        <h4>Stateless server</h4>
+        <p>The MCP server holds no per-agent state between requests. Every call carries its own bearer / API key + idempotency key.</p>
+        <p>This means agents can <b>fail over, restart, or hot-swap auth</b> without server-side reconciliation. The contract is the same as the HTTP API.</p>
+      </div>
+    </div>
+
+    <div class="info-2up" style="margin-top: 12px;">
+      <div class="col">
+        <h4>Idempotency</h4>
+        <p>Every <code>posts_create</code> call accepts an <code>idempotency_key</code> argument. We stamp one automatically on the SDK + MCP path if you don't provide one.</p>
+        <p>Replay-safe by default. Critical for agents that may retry on transport hiccups.</p>
+      </div>
+      <div class="col">
+        <h4>Rate limits</h4>
+        <p>Same per-org limits as the HTTP API. <b>Failed preflight does not count.</b> 429 responses carry <code>Retry-After</code>.</p>
+        <p>The MCP server surfaces 429s as a structured error your agent can reason about, not a transport failure.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="dash" />
+
+  {/* PRICING TEASER */}
+  <section class="section">
+    <h2 class="h-mixed">Same pricing. <span class="acc">Per org.</span></h2>
+    <p class="subtitle left">no separate agent tier · no per-tool-call meter</p>
+
+    <p class="lede">
+      The MCP server doesn't have its own pricing. Every <code>posts_create</code> tool call is one
+      post against your monthly quota, exactly the same as the HTTP API. Free tier (50 posts/mo) is
+      enough to wire your agent up. <a href="/pricing">Full pricing →</a>
+    </p>
+  </section>
+
+  <hr class="dash" />
+
+  {/* FAQ */}
+  <section class="section">
+    <h2 class="h-mixed">Fine print, agents.</h2>
+    <p class="subtitle left">questions an agent-builder would ask</p>
+
+    <div class="faq">
+      {
+        faqs.map((f) => (
+          <div class="item-q">
+            <p class="q">{f.q}</p>
+            <p class="a" set:html={f.a} />
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <hr class="double" />
+
+  {/* FINAL CTA */}
+  <section class="section" style="text-align: center;">
+    <h2 class="h-caps" style="margin-bottom: 8px;">SHIP IT TO YOUR AGENT.</h2>
+    <p class="lede" style="margin: 6px auto 18px; text-align: center;">
+      Free during alpha. One config block. Twenty-one tools.<br />
+      Open issues for anything weird, agents-first feedback gets prioritized.
+    </p>
+    <div class="ctas" style="justify-content: center;">
+      <a href="https://docs.letmepost.dev/agents/mcp" class="btn pri">READ MCP DOCS →</a>
+      <a
+        href="https://github.com/letmepost/letmepost.dev"
+        class="btn"
+        target="_blank"
+        rel="noopener"
+        data-analytics-event="external.github_clicked"
+        data-analytics-props='{"from_page":"agents","location":"agents-final"}'
+      >GITHUB ↗</a>
+      <a href="/pricing" class="btn">PRICING</a>
+    </div>
+  </section>
+
+  <Closeout
+    thanks="* * * AGENT-NATIVE FROM DAY ZERO * * *"
+    codeLine="AGENTS · MCP-SRV · 21 TOOLS · v1"
+    links={[
+      { href: "/", label: "home" },
+      { href: "https://docs.letmepost.dev/agents/mcp", label: "mcp docs" },
+      { href: "https://www.npmjs.com/package/@letmepost/mcp", label: "npm" },
+      { href: "https://github.com/letmepost/letmepost.dev", label: "github" },
+    ]}
+  />
+  <Tape bottom />
+
+  {/* Right rail — technical notes for agents */}
+  <aside class="marg" aria-label="Technical notes for agents" slot="rightRail">
+    <div class="note">
+      <span class="tag">Server URL</span>
+      Hosted: <code>https://api.letmepost.dev/mcp</code><br />Self-host: <code>http://localhost:4001/mcp</code><br />stdio: <code>npx @letmepost/mcp</code>
+    </div>
+    <div class="note">
+      <span class="tag">Auth modes</span>
+      <b>API key</b> via <code>LMP_API_KEY</code> env. <b>OAuth 2.1</b> via Dynamic Client Registration (RFC 7591). Bearer token on every call.
+    </div>
+    <div class="note">
+      <span class="tag">Scopes</span>
+      Default OAuth grant requests <code>posts:write</code>, <code>accounts:read</code>, <code>webhooks:read</code>. Override per-flow if you need narrower.
+    </div>
+    <div class="note">
+      <span class="tag">Tool schema</span>
+      Autogenerated from the <code>letmepost.openapi.json</code> spec at server startup. Every endpoint becomes one tool. Schema includes types + remediation hints.
+    </div>
+    <div class="note">
+      <span class="tag">Idempotency</span>
+      Stamped automatically by the stdio binary. Customize per-call with the <code>idempotency_key</code> tool argument. Replay-safe for 24h.
+    </div>
+    <div class="note">
+      <span class="tag">Errors</span>
+      Same envelope shape as the HTTP API. Stable code, rule id, platform version, remediation, doc URL. Greppable from inside the agent's reasoning trace.
+    </div>
+    <div class="note">
+      <span class="tag">Streaming</span>
+      Long-running ops (video transcoding, scheduled-post status checks) stream <b>SSE events</b> on the Streamable HTTP transport. stdio surfaces them as MCP progress notifications.
+    </div>
+  </aside>
+</BaseLayout>
+
+<style is:global>
+  /* ── /agents only ──────────────────────────────────── */
+
+  .stampbox.agent { transform: rotate(-2deg); width: 280px; }
+
+  .clients {
+    margin: 14px 0 20px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    border: 1px solid var(--r-line);
+  }
+  .clients .client {
+    padding: 14px 12px;
+    border-right: 1px dashed var(--r-very);
+    text-align: center;
+    background: var(--r-paper);
+  }
+  .clients .client:last-child { border-right: 0; }
+  .clients .client .glyph {
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--r-line);
+    background: var(--r-paper-deep);
+    margin-bottom: 6px;
+    color: var(--r-ink);
+  }
+  .clients .client .nm {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 12px; line-height: 1.2;
+    margin-bottom: 2px;
+    color: var(--r-ink);
+  }
+  .clients .client .v {
+    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--r-accent);
+  }
+  .clients .client .v.q { color: var(--r-very); }
+
+  .tools-list {
+    margin: 8px 0;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px;
+    font-size: 12px; line-height: 1.6;
+  }
+  .tools-list .tline {
+    display: grid; grid-template-columns: auto 1fr;
+    gap: 8px; padding: 4px 0;
+    border-bottom: 1px dotted var(--r-very);
+  }
+  .tools-list .tline:last-child,
+  .tools-list .tline:nth-last-child(2) { border-bottom: 0; }
+  .tools-list .tline .num {
+    font-family: var(--r-mono); color: var(--r-very);
+    font-variant-numeric: tabular-nums; font-size: 10px;
+    letter-spacing: 0.04em; padding-top: 2px;
+  }
+  .tools-list .tline code {
+    background: transparent; color: var(--r-fg); font-weight: 700;
+    padding: 0; font-size: 12px;
+  }
+  .tools-list .tline .ds { color: var(--r-dim); font-size: 11px; }
+  .tools-list .tline .ds::before { content: ' · '; color: var(--r-very); margin: 0 2px; }
+
+  .flow { margin: 8px 0; counter-reset: step; }
+  .flow .step {
+    counter-increment: step;
+    display: grid; grid-template-columns: 32px 1fr;
+    gap: 12px; padding: 12px 0;
+    border-bottom: 1px dotted var(--r-very);
+  }
+  .flow .step:last-child { border-bottom: 0; }
+  .flow .step::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--r-mono); font-weight: 700;
+    color: var(--r-accent); font-size: 14px;
+    letter-spacing: 0.04em;
+  }
+  .flow .step h4 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 13.5px; margin: 0 0 4px; color: var(--r-ink);
+  }
+  .flow .step p {
+    margin: 0; font-size: 12px; color: var(--r-dim); line-height: 1.55;
+  }
+  .flow .step code {
+    background: var(--r-accent-soft); padding: 0 4px; font-size: 0.92em;
+  }
+
+  .info-2up {
+    display: grid; grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--r-line);
+    background: var(--r-paper);
+    margin: 8px 0;
+  }
+  .info-2up .col {
+    padding: 18px 20px;
+    border-right: 1px dashed var(--r-very);
+  }
+  .info-2up .col:last-child { border-right: 0; }
+  .info-2up .col h4 {
+    font-family: var(--r-mono); font-size: 11px; font-weight: 700;
+    margin: 0 0 8px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--r-very);
+  }
+  .info-2up .col p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.6; color: var(--r-dim); }
+  .info-2up .col p:last-child { margin-bottom: 0; }
+  .info-2up .col p b { color: var(--r-ink); }
+  .info-2up .col code { background: var(--r-paper-deep); padding: 0 4px; }
+
+  @media (max-width: 700px) {
+    .clients { grid-template-columns: 1fr 1fr; }
+    .clients .client:nth-child(2n) { border-right: 0; }
+    .clients .client:not(:nth-last-child(-n+2)) { border-bottom: 1px dashed var(--r-very); }
+    .tools-list { grid-template-columns: 1fr; }
+    .info-2up { grid-template-columns: 1fr; }
+    .info-2up .col { border-right: 0; border-bottom: 1px dashed var(--r-very); }
+    .info-2up .col:last-child { border-bottom: 0; }
+  }
+</style>
