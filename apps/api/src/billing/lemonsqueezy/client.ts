@@ -1,14 +1,6 @@
-/**
- * Thin Lemon Squeezy REST API wrapper. Only the calls billing routes need:
- *
- *   - mintCustomerPortalUrl(customerId)
- *   - cancelSubscription(subscriptionId)
- *   - resumeSubscription(subscriptionId)
- *   - listInvoicesForCustomer(customerId, { page, perPage })
- *
- * The base URL + token come from env so tests can swap in MSW. Errors are
- * surfaced as LetmepostError so the existing onError handler envelopes them.
- */
+// Thin Lemon Squeezy REST API wrapper. Base URL + token come from env so
+// tests can swap in MSW. Errors are surfaced as LetmepostError so the
+// existing onError handler envelopes them.
 import { LetmepostError } from "../../errors.js";
 
 const DEFAULT_BASE = "https://api.lemonsqueezy.com/v1";
@@ -116,15 +108,20 @@ type InvoicesResponse = {
   meta?: { page?: { total?: number; currentPage?: number } };
 };
 
-export async function listInvoicesForCustomer(
-  customerId: string,
+// Lemon Squeezy /v1/subscription-invoices supports filter[subscription_id]
+// reliably. filter[customer_id] is undocumented and was returning empty in
+// practice. We pass subscription_id so the row's lsSubscriptionId pins the
+// query to this org's invoices unambiguously.
+export async function listInvoicesForSubscription(
+  subscriptionId: string,
   page: number,
   perPage: number,
 ): Promise<{ data: InvoiceListEntry[]; nextPage: number | null }> {
   const search = new URLSearchParams({
-    "filter[customer_id]": customerId,
+    "filter[subscription_id]": subscriptionId,
     "page[number]": String(page),
     "page[size]": String(perPage),
+    sort: "-created_at",
   });
   const json = await lsFetch<InvoicesResponse>(
     `/subscription-invoices?${search.toString()}`,

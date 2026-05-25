@@ -219,6 +219,8 @@ export function useCancelSubscription() {
       apiFetch<{ ok: true }>("/v1/billing/cancel", { method: "POST" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.billing.subscription() });
+      qc.invalidateQueries({ queryKey: queryKeys.billing.usage() });
+      qc.invalidateQueries({ queryKey: queryKeys.billing.invoices() });
     },
   });
 }
@@ -230,6 +232,8 @@ export function useReactivateSubscription() {
       apiFetch<{ ok: true }>("/v1/billing/reactivate", { method: "POST" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.billing.subscription() });
+      qc.invalidateQueries({ queryKey: queryKeys.billing.usage() });
+      qc.invalidateQueries({ queryKey: queryKeys.billing.invoices() });
     },
   });
 }

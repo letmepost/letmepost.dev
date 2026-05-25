@@ -4,7 +4,7 @@ import { z } from "zod";
 import {
   createCheckoutUrl,
   cancelSubscription,
-  listInvoicesForCustomer,
+  listInvoicesForSubscription,
   mintCustomerPortalUrl,
   resumeSubscription,
 } from "../billing/lemonsqueezy/client.js";
@@ -190,7 +190,10 @@ export function createBillingRoutes(
     return c.json({ ok: true });
   });
 
-  /** POST /v1/billing/cancel — cancel the active subscription via LS. */
+  // POST /v1/billing/cancel: cancel the active subscription via LS, and
+  // eagerly write the expected state to the row so the dashboard's
+  // immediate refetch reflects the change. The subscription_cancelled
+  // webhook arrives later and is idempotent against this state.
   app.post("/cancel", async (c) => {
     await requireAdmin(c);
     const { organizationId } = c.var.session;
@@ -209,11 +212,21 @@ export function createBillingRoutes(
       });
     }
     await cancelSubscription(row.lsSubscriptionId);
+    await c.var.db
+      .update(billingSubscriptions)
+      .set({
+        status: "cancelled",
+        cancelAtPeriodEnd: true,
+        cancelledAt: new Date(),
+      })
+      .where(eq(billingSubscriptions.organizationId, organizationId));
     await invalidateOrgTier(organizationId);
     return c.json({ ok: true });
   });
 
-  /** POST /v1/billing/reactivate — undo cancel. */
+  // POST /v1/billing/reactivate: undo a pending cancel and write the row
+  // back to active so the dashboard refetch reflects it without waiting
+  // for the subscription_resumed webhook.
   app.post("/reactivate", async (c) => {
     await requireAdmin(c);
     const { organizationId } = c.var.session;
@@ -230,11 +243,21 @@ export function createBillingRoutes(
       });
     }
     await resumeSubscription(row.lsSubscriptionId);
+    await c.var.db
+      .update(billingSubscriptions)
+      .set({
+        status: "active",
+        cancelAtPeriodEnd: false,
+        cancelledAt: null,
+      })
+      .where(eq(billingSubscriptions.organizationId, organizationId));
     await invalidateOrgTier(organizationId);
     return c.json({ ok: true });
   });
 
-  /** GET /v1/billing/invoices — paginated proxy. */
+  // GET /v1/billing/invoices: paginated proxy keyed on the row's
+  // lsSubscriptionId. Returns empty when no subscription is on file
+  // (free orgs, freshly created accounts before the first checkout).
   app.get("/invoices", async (c) => {
     const { organizationId } = c.var.session;
     const parsed = InvoiceQuery.safeParse({
@@ -249,19 +272,19 @@ export function createBillingRoutes(
       });
     }
     const [row] = await c.var.db
-      .select({ lsCustomerId: billingSubscriptions.lsCustomerId })
+      .select({ lsSubscriptionId: billingSubscriptions.lsSubscriptionId })
       .from(billingSubscriptions)
       .where(eq(billingSubscriptions.organizationId, organizationId))
       .limit(1);
-    if (!row?.lsCustomerId) {
+    if (!row?.lsSubscriptionId) {
       return c.json({ data: [], nextPage: null });
     }
-    // Fail-soft: a Lemon Squeezy API hiccup on the invoices list shouldn't
-    // gate the entire /billing page from rendering. Log the upstream error
-    // for forensics and return an empty list so the dashboard stays usable.
+    // Fail-soft: an LS API hiccup on the invoices list shouldn't gate the
+    // entire /billing page from rendering. Log the upstream error for
+    // forensics and return an empty list so the dashboard stays usable.
     try {
-      const result = await listInvoicesForCustomer(
-        row.lsCustomerId,
+      const result = await listInvoicesForSubscription(
+        row.lsSubscriptionId,
         parsed.data.page,
         parsed.data.perPage,
       );
@@ -269,7 +292,7 @@ export function createBillingRoutes(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[billing] listInvoicesForCustomer failed for org=${organizationId} customer=${row.lsCustomerId}: ${message}`,
+        `[billing] listInvoicesForSubscription failed for org=${organizationId} sub=${row.lsSubscriptionId}: ${message}`,
       );
       return c.json({ data: [], nextPage: null });
     }
