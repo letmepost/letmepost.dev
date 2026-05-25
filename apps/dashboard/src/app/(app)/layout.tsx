@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { AccountMenu } from "@/components/app/account-menu";
 import { AppSidebar } from "@/components/app/app-sidebar";
 import { AuthGuard } from "@/components/app/auth-guard";
 import { Breadcrumbs } from "@/components/app/breadcrumbs";
@@ -43,9 +42,6 @@ export default function AppLayout({
             <header className="flex h-12 items-center gap-2 border-b px-4">
               <SidebarTrigger />
               <Breadcrumbs />
-              <div className="ml-auto">
-                <AccountMenu />
-              </div>
             </header>
             <div className="flex-1 p-6 md:p-8 [&>*]:max-w-5xl [&:has([data-page-wide])>*]:max-w-none">
               <PageTransition>{children}</PageTransition>
