@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import {
   House,
@@ -19,11 +18,7 @@ import {
   BookOpen,
   ArrowSquareOut,
   CreditCard,
-  Buildings,
   SignOut,
-  Sun,
-  Moon,
-  Monitor,
 } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
@@ -50,12 +45,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
@@ -142,47 +132,32 @@ export function AppSidebar() {
               ) : null}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <Buildings className="size-4" />
-                <span className="flex-1">Switch organization</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="w-56">
-                {organizations?.map((org) => (
-                  <DropdownMenuItem
-                    key={org.id}
-                    onSelect={() => switchOrg(org.id)}
-                  >
-                    <span className="truncate flex-1">{org.name}</span>
-                    {activeOrg?.id === org.id ? (
-                      <span className="text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
-                        active
-                      </span>
-                    ) : null}
-                  </DropdownMenuItem>
-                ))}
-                {organizations == null || organizations.length === 0 ? (
-                  <DropdownMenuItem disabled>
-                    No organizations yet
-                  </DropdownMenuItem>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setNewOrgOpen(true);
-                  }}
-                >
-                  <Plus className="size-4" />
-                  <span>New organization</span>
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSeparator />
             <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-              Theme
+              Organizations
             </DropdownMenuLabel>
-            <ThemeRadioGroup />
+            {organizations?.map((org) => (
+              <DropdownMenuItem
+                key={org.id}
+                onSelect={() => switchOrg(org.id)}
+              >
+                <span className="truncate flex-1">{org.name}</span>
+                {activeOrg?.id === org.id ? (
+                  <Check className="size-4 text-muted-foreground" />
+                ) : null}
+              </DropdownMenuItem>
+            ))}
+            {organizations == null || organizations.length === 0 ? (
+              <DropdownMenuItem disabled>No organizations yet</DropdownMenuItem>
+            ) : null}
+            <DropdownMenuItem
+              onSelect={(e) => {
+                e.preventDefault();
+                setNewOrgOpen(true);
+              }}
+            >
+              <Plus className="size-4" />
+              <span>New organization</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={handleSignOut}>
               <SignOut className="size-4" />
@@ -304,41 +279,5 @@ export function AppSidebar() {
 
       <NewOrgDialog open={newOrgOpen} onOpenChange={setNewOrgOpen} />
     </Sidebar>
-  );
-}
-
-function ThemeRadioGroup() {
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  // Inert placeholder until next-themes reads localStorage, matched to the
-  // row height so the dropdown doesn't shift on hydrate.
-  if (!mounted) {
-    return <div aria-hidden className="h-[84px]" />;
-  }
-  return (
-    <DropdownMenuRadioGroup
-      value={theme ?? "system"}
-      onValueChange={(next) => {
-        track({
-          name: "theme.changed",
-          properties: { from: theme ?? "system", to: next },
-        });
-        setTheme(next);
-      }}
-    >
-      <DropdownMenuRadioItem value="light">
-        <Sun className="size-4" />
-        <span>Light</span>
-      </DropdownMenuRadioItem>
-      <DropdownMenuRadioItem value="dark">
-        <Moon className="size-4" />
-        <span>Dark</span>
-      </DropdownMenuRadioItem>
-      <DropdownMenuRadioItem value="system">
-        <Monitor className="size-4" />
-        <span>System</span>
-      </DropdownMenuRadioItem>
-    </DropdownMenuRadioGroup>
   );
 }
