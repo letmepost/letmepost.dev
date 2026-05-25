@@ -219,7 +219,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="gap-1 p-2">
-        <SidebarUsageMeter />
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
@@ -250,6 +249,7 @@ export function AppSidebar() {
             </SidebarMenuItem>
           ) : null}
         </SidebarMenu>
+        <SidebarUsageMeter />
       </SidebarFooter>
 
       <NewOrgDialog open={newOrgOpen} onOpenChange={setNewOrgOpen} />
