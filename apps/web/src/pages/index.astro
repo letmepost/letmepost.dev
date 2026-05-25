@@ -16,26 +16,6 @@ import { highlight } from "../lib/highlight.ts";
  * (Bluesky/X/Pinterest live, four Meta+LinkedIn in review, TikTok planned).
  */
 
-// Status mapping — backend PLATFORM_STATE ("live" | "pending" | "planned" |
-// "trial") to the marketing-side labels the design uses.
-function statusLabel(s: string): "live" | "in-review" | "planned" {
-  if (s === "live" || s === "trial") return "live";
-  if (s === "pending") return "in-review";
-  return "planned";
-}
-
-// Per-platform tagline shown under the name on the status list.
-const detail: Record<string, string> = {
-  bluesky: "AT Proto · 300 graphemes",
-  twitter: "v2 API · 280 graphemes",
-  pinterest: "v5 · image + video pins",
-  instagram: "Meta App Review · day 24 / ~56",
-  facebook: "Meta App Review · day 24 / ~56",
-  threads: "Meta App Review · day 24 / ~56",
-  linkedin: "MDP · day 12 / ~84",
-  youtube: "Data API v3 · CASA-gated",
-};
-
 // Phosphor names mirror PlatformIcon's mapping, kept inline so the
 // landing's tight column doesn't pull in the wrapper component.
 const phosphor: Record<string, string> = {
@@ -46,26 +26,8 @@ const phosphor: Record<string, string> = {
   facebook: "ph:facebook-logo",
   threads: "ph:threads-logo",
   linkedin: "ph:linkedin-logo",
-  youtube: "ph:youtube-logo",
   tiktok: "ph:tiktok-logo",
 };
-
-// Drop YouTube per voice rule ("Do not list YouTube"), and tack on
-// TikTok as a marketing-only `planned` row.
-const platformRows = [
-  ...PLATFORMS.filter((p) => p.slug !== "youtube").map((p) => ({
-    slug: p.slug,
-    name: p.name,
-    detail: detail[p.slug] ?? "",
-    status: statusLabel(p.status),
-  })),
-  {
-    slug: "tiktok",
-    name: "TikTok",
-    detail: "Publisher in build · v2",
-    status: "planned" as const,
-  },
-];
 
 const faqs = [
   {
@@ -78,7 +40,7 @@ const faqs = [
   },
   {
     q: "How much does it cost?",
-    a: "Free during alpha. When billing turns on, it's flat-rate per org with a real free tier. Self-host stays free forever.",
+    a: 'Flat-rate per org. A real free tier covers 50 posts a month. <a href="/pricing">Full pricing →</a>',
   },
   {
     q: "Is it really open source?",
@@ -161,44 +123,45 @@ for r in result.targets:
 >
   <Tape />
 
-  {/* HEAD — centered brand + ASCII banner + PAID IN FULL stamp + meta grid */}
-  <div class="head">
-    <div class="brand-mark">LETMEPOST</div>
-    <div class="url-line">letmepost.dev · est. 2026 · apache-2.0</div>
+  {/* HERO v2 — top utility links row, then the small stamp + solid
+      rule + H1. Old ledger ("LETMEPOST · v0 alpha · apache-2.0 ·
+      est. 2026") is replaced with quick links a reader actually
+      wants to click. */}
+  <nav class="ledger-row quick-links" aria-label="Top utility">
+    <a href="https://docs.letmepost.dev">Docs</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a href="/pricing">Pricing</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a href="/blog">Blog</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a
+      href="https://github.com/letmepost/letmepost.dev"
+      target="_blank"
+      rel="noopener"
+    >GitHub ↗</a>
+  </nav>
 
-    <div class="ascii">+-------------------------------------+
-|        OPEN SOURCE · ALPHA          |
-+-------------------------------------+</div>
-
-    <div class="stampbox" aria-hidden="true">
+  <div class="hero-stamp" aria-hidden="true">
+    <div class="stampbox stampbox-sm">
       <div class="l1">PLATFORM REVIEW</div>
       <div class="l2">PAID IN FULL</div>
       <div class="l3">SO YOU DON'T HAVE TO</div>
-    </div>
-
-    <div class="meta-grid">
-      <div><span class="k">RECEIPT №</span><span class="v">000-LMP-0001</span></div>
-      <div><span class="k">CASHIER</span><span class="v">rose</span></div>
-      <div><span class="k">DATE</span><span class="v">2026-05-22</span></div>
-      <div><span class="k">TERMINAL</span><span class="v">/v1/posts</span></div>
     </div>
   </div>
 
   <hr class="solid" />
 
-  {/* HERO */}
-  <section style="text-align: left;" data-sticky-anchor>
+  <section class="hero-main" data-sticky-anchor>
     <h1 class="hero-h1">
-      One <span class="under">POST</span>. Eight platforms.
+      Open source social media API.
       <br />
-      <span class="acc">Zero days</span> in Meta's review queue.
+      <span class="acc">Built for devs and AI agents.</span>
     </h1>
 
     <p class="lede">
-      <b>letmepost</b> is the social-publishing API your backend has been hand-rolling.
-      One <code>POST /v1/posts</code> fans out to Bluesky, X, Pinterest, and the
-      four Meta + LinkedIn properties the day each review clears.
-      We sit in the developer-portal queue so you don't have to. <b>That's the trade.</b>
+      Ship social features in minutes, not months. One API to publish
+      across 8 platforms, with scheduling, webhooks, and idempotency
+      built in. Native MCP server. Apache 2.0.
     </p>
 
     <div class="ctas">
@@ -206,24 +169,25 @@ for r in result.targets:
         href="https://dashboard.letmepost.dev"
         class="btn pri"
         data-analytics-event="cta.clicked"
-        data-analytics-props='{"location":"hero","target":"dashboard","page":"home","label":"Start free"}'
-      >START FREE →</a>
+        data-analytics-props='{"location":"hero","target":"dashboard","page":"home","label":"Start building free"}'
+      >START BUILDING FREE →</a>
       <a
-        href="https://docs.letmepost.dev/quickstart"
+        href="#request"
         class="btn"
         data-analytics-event="cta.clicked"
-        data-analytics-props='{"location":"hero-secondary","target":"docs","page":"home","label":"Quickstart"}'
-      >90-SEC QUICKSTART</a>
+        data-analytics-props='{"location":"hero-secondary","target":"code","page":"home","label":"See the code"}'
+      >SEE THE CODE ↓</a>
     </div>
     <div class="reassurance">
-      No credit card · Free during alpha · Self-host free forever
+      No credit card ·
+      <a href="https://docs.letmepost.dev/quickstart">90-second quickstart →</a>
     </div>
   </section>
 
   <hr class="dash" />
 
   {/* SHOW THE CODE */}
-  <section class="section">
+  <section class="section" id="request">
     <h2 class="h-caps">SHOW THE CODE</h2>
     <div class="subtitle center">$ one terminal session</div>
 
@@ -244,12 +208,28 @@ for r in result.targets:
       <pre data-pane="ts" hidden set:html={highlight("ts", tsSample)} />
       <pre data-pane="py" hidden set:html={highlight("python", pySample)} />
     </div>
+  </section>
 
-    <p class="lede" style="margin-top: 12px;">
-      The shape is identical for every platform. The response is a per-target envelope so you
-      never have to guess whether four succeeded and one didn't. Idempotency keys are stamped
-      automatically by the SDKs; replays return the original response for 24 hours.
-    </p>
+  <hr class="dash" />
+
+  {/* PLATFORMS — simple icon+name grid, each row clickable.
+      Replaces the heavier status-pill list that previously lived
+      after WHAT YOU GET; the per-platform pages carry the
+      live/in-review/planned signal now. */}
+  <section class="section">
+    <h2 class="h-caps">PLATFORMS</h2>
+    <div class="subtitle center">one POST, every connected account</div>
+
+    <div class="simple-platforms">
+      {
+        PLATFORMS.map((p) => (
+          <a href={`/platforms/${p.slug}`}>
+            <Icon name={phosphor[p.slug] ?? "ph:circle"} width={16} height={16} />
+            <span>{p.name}</span>
+          </a>
+        ))
+      }
+    </div>
   </section>
 
   <hr class="dash" />
@@ -310,36 +290,6 @@ for r in result.targets:
 
   <hr class="dash" />
 
-  {/* PLATFORM STATUS */}
-  <section class="section">
-    <h2 class="h-caps">PLATFORM STATUS</h2>
-    <div class="subtitle center">as of 2026-05-23</div>
-
-    <div class="platforms">
-      {
-        platformRows.map((p) => (
-          <div class="row">
-            <span class="pglyph">
-              <Icon name={phosphor[p.slug] ?? "ph:circle"} width={18} height={18} />
-            </span>
-            <span class="nm">
-              {p.name}
-              <span class="h">{p.detail}</span>
-            </span>
-            <span class={`st ${p.status}`}>{p.status === "in-review" ? "in review" : p.status}</span>
-          </div>
-        ))
-      }
-    </div>
-
-    <p class="lede" style="margin-top: 14px;">
-      Eight platforms in v1. Twenty plus in scope. Each platform review is a separate weeks-to-months
-      gauntlet we run on your behalf.
-    </p>
-  </section>
-
-  <hr class="dash" />
-
   {/* ANATOMY OF A FAILURE */}
   <section class="section">
     <h2 class="h-caps">ANATOMY OF A FAILURE</h2>
@@ -364,17 +314,14 @@ for r in result.targets:
       </div>
     </div>
 
-    <p class="lede" style="margin-top: 12px;">
-      Every non-2xx carries the same shape. Greppable, actionable, linkable.
-      Eleven stable error codes, each with its own docs page.
-    </p>
-  </section>
-
   <hr class="dash" />
 
-  {/* For agents */}
-  <section class="section">
-    <h2 class="h-mixed">For agents, letmepost speaks <span class="acc">MCP</span>.</h2>
+  {/* For agents — stacked layout: bigger heading, prose below, then
+      the full-width config block at the bottom. The previous 2-col
+      grid made the code feel tucked away beside the text instead of
+      being the punch the section actually leads to. */}
+  <section class="section mcp-section">
+    <h2>For agents, letmepost speaks <span class="acc">MCP</span>.</h2>
     <p class="subtitle left">a hosted server + a stdio binary on npm</p>
 
     <div class="mcp">
@@ -398,8 +345,8 @@ for r in result.targets:
 
   {/* Tariff sheet */}
   <section class="section">
-    <h2 class="h-mixed">Tariff sheet, per org, <span class="acc">never per profile.</span></h2>
-    <p class="subtitle left">flat-rate · self-host stays free forever</p>
+    <h2 class="h-mixed">Tariff sheet.</h2>
+    <p class="subtitle left">flat-rate · billed monthly</p>
 
     <table class="tariff">
       <thead>
@@ -432,9 +379,7 @@ for r in result.targets:
         </tr>
       </tbody>
     </table>
-    <p class="lede" style="margin-top: 8px;">
-      Profiles, accounts, team members, webhook endpoints, API keys: <b>all free</b>.
-      Hard caps with 80% + 100% webhooks. No surprise overages.
+    <p class="lede" style="margin-top: 10px; text-align: right;">
       <a href="/pricing">Full pricing →</a>
     </p>
   </section>
@@ -475,13 +420,11 @@ for r in result.targets:
         data-analytics-props='{"location":"home-final","target":"dashboard","page":"home","label":"Start free"}'
       >START FREE →</a>
       <a
-        href="https://github.com/letmepost/letmepost.dev"
+        href="https://docs.letmepost.dev"
         class="btn"
-        target="_blank"
-        rel="noopener"
-        data-analytics-event="external.github_clicked"
-        data-analytics-props='{"from_page":"home","location":"home-final"}'
-      >GITHUB ↗</a>
+        data-analytics-event="docs.link_clicked"
+        data-analytics-props='{"from_page":"home","location":"home-final","to_section":"root"}'
+      >READ THE DOCS ↗</a>
     </div>
   </section>
 
@@ -527,3 +470,148 @@ for r in result.targets:
     </div>
   </aside>
 </BaseLayout>
+
+<style is:global>
+  /* ── /index landing-only overrides ────────────────────────
+     Quieter hero pattern: tiny ledger row at top, big H1 leading
+     left-aligned, with the PAID-IN-FULL stamp demoted to a small
+     rotated mark on the right of the headline. The previous big
+     centered stamp pulled the eye away from the H1; this layout
+     puts the headline first and uses the stamp as a tertiary
+     accent instead of a focal element. */
+
+  .ledger-row {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--r-very);
+    text-align: center;
+    padding-top: 36px;
+  }
+  /* Top utility nav — styled like the "90-second quickstart →" inline
+     link in the hero reassurance row: uppercase, accent-colored, with
+     a dotted-underline on hover. Same visual vocabulary as the rest
+     of the hero's small CTAs. */
+  .ledger-row.quick-links {
+    display: flex; gap: 14px; justify-content: center; align-items: center;
+    flex-wrap: wrap;
+  }
+  .ledger-row.quick-links a {
+    color: var(--r-accent);
+    text-decoration: none;
+    transition: color 120ms;
+    font-size: var(--r-fs-xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+  .ledger-row.quick-links a:hover {
+    color: var(--r-accent-hover, var(--r-ink));
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+  }
+  .ledger-row.quick-links .sep { color: var(--r-line); }
+
+  /* Simple platforms grid — icon + name, 3 columns on desktop,
+     2 on tablet, 1 on mobile. No status pills, no taglines; the
+     per-platform page carries that detail. */
+  .simple-platforms {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 6px 24px; margin: 14px 0 4px;
+  }
+  .simple-platforms a {
+    display: inline-flex; align-items: center; gap: 10px;
+    text-decoration: none; color: var(--r-fg);
+    padding: 7px 0; font-size: 13px;
+    transition: color 100ms;
+  }
+  .simple-platforms a:hover { color: var(--r-accent); }
+  .simple-platforms a svg {
+    flex-shrink: 0; color: var(--r-ink);
+    transition: color 100ms;
+  }
+  .simple-platforms a:hover svg { color: var(--r-accent); }
+  @media (max-width: 600px) {
+    .simple-platforms { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 400px) {
+    .simple-platforms { grid-template-columns: 1fr; }
+  }
+
+  /* Hero body — H1 leads the page, full-width inside the strip. */
+  .hero-main { padding-top: 28px; padding-bottom: 8px; }
+  .hero-main h1.hero-h1 {
+    font-size: 44px;
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    margin: 0 0 18px;
+  }
+  .hero-main .lede { font-size: 14.5px; }
+
+  /* Stamp sits above the headline as a small centered accent —
+     visible, but small enough that the H1 below carries the page. */
+  .hero-stamp {
+    display: flex;
+    justify-content: center;
+    padding-top: 22px;
+    padding-bottom: 4px;
+  }
+
+  /* Small stamp — keeps the stampbox border + rotation feel but
+     dimensioned so it never out-shouts the H1. Width tuned so the
+     two H1 lines + stamp don't reflow on the 700px strip. */
+  .stampbox-sm {
+    width: 184px;
+    margin: 0;
+    padding: 10px 12px 9px;
+    border: 1.5px solid var(--r-ink);
+    transform: rotate(-3deg);
+    text-align: center;
+    color: var(--r-ink);
+  }
+  .stampbox-sm .l1 {
+    font-size: 9px; letter-spacing: 0.28em; line-height: 1;
+  }
+  .stampbox-sm .l2 {
+    font-size: 19px; letter-spacing: 0.04em; font-weight: 700;
+    line-height: 1; margin: 5px 0;
+  }
+  .stampbox-sm .l3 {
+    font-size: 8px; letter-spacing: 0.18em; line-height: 1;
+  }
+
+  /* Bigger gap between sections on the landing — the page is dense
+     by nature (code, items, status list, envelope, FAQ all stacked),
+     so we give each section more breathing room than the default. */
+  main.strip > section.section { padding-top: 44px; }
+  main.strip > hr.dash { margin: 40px 0; }
+
+  /* For-agents section — stacked single column. Bigger h2 so the
+     code block underneath reads as the section's punch, not the
+     orphan column it was when this section was two-up. */
+  .mcp-section h2 {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 26px; line-height: 1.15; letter-spacing: -0.015em;
+    margin: 0 0 6px; color: var(--r-ink);
+  }
+  .mcp-section h2 .acc { color: var(--r-accent); }
+  .mcp-section .mcp {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .mcp-section .mcp .config { width: 100%; }
+
+  @media (max-width: 700px) {
+    .mcp-section h2 { font-size: 22px; }
+  }
+
+  @media (max-width: 700px) {
+    .hero-main { padding-top: 20px; }
+    .hero-main h1.hero-h1 { font-size: 30px; }
+    .hero-stamp { padding-top: 18px; }
+    .stampbox-sm { width: 170px; }
+    main.strip > section.section { padding-top: 32px; }
+    main.strip > hr.dash { margin: 28px 0; }
+  }
+</style>
+

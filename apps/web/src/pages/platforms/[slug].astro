@@ -56,7 +56,7 @@ const phosphor: Record<string, string> = {
   facebook: "ph:facebook-logo",
   threads: "ph:threads-logo",
   linkedin: "ph:linkedin-logo",
-  youtube: "ph:youtube-logo",
+  tiktok: "ph:tiktok-logo",
 };
 
 const statusBucket = (status: string): "live" | "in-review" | "planned" => {
@@ -99,7 +99,7 @@ const softwareJsonLd: JsonLdGraph = {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-    description: "Free during alpha",
+    description: "Flat-rate per org",
   },
   publisher: { "@id": `${siteUrl}/#organization` },
 };
@@ -151,14 +151,23 @@ const learnMore = [
     <a href="/">letmepost</a> / <a href="/platforms">platforms</a> / {platform.name}
   </div>
 
-  {/* HERO */}
+  {/* HERO — value-first headline with the platform's own icon
+      inlined between "Ship your" and the platform name, then the
+      accent-colored emphasis line below. Left-aligned to match the
+      rest of the site's page heads. */}
   <header class="plat-h" data-sticky-anchor>
     <h1>
-      {content.heroH1.prefix}{" "}
-      <span class="under">{content.heroH1.underlined}</span>
-      {content.heroH1.suffix}
+      {content.heroH1.before}{" "}
+      <Icon
+        name={phosphor[platform.slug] ?? "ph:circle"}
+        width={38}
+        height={38}
+        class="h1-icon"
+      />{" "}
+      {content.heroH1.after}
+      <br />
+      <span class="acc">{content.heroH1.emphasize}</span>
     </h1>
-    <div class="h-sub">{content.heroSub}</div>
     <p class="lede" set:html={content.heroLede} />
     <div class="ctas">
       <a
@@ -480,39 +489,41 @@ const learnMore = [
 <style is:global>
   /* ── /platforms/[slug] — shared platform-page styles ─── */
 
-  /* Hero — centered, big h1 with accent-underlined platform name */
+  /* Hero — left-aligned to match every other page-head on the site.
+     Big h1 leads with "Ship your <icon> <platform> integration" on
+     the first line and an accent-colored value claim on the second. */
   .plat-h {
     padding: 36px 0 18px;
-    text-align: center;
+    text-align: left;
   }
   .plat-h h1 {
     font-family: var(--r-mono); font-weight: 700;
-    font-size: 38px; line-height: 1.08; letter-spacing: -0.025em;
-    margin: 0 0 8px; text-wrap: balance;
+    font-size: 38px; line-height: 1.1; letter-spacing: -0.025em;
+    margin: 0 0 18px; text-wrap: balance;
     color: var(--r-ink);
   }
   .plat-h h1 .acc { color: var(--r-accent); }
-  .plat-h h1 .under {
-    text-decoration: underline; text-decoration-thickness: 4px;
-    text-decoration-color: var(--r-accent); text-underline-offset: 7px;
-  }
-  .plat-h .h-sub {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 22px; color: var(--r-accent);
-    line-height: 1.1; letter-spacing: -0.02em;
-    margin: 0 0 18px;
+  /* Inline platform icon between the "Ship your" copy and the platform
+     name. Nudged slightly above the baseline so it lines up with the
+     cap-height of the surrounding mono type. */
+  .plat-h h1 .h1-icon {
+    display: inline-block;
+    vertical-align: -0.18em;
+    margin: 0 4px 0 2px;
+    color: var(--r-ink);
   }
   .plat-h .lede {
     font-size: 14.5px; color: var(--r-dim); line-height: 1.6;
-    max-width: 540px; margin: 0 auto 22px;
+    max-width: 580px; margin: 0 0 22px;
   }
   .plat-h .lede b { color: var(--r-ink); }
   .plat-h .lede a { color: var(--r-accent); }
-  .plat-h .ctas { justify-content: center; }
+  .plat-h .ctas { justify-content: flex-start; }
   .plat-h .reassurance {
     color: var(--r-very); margin-top: 12px;
     font-size: var(--r-fs-xs); letter-spacing: 0.1em;
     text-transform: uppercase;
+    text-align: left;
   }
   .plat-h .reassurance a { color: var(--r-accent); }
 

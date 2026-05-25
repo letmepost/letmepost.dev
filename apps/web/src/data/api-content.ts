@@ -143,7 +143,7 @@ const publishing: SurfaceContent = {
   heroLede:
     "The primary <b>letmepost</b> endpoint. Send text, media, or scheduled posts to one or many connected accounts in a single HTTP call. <b>80 preflight rules</b> run locally before the upstream platform is touched. <b>Idempotency keys</b> on every write. Per-target results so you never have to guess whether four succeeded and one didn't.",
   reassurance:
-    'No credit card · 50 posts/mo free forever · <a href="https://docs.letmepost.dev/quickstart">90-second quickstart →</a>',
+    'No credit card · <a href="https://docs.letmepost.dev/quickstart">90-second quickstart →</a>',
   miniCodeLang: "json",
   miniCode: `{
   "targets": [
@@ -332,7 +332,7 @@ for (const r of result.targets) {
 
   finalCtaH2: "READY TO POST?",
   finalCtaLede:
-    "Mint an API key. Send your first request. <b>Free during alpha</b> · self-host forever free.",
+    "Mint an API key. Send your first request.",
   finalCtaPrimaryLabel: "GET AN API KEY →",
   finalCtaSecondaryLabel: "READ THE REFERENCE",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/api-reference/posts/create",
@@ -787,7 +787,7 @@ app.post('/lmp-webhook', (req, res) => {
 
   finalCtaH2: "READY TO SUBSCRIBE?",
   finalCtaLede:
-    "One POST. Eight event types. <b>Stop polling, start listening.</b> Free during alpha, free forever on self-host.",
+    "One POST. Eight event types. <b>Stop polling, start listening.</b>",
   finalCtaPrimaryLabel: "GET AN API KEY →",
   finalCtaSecondaryLabel: "READ THE REFERENCE",
   finalCtaSecondaryHref:

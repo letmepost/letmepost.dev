@@ -5,59 +5,10 @@ import Tape from "../components/Tape.astro";
 import Closeout from "../components/Closeout.astro";
 import { highlight } from "../lib/highlight.ts";
 
-/**
- * For agents — MCP-native landing. Mirrors design/agents.html.
- * Agent-themed head + clients grid + config block (4 tabs) + 21-tool
- * inventory + OAuth flow + transport/safety info cards + pricing
- * teaser + FAQ + final CTA + closeout.
- *
- * Strip width inherits the global 700 so it sits in the same column
- * as every other page.
- */
-
-const clients = [
-  { name: "Claude", icon: "ph:sparkle", v: "supported", accent: true },
-  { name: "Cursor", icon: "ph:cursor", v: "supported", accent: true },
-  { name: "Claude Code", icon: "ph:brackets-square", v: "supported", accent: true },
-  { name: "opencode", icon: "ph:terminal", v: "supported", accent: true },
-  { name: "Continue", icon: "ph:arrow-circle-right", v: "via MCP" },
-  { name: "Zed AI", icon: "ph:lightning", v: "via MCP" },
-  { name: "Your agent", icon: "ph:robot", v: "any MCP client" },
-  { name: "SDK direct", icon: "ph:cube", v: "HTTP / stdio" },
-];
-
-const tools = [
-  { name: "posts_create", desc: "POST /v1/posts" },
-  { name: "posts_get", desc: "GET /v1/posts/:id" },
-  { name: "posts_list", desc: "GET /v1/posts" },
-  { name: "posts_cancel", desc: "DELETE /v1/posts/:id" },
-  { name: "media_upload", desc: "POST /v1/media" },
-  { name: "media_get", desc: "GET /v1/media/:id" },
-  { name: "accounts_list", desc: "GET /v1/accounts" },
-  { name: "accounts_connect", desc: "POST /v1/accounts/connect/:platform" },
-  { name: "accounts_disconnect", desc: "DELETE /v1/accounts/:id" },
-  { name: "profiles_list", desc: "GET /v1/profiles" },
-  { name: "profiles_create", desc: "POST /v1/profiles" },
-  { name: "api_keys_list", desc: "GET /v1/api-keys" },
-  { name: "api_keys_create", desc: "POST /v1/api-keys" },
-  { name: "api_keys_revoke", desc: "DELETE /v1/api-keys/:id" },
-  { name: "webhooks_list", desc: "GET /v1/webhook-endpoints" },
-  { name: "webhooks_create", desc: "POST /v1/webhook-endpoints" },
-  { name: "webhooks_test", desc: "POST /v1/webhook-endpoints/:id/test" },
-  { name: "platform_versions_get", desc: "GET /v1/platform-versions" },
-  { name: "preflight_check", desc: "POST /v1/preflight" },
-  { name: "quota_get", desc: "GET /v1/quota" },
-  { name: "health_check", desc: "GET /v1/health" },
-];
-
 const faqs = [
   {
     q: "What does my agent need to know about MCP?",
-    a: "Nothing letmepost-specific. If your client speaks MCP, it can talk to us. Add the config block above, restart the client, and the tools appear in the model's tool surface automatically.",
-  },
-  {
-    q: "Do I need to write tool schemas myself?",
-    a: "No. The MCP server generates tool schemas from the OpenAPI spec at startup. New endpoints ship as new tools without an SDK update on your side.",
+    a: "Nothing letmepost-specific. If your client speaks MCP, it can talk to us. Add the install line, restart the client, and the tools appear in the model's tool surface automatically.",
   },
   {
     q: "API key vs OAuth, which should my agent use?",
@@ -81,54 +32,9 @@ const faqs = [
   },
 ];
 
-const claudeConfig = `{
-  "mcpServers": {
-    "letmepost": {
-      "command": "npx",
-      "args":    ["-y", "@letmepost/mcp@latest"],
-      "env":     { "LMP_API_KEY": "lmp_live_…" }
-    }
-  }
-}
-
-// File lives at:
-//   macOS:   ~/Library/Application Support/Claude/claude_desktop_config.json
-//   Windows: %APPDATA%\\Claude\\claude_desktop_config.json`;
-
-const cursorConfig = `{
-  "mcpServers": {
-    "letmepost": {
-      "command": "npx",
-      "args":    ["-y", "@letmepost/mcp@latest"],
-      "env":     { "LMP_API_KEY": "lmp_live_…" }
-    }
-  }
-}
-
-// File lives at .cursor/mcp.json in your project root.`;
-
-const ccodeConfig = `{
-  "mcpServers": {
-    "letmepost": {
-      "command": "npx",
-      "args":    ["-y", "@letmepost/mcp@latest"],
-      "env":     { "LMP_API_KEY": "lmp_live_…" }
-    }
-  }
-}
-
-// Or use the hosted server with OAuth, no API key needed:
-//   claude mcp add letmepost https://api.letmepost.dev/mcp --auth oauth`;
-
-const hostedConfig = `# Hosted MCP server with OAuth 2.1 + Dynamic Client Registration.
-# Your agent registers itself; no shared secret in any config file.
-
-$ letmepost agent install --client claude-desktop \\
-    --transport https \\
-    --server https://api.letmepost.dev/mcp
-
-# Opens browser, completes OAuth dance, writes the config.
-# Re-auth happens automatically on token refresh.`;
+const installCmd = `$ npx -y @letmepost/mcp@latest
+# Add as an MCP server in Claude Desktop, Cursor, Claude Code, Windsurf.
+# Or use the hosted server at api.letmepost.dev/mcp with OAuth 2.1 — no API key in any file.`;
 ---
 
 <BaseLayout
@@ -171,44 +77,70 @@ $ letmepost agent install --client claude-desktop \\
 
   <Tape />
 
-  {/* HEAD */}
-  <div class="head">
-    <div class="brand-mark">LETMEPOST</div>
-    <div class="url-line">letmepost.dev/agents · MCP-native · est. 2026</div>
+  <nav class="ledger-row quick-links" aria-label="Top utility">
+    <a href="https://docs.letmepost.dev">Docs</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a href="/pricing">Pricing</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a href="/blog">Blog</a>
+    <span class="sep" aria-hidden="true">·</span>
+    <a
+      href="https://github.com/letmepost/letmepost.dev"
+      target="_blank"
+      rel="noopener"
+    >GitHub ↗</a>
+  </nav>
 
-    <div class="ascii">+-------------------------------------+
-|       AGENT-FIRST · MCP-NATIVE      |
-+-------------------------------------+</div>
-
-    <div class="stampbox agent" aria-hidden="true">
-      <div class="l1">YOUR AGENT</div>
-      <div class="l2">CAN POST</div>
-      <div class="l3">TO 8 PLATFORMS</div>
-    </div>
-
-    <div class="meta-grid">
-      <div><span class="k">SERVER</span><span class="v">api.letmepost.dev/mcp</span></div>
-      <div><span class="k">TRANSPORT</span><span class="v">Streamable HTTP</span></div>
-      <div><span class="k">TOOLS</span><span class="v">21 · autogenerated</span></div>
-      <div><span class="k">AUTH</span><span class="v">API key + OAuth 2.1</span></div>
+  <div class="hero-stamp" aria-hidden="true">
+    <div class="stampbox stampbox-sm">
+      <div class="l1">INTEGRATION WORK</div>
+      <div class="l2">PAID IN FULL</div>
+      <div class="l3">SO YOUR AGENT DOESN'T</div>
     </div>
   </div>
 
   <hr class="solid" />
 
-  {/* HERO */}
-  <section style="text-align: left;" data-sticky-anchor>
+  {/* Rotator sits at the END of line 2 so the placeholder's longest-
+      name width only ever pads the right edge of the line — invisible
+      on left-aligned text. Earlier placement in the middle of the H1
+      was pushing surrounding words around on each tick. */}
+  <section class="hero-main" data-sticky-anchor>
     <h1 class="hero-h1">
-      Your AI agent can <span class="under">post.</span><br />
-      <span class="acc">One config block.</span> Eight platforms.
+      Eight social platforms.
+      <br />
+      <span class="acc">Right inside</span>
+      <span
+        class="agent-rotator"
+        aria-label="Your AI agent"
+        data-agent-rotator
+      >
+        <span class="agent placeholder" aria-hidden="true">
+          <Icon name="simple-icons:openai" width={32} height={32} class="h1-icon" />
+          ChatGPT
+        </span>
+        <span class="agent on" aria-hidden="true">
+          <Icon name="simple-icons:claude" width={32} height={32} class="h1-icon" />
+          Claude
+        </span>
+        <span class="agent" aria-hidden="true">
+          <Icon name="simple-icons:openai" width={32} height={32} class="h1-icon" />
+          ChatGPT
+        </span>
+        <span class="agent" aria-hidden="true">
+          <Icon name="simple-icons:cursor" width={32} height={32} class="h1-icon" />
+          Cursor
+        </span>
+        <span class="agent" aria-hidden="true">
+          <Icon name="simple-icons:zedindustries" width={32} height={32} class="h1-icon" />
+          Zed AI
+        </span>
+      </span>
     </h1>
 
     <p class="lede">
-      <b>letmepost</b> ships a native <b>Model Context Protocol</b> server. Twenty-one tools,
-      autogenerated from the OpenAPI spec, that surface every endpoint the HTTP API exposes.
-      Claude, Cursor, Claude Code, opencode. Any MCP-aware client drives the full surface.
-      <b>OAuth 2.1 with Dynamic Client Registration</b> means your agent authenticates itself,
-      without you stamping a long-lived API key into a config file.
+      Your AI agent can now post to 8 social media platforms through
+      one open-source API. No setup required, no SDK release on your side.
     </p>
 
     <div class="ctas">
@@ -228,89 +160,21 @@ $ letmepost agent install --client claude-desktop \\
       >GITHUB ↗</a>
     </div>
     <div class="reassurance">
-      Free during alpha · Apache 2.0 source · Self-host the stdio binary
+      Apache 2.0 source ·
+      <a href="https://www.npmjs.com/package/@letmepost/mcp">self-host the stdio binary →</a>
     </div>
-  </section>
-
-  {/* CLIENTS */}
-  <div class="clients">
-    {
-      clients.map((c) => (
-        <div class="client">
-          <div class="glyph">
-            <Icon name={c.icon} width={16} height={16} />
-          </div>
-          <div class="nm">{c.name}</div>
-          <div class={`v ${c.accent ? "" : "q"}`}>{c.v}</div>
-        </div>
-      ))
-    }
-  </div>
-
-  <hr class="dash" />
-
-  {/* CONFIG */}
-  <section class="section">
-    <h2 class="h-caps">ONE CONFIG BLOCK</h2>
-    <div class="subtitle center">drop into your client. that's the install.</div>
-
-    <div
-      class="code-block"
-      data-tabs
-      data-files='{"claude":"claude_desktop_config.json","cursor":".cursor/mcp.json","ccode":".claude.json","hosted":"agent.config.json"}'
-    >
-      <div class="head-bar">
-        <div class="tabs" role="tablist">
-          <button type="button" class="tab on" data-tab="claude">claude desktop</button>
-          <button type="button" class="tab" data-tab="cursor">cursor</button>
-          <button type="button" class="tab" data-tab="ccode">claude code</button>
-          <button type="button" class="tab" data-tab="hosted">hosted (oauth)</button>
-        </div>
-        <span class="file">claude_desktop_config.json</span>
-      </div>
-      <pre data-pane="claude" set:html={highlight("json", claudeConfig)} />
-      <pre data-pane="cursor" hidden set:html={highlight("json", cursorConfig)} />
-      <pre data-pane="ccode" hidden set:html={highlight("json", ccodeConfig)} />
-      <pre data-pane="hosted" hidden set:html={highlight("bash", hostedConfig)} />
-    </div>
-
-    <p class="lede" style="margin-top: 12px;">
-      That's the install. Restart your client, the <b>21 tools</b> appear under <code>letmepost.*</code>
-      in the tool surface. Your agent can now post.
-    </p>
   </section>
 
   <hr class="dash" />
 
-  {/* TOOL SURFACE */}
+  {/* INSTALL */}
   <section class="section">
-    <h2 class="h-caps">TWENTY-ONE TOOLS</h2>
-    <div class="subtitle center">autogenerated from the openapi spec at startup</div>
+    <h2 class="h-caps">ONE LINE TO INSTALL</h2>
+    <div class="subtitle center">$ npm registry has the binary</div>
 
-    <p class="lede">
-      Every tool maps one-to-one to an HTTP endpoint. When we ship a new endpoint, the MCP tool
-      appears automatically. No SDK release required.
-    </p>
-
-    <div class="tools-list">
-      {
-        tools.map((t, i) => (
-          <div class="tline">
-            <span class="num">{String(i + 1).padStart(2, "0")}</span>
-            <span>
-              <code>{t.name}</code>
-              <span class="ds">{t.desc}</span>
-            </span>
-          </div>
-        ))
-      }
+    <div class="code-block code-mini">
+      <pre set:html={highlight("bash", installCmd)} />
     </div>
-
-    <p class="lede" style="margin-top: 14px;">
-      Each tool inherits the HTTP endpoint's full schema: argument types, validation rules, the
-      error envelope, the idempotency contract. Your agent gets typed parameters and structured
-      errors out of the box.
-    </p>
   </section>
 
   <hr class="dash" />
@@ -319,13 +183,6 @@ $ letmepost agent install --client claude-desktop \\
   <section class="section">
     <h2 class="h-mixed">Auth, <span class="acc">your agent registers itself.</span></h2>
     <p class="subtitle left">oauth 2.1 + dynamic client registration (rfc 7591)</p>
-
-    <p class="lede">
-      The hosted MCP server accepts two auth modes. For local development, use an API key.
-      For production agents that should not carry a long-lived shared secret, use the
-      OAuth 2.1 flow with <b>Dynamic Client Registration</b>. Your agent registers itself as
-      an OAuth client on first run.
-    </p>
 
     <div class="flow">
       <div class="step">
@@ -365,26 +222,11 @@ $ letmepost agent install --client claude-desktop \\
     <div class="info-2up">
       <div class="col">
         <h4>Transport</h4>
-        <p><b>Streamable HTTP</b> on the hosted server (api.letmepost.dev/mcp). One connection per session, streaming server-sent events for long-running operations.</p>
-        <p>The npm binary <code>@letmepost/mcp</code> runs as <b>stdio</b> for desktop clients that prefer subprocess transport (Claude Desktop, Cursor).</p>
+        <p><b>Streamable HTTP</b> on the hosted server. The npm binary <code>@letmepost/mcp</code> runs as <b>stdio</b> for desktop clients (Claude Desktop, Cursor, Windsurf).</p>
       </div>
       <div class="col">
-        <h4>Stateless server</h4>
-        <p>The MCP server holds no per-agent state between requests. Every call carries its own bearer / API key + idempotency key.</p>
-        <p>This means agents can <b>fail over, restart, or hot-swap auth</b> without server-side reconciliation. The contract is the same as the HTTP API.</p>
-      </div>
-    </div>
-
-    <div class="info-2up" style="margin-top: 12px;">
-      <div class="col">
-        <h4>Idempotency</h4>
-        <p>Every <code>posts_create</code> call accepts an <code>idempotency_key</code> argument. We stamp one automatically on the SDK + MCP path if you don't provide one.</p>
-        <p>Replay-safe by default. Critical for agents that may retry on transport hiccups.</p>
-      </div>
-      <div class="col">
-        <h4>Rate limits</h4>
-        <p>Same per-org limits as the HTTP API. <b>Failed preflight does not count.</b> 429 responses carry <code>Retry-After</code>.</p>
-        <p>The MCP server surfaces 429s as a structured error your agent can reason about, not a transport failure.</p>
+        <h4>Stateless &amp; replay-safe</h4>
+        <p>Every call carries its own bearer + idempotency key. Agents can <b>fail over, restart, or hot-swap auth</b> without server-side reconciliation.</p>
       </div>
     </div>
   </section>
@@ -393,13 +235,13 @@ $ letmepost agent install --client claude-desktop \\
 
   {/* PRICING TEASER */}
   <section class="section">
-    <h2 class="h-mixed">Same pricing. <span class="acc">Per org.</span></h2>
-    <p class="subtitle left">no separate agent tier · no per-tool-call meter</p>
+    <h2 class="h-mixed">Billing.</h2>
+    <p class="subtitle left">every tool call is one api call</p>
 
     <p class="lede">
-      The MCP server doesn't have its own pricing. Every <code>posts_create</code> tool call is one
-      post against your monthly quota, exactly the same as the HTTP API. Free tier (50 posts/mo) is
-      enough to wire your agent up. <a href="/pricing">Full pricing →</a>
+      A <code>posts_create</code> tool call counts as one post on your monthly quota. Same rate as
+      the HTTP API. The free tier (50 posts/mo) is enough to wire your agent end-to-end.
+      <a href="/pricing">Full pricing →</a>
     </p>
   </section>
 
@@ -428,7 +270,7 @@ $ letmepost agent install --client claude-desktop \\
   <section class="section" style="text-align: center;">
     <h2 class="h-caps" style="margin-bottom: 8px;">SHIP IT TO YOUR AGENT.</h2>
     <p class="lede" style="margin: 6px auto 18px; text-align: center;">
-      Free during alpha. One config block. Twenty-one tools.<br />
+      One install line. Twenty-one tools.<br />
       Open issues for anything weird, agents-first feedback gets prioritized.
     </p>
     <div class="ctas" style="justify-content: center;">
@@ -468,88 +310,169 @@ $ letmepost agent install --client claude-desktop \\
       <b>API key</b> via <code>LMP_API_KEY</code> env. <b>OAuth 2.1</b> via Dynamic Client Registration (RFC 7591). Bearer token on every call.
     </div>
     <div class="note">
-      <span class="tag">Scopes</span>
-      Default OAuth grant requests <code>posts:write</code>, <code>accounts:read</code>, <code>webhooks:read</code>. Override per-flow if you need narrower.
-    </div>
-    <div class="note">
-      <span class="tag">Tool schema</span>
-      Autogenerated from the <code>letmepost.openapi.json</code> spec at server startup. Every endpoint becomes one tool. Schema includes types + remediation hints.
-    </div>
-    <div class="note">
-      <span class="tag">Idempotency</span>
-      Stamped automatically by the stdio binary. Customize per-call with the <code>idempotency_key</code> tool argument. Replay-safe for 24h.
+      <span class="tag">Tool surface</span>
+      21 tools autogenerated from <code>letmepost.openapi.json</code> at server startup. Each one inherits the endpoint's types, validation rules, and remediation hints.
     </div>
     <div class="note">
       <span class="tag">Errors</span>
       Same envelope shape as the HTTP API. Stable code, rule id, platform version, remediation, doc URL. Greppable from inside the agent's reasoning trace.
     </div>
-    <div class="note">
-      <span class="tag">Streaming</span>
-      Long-running ops (video transcoding, scheduled-post status checks) stream <b>SSE events</b> on the Streamable HTTP transport. stdio surfaces them as MCP progress notifications.
-    </div>
   </aside>
 </BaseLayout>
+
+<script>
+  /**
+   * Agent name + logo rotator. Cycles the `.on` class through the
+   * non-placeholder `.agent` children every 2 seconds. Pauses on
+   * tab visibility change to be a good neighbour, and respects
+   * prefers-reduced-motion (stays on the first agent). Rebinds on
+   * Astro view transitions.
+   */
+  function bindAgentRotator() {
+    const root = document.querySelector<HTMLElement>("[data-agent-rotator]");
+    if (!root || root.dataset.lmpRotatorBound) return;
+    root.dataset.lmpRotatorBound = "1";
+
+    const agents = Array.from(
+      root.querySelectorAll<HTMLElement>(".agent:not(.placeholder)"),
+    );
+    if (agents.length < 2) return;
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    let i = 0;
+    const tick = () => {
+      agents[i].classList.remove("on");
+      i = (i + 1) % agents.length;
+      agents[i].classList.add("on");
+    };
+    let timer: ReturnType<typeof setInterval> | null = setInterval(tick, 2000);
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && timer) {
+        clearInterval(timer);
+        timer = null;
+      } else if (!document.hidden && !timer) {
+        timer = setInterval(tick, 2000);
+      }
+    });
+  }
+
+  bindAgentRotator();
+  document.addEventListener("astro:page-load", bindAgentRotator);
+</script>
 
 <style is:global>
   /* ── /agents only ──────────────────────────────────── */
 
-  .stampbox.agent { transform: rotate(-2deg); width: 280px; }
-
-  .clients {
-    margin: 14px 0 20px;
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
-    border: 1px solid var(--r-line);
-  }
-  .clients .client {
-    padding: 14px 12px;
-    border-right: 1px dashed var(--r-very);
+  /* Top quick-links row — same treatment as the landing's
+     replacement for the old ledger string. */
+  .ledger-row.quick-links {
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--r-very);
     text-align: center;
-    background: var(--r-paper);
+    padding-top: 36px;
+    display: flex; gap: 14px; justify-content: center; align-items: center;
+    flex-wrap: wrap;
   }
-  .clients .client:last-child { border-right: 0; }
-  .clients .client .glyph {
-    width: 28px; height: 28px;
-    display: inline-flex; align-items: center; justify-content: center;
-    border: 1px solid var(--r-line);
-    background: var(--r-paper-deep);
-    margin-bottom: 6px;
-    color: var(--r-ink);
-  }
-  .clients .client .nm {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 12px; line-height: 1.2;
-    margin-bottom: 2px;
-    color: var(--r-ink);
-  }
-  .clients .client .v {
-    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
+  .ledger-row.quick-links a {
     color: var(--r-accent);
+    text-decoration: none;
+    transition: color 120ms;
+    font-size: var(--r-fs-xs);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
   }
-  .clients .client .v.q { color: var(--r-very); }
+  .ledger-row.quick-links a:hover {
+    color: var(--r-accent-hover, var(--r-ink));
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+  }
+  .ledger-row.quick-links .sep { color: var(--r-line); }
 
-  .tools-list {
-    margin: 8px 0;
-    display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px;
-    font-size: 12px; line-height: 1.6;
+  /* Small stamp — mirrors the landing's hero stamp so the page
+     opens with the same paid-in-full beat. Subject swapped to
+     "integration work" since that's the agent angle. */
+  .hero-stamp {
+    display: flex;
+    justify-content: center;
+    padding-top: 22px;
+    padding-bottom: 4px;
   }
-  .tools-list .tline {
-    display: grid; grid-template-columns: auto 1fr;
-    gap: 8px; padding: 4px 0;
-    border-bottom: 1px dotted var(--r-very);
+  .stampbox-sm {
+    width: 184px;
+    margin: 0;
+    padding: 10px 12px 9px;
+    border: 1.5px solid var(--r-ink);
+    transform: rotate(-3deg);
+    text-align: center;
+    color: var(--r-ink);
   }
-  .tools-list .tline:last-child,
-  .tools-list .tline:nth-last-child(2) { border-bottom: 0; }
-  .tools-list .tline .num {
-    font-family: var(--r-mono); color: var(--r-very);
-    font-variant-numeric: tabular-nums; font-size: 10px;
-    letter-spacing: 0.04em; padding-top: 2px;
+  .stampbox-sm .l1 { font-size: 9px; letter-spacing: 0.28em; line-height: 1; }
+  .stampbox-sm .l2 { font-size: 19px; letter-spacing: 0.04em; font-weight: 700; line-height: 1; margin: 5px 0; }
+  .stampbox-sm .l3 { font-size: 8px; letter-spacing: 0.18em; line-height: 1; }
+
+  /* Hero — same shape as the landing's hero-main. Left-aligned,
+     H1 leads, lede + CTAs + reassurance below. */
+  .hero-main { padding-top: 28px; padding-bottom: 8px; text-align: left; }
+  .hero-main h1.hero-h1 {
+    font-size: 44px; line-height: 1.08; letter-spacing: -0.03em;
+    margin: 0 0 18px; text-wrap: balance;
   }
-  .tools-list .tline code {
-    background: transparent; color: var(--r-fg); font-weight: 700;
-    padding: 0; font-size: 12px;
+  .hero-main h1.hero-h1 .acc { color: var(--r-accent); }
+  .hero-main .lede { font-size: 14.5px; max-width: 620px; }
+  .hero-main .ctas { justify-content: flex-start; }
+
+  /* Rotator now sits at end-of-line. The placeholder still reserves
+     the longest-name width, but trailing slack is invisible on
+     left-aligned text. */
+  .agent-rotator {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
   }
-  .tools-list .tline .ds { color: var(--r-dim); font-size: 11px; }
-  .tools-list .tline .ds::before { content: ' · '; color: var(--r-very); margin: 0 2px; }
+  .agent-rotator .agent {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .agent-rotator .agent.placeholder {
+    visibility: hidden;
+  }
+  .agent-rotator .agent:not(.placeholder) {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 280ms ease;
+  }
+  .agent-rotator .agent.on {
+    opacity: 1;
+  }
+  .agent-rotator .h1-icon {
+    color: var(--r-accent);
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 700px) {
+    .hero-main h1.hero-h1 { font-size: 30px; }
+    .agent-rotator .h1-icon { width: 24px; height: 24px; }
+  }
+
+  /* Compact install code-block — no head-bar, no tabs, no file
+     pill. Just the highlighted command + comment lines. */
+  .code-block.code-mini { margin: 12px 0 0; }
+  .code-block.code-mini pre { padding: 12px 16px; font-size: 12.5px; line-height: 1.6; }
+
+  /* Wider section breathing room on /agents — mirrors the landing's
+     `main.strip > section.section { padding-top: 44px }` cadence so
+     the page reads as a calm scroll, not a wall of stacked dividers. */
+  main.strip > section.section { padding-top: 44px; }
+  main.strip > hr.dash { margin: 40px 0; }
 
   .flow { margin: 8px 0; counter-reset: step; }
   .flow .step {
@@ -598,12 +521,12 @@ $ letmepost agent install --client claude-desktop \\
   .info-2up .col code { background: var(--r-paper-deep); padding: 0 4px; }
 
   @media (max-width: 700px) {
-    .clients { grid-template-columns: 1fr 1fr; }
-    .clients .client:nth-child(2n) { border-right: 0; }
-    .clients .client:not(:nth-last-child(-n+2)) { border-bottom: 1px dashed var(--r-very); }
-    .tools-list { grid-template-columns: 1fr; }
     .info-2up { grid-template-columns: 1fr; }
     .info-2up .col { border-right: 0; border-bottom: 1px dashed var(--r-very); }
     .info-2up .col:last-child { border-bottom: 0; }
+    main.strip > section.section { padding-top: 32px; }
+    main.strip > hr.dash { margin: 28px 0; }
+    .hero-stamp { padding-top: 18px; }
+    .stampbox-sm { width: 170px; }
   }
 </style>

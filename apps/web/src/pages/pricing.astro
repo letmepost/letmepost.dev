@@ -4,13 +4,13 @@ import Tape from "../components/Tape.astro";
 import Closeout from "../components/Closeout.astro";
 
 /**
- * Pricing — receipt direction. Mirrors design/pricing.html.
- * 4-tier RATE CARD, founding-member banner, WHAT'S METERED table,
- * quota wall, self-host card, billing FAQ, CTA strip.
+ * Pricing — receipt direction. 3-tier RATE CARD (Free / Pro / Business)
+ * + Business+ enterprise email-us card + billing FAQ + final CTA strip.
  *
- * Strip widens to 720 to fit the 4-up tier grid comfortably on
- * desktop. Page-scoped styles live in <style is:global> at the
- * bottom so they only ship with this page.
+ * Earlier passes carried a What's-Metered table, quota-wall, and a
+ * self-host detail block — all rolled into the FAQ (quota behavior)
+ * or removed entirely (self-host is documented at the dedicated docs
+ * URL; nothing to add on the marketing pricing page).
  */
 
 const faqs = [
@@ -20,7 +20,7 @@ const faqs = [
   },
   {
     q: "What happens if I go over my quota?",
-    a: "Posts stop publishing, they don't silently roll into overage charges. You get a webhook + email at 80% and 100%. Bump to a higher tier and any queued posts publish immediately.",
+    a: "Hard cap, no overages. <b>0&nbsp;→&nbsp;79%</b> posts publish normally, no webhook noise. <b>80%</b> fires <code>quota.warning</code> + email to your billing contact. <b>100%</b> fires <code>quota.exceeded</code> + email, and new posts queue rather than publish. Bump to a higher tier and the queued posts publish immediately, or wait for the next billing period.",
   },
   {
     q: "Can I downgrade?",
@@ -32,7 +32,7 @@ const faqs = [
   },
   {
     q: "Is there a free trial of Pro?",
-    a: "No. The Free tier is the trial, it's the full API surface on a 50-post quota, indefinitely. If 50 posts a month is enough for your use, stay free forever.",
+    a: "No. The Free tier is the trial, it's the full API surface on a 50-post quota, indefinitely. If 50 posts a month is enough, the free tier is permanent.",
   },
   {
     q: "SSO / SCIM / DPA / custom SLA?",
@@ -47,17 +47,17 @@ const faqs = [
 
 <BaseLayout
   title="Pricing"
-  description="Per-org pricing, never per-profile. Free tier for evaluation, $79/mo Pro for real workloads, $299/mo Business for embedded SaaS. Self-host stays free forever under Apache 2.0."
+  description="Flat-rate pricing. Free tier covers 50 posts/mo. Pro at $79/mo. Business at $299/mo."
 >
   <Tape />
 
   <header class="page-head" data-sticky-anchor>
     <div class="crumb"><a href="/">letmepost</a> / pricing</div>
-    <h1 class="page-h1">Pricing. <span class="acc">Per org.</span><br />Never per profile.</h1>
+    <h1 class="page-h1">Pricing.</h1>
     <p class="lede">
       One flat number per month. Post volume is the only metered thing.
       Profiles, accounts, team members, webhook endpoints, and API keys
-      are all free. <b>Self-host stays free forever under Apache 2.0.</b>
+      are all free.
     </p>
   </header>
 
@@ -121,125 +121,19 @@ const faqs = [
       </div>
     </div>
 
-    <p class="lede" style="margin-top: 14px;">
-      Beyond Business (volume, SSO, SCIM, custom SLA, DPA)?
-      <a href="mailto:rose@letmepost.dev">Email us.</a>
-      No enterprise card on the page because the answer is "let's talk".
-      Self-host? <a href="https://docs.letmepost.dev/self-host">It stays free forever under Apache 2.0.</a>
-    </p>
-  </section>
-
-  <hr class="dash" />
-
-  {/* WHAT'S METERED */}
-  <section class="section">
-    <h2 class="h-caps">WHAT'S METERED</h2>
-    <div class="subtitle center">posts go on the bill. nothing else does.</div>
-
-    <table class="metered">
-      <thead>
-        <tr><th>Resource</th><th>Cost</th><th>Notes</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="k">Posts</td>
-          <td class="v"><span class="meter">metered</span></td>
-          <td class="v">One per <code>POST /v1/posts</code>. Multi-target counts as 1, not N. Scheduled posts count when they publish.</td>
-        </tr>
-        <tr>
-          <td class="k">Profiles</td>
-          <td class="v"><span class="free">free · unlimited</span></td>
-          <td class="v">Per-client isolation for agencies. Each profile owns its own connected accounts, API keys, webhooks.</td>
-        </tr>
-        <tr>
-          <td class="k">Connected accounts</td>
-          <td class="v"><span class="free">free · unlimited</span></td>
-          <td class="v">Connect as many social accounts as you want, across any combination of platforms.</td>
-        </tr>
-        <tr>
-          <td class="k">Team members</td>
-          <td class="v"><span class="free">free · unlimited</span></td>
-          <td class="v">Invite as many people as you want. No per-seat charge.</td>
-        </tr>
-        <tr>
-          <td class="k">API keys</td>
-          <td class="v"><span class="free">free · unlimited</span></td>
-          <td class="v">Rotate freely. Prefixed <code>lmp_live_</code> or <code>lmp_test_</code>. Only last-4 stored after creation.</td>
-        </tr>
-        <tr>
-          <td class="k">Webhook endpoints</td>
-          <td class="v"><span class="free">free · unlimited</span></td>
-          <td class="v">HMAC-signed deliveries. 7-day dead-letter inspection on Pro, 30-day on Business.</td>
-        </tr>
-        <tr>
-          <td class="k">Media storage</td>
-          <td class="v"><span class="free">free · 30 days</span></td>
-          <td class="v">S3-backed. Upload once, reference by <code>mediaId</code>. 30-day retention before automatic GC.</td>
-        </tr>
-        <tr>
-          <td class="k">Preflight checks</td>
-          <td class="v"><span class="free">free · unlimited</span></td>
-          <td class="v">A failed preflight does <b>not</b> count against your post quota. Only successful publishes meter.</td>
-        </tr>
-      </tbody>
-    </table>
-  </section>
-
-  <hr class="dash" />
-
-  {/* QUOTA WALL */}
-  <section class="section">
-    <h2 class="h-mixed">How the wall works.</h2>
-    <p class="subtitle left">hard cap, no overages, no surprises</p>
-
-    <div class="quota-wall">
-      <div class="row">
-        <div class="l">
-          <b>0 → 79% of quota.</b>
-          <p>Posts publish normally. No webhook noise.</p>
+    {/* Enterprise / above-Business CTA card — replaces the previous
+        "Beyond Business" prose paragraph. Same information, framed as
+        a clear one-line CTA instead of a sentence buried under the
+        tier grid. */}
+    <a href="mailto:rose@letmepost.dev" class="enterprise-card">
+      <div class="l">
+        <div class="label">Business+</div>
+        <div class="body">
+          Volume · SSO · SCIM · custom SLA · white-labelling · DPA.
         </div>
-        <div class="r ok">all good</div>
       </div>
-      <div class="row">
-        <div class="l">
-          <b>80% of quota.</b>
-          <p>Webhook <code>quota.warning</code> fires + email to billing contact.</p>
-        </div>
-        <div class="r">first warning</div>
-      </div>
-      <div class="row">
-        <div class="l">
-          <b>100% of quota.</b>
-          <p>Webhook <code>quota.exceeded</code> + email. Posts queue but do not publish.</p>
-        </div>
-        <div class="r">hard cap</div>
-      </div>
-      <div class="row">
-        <div class="l">
-          <b>Upgrade or wait for reset.</b>
-          <p>Bump to a higher tier and queued posts publish immediately. Or wait until next billing period.</p>
-        </div>
-        <div class="r ok">your call</div>
-      </div>
-    </div>
-  </section>
-
-  <hr class="dash" />
-
-  {/* SELF-HOST DETAIL */}
-  <section class="section">
-    <h2 class="h-mixed">Self-host, <span class="acc">same code, forever free.</span></h2>
-    <p class="subtitle left">apache 2.0 · no feature gate · no open-core trick</p>
-
-    <div class="selfhost">
-      <h3>One docker-compose away.</h3>
-      <p>BYO Postgres and Redis. BYO platform OAuth apps (your own Meta App Review record, your own X dev portal entry). Identical API behavior to the hosted version. You get every preflight rule, every webhook event, every version pin, because the hosted version IS this code.</p>
-      <code class="inline-cmd">$ docker compose up</code>
-      <p style="margin-top: 14px;">
-        <a href="https://docs.letmepost.dev/self-host">Read the self-host guide →</a> ·
-        <a href="https://github.com/letmepost/letmepost.dev">Star on GitHub</a>
-      </p>
-    </div>
+      <div class="r">EMAIL US →</div>
+    </a>
   </section>
 
   <hr class="dash" />
@@ -265,8 +159,8 @@ const faqs = [
 
   {/* CTA strip */}
   <div class="cta-strip">
-    <h2>Pick a tier. Or self-host.</h2>
-    <p>Free during alpha. Self-host forever free. No credit card required.</p>
+    <h2>Pick a tier.</h2>
+    <p>No credit card required.</p>
     <div class="ctas">
       <a
         href="https://dashboard.letmepost.dev"
@@ -274,7 +168,6 @@ const faqs = [
         data-analytics-event="cta.clicked"
         data-analytics-props='{"location":"pricing-final","target":"dashboard","page":"pricing","label":"Start free"}'
       >START FREE →</a>
-      <a href="https://docs.letmepost.dev/self-host" class="btn">SELF-HOST GUIDE</a>
       <a href="mailto:rose@letmepost.dev" class="btn">EMAIL US</a>
     </div>
   </div>
@@ -285,8 +178,8 @@ const faqs = [
   {/* Right rail — billing notes */}
   <aside class="marg" aria-label="Billing notes" slot="rightRail">
     <div class="note">
-      <span class="tag">Per org</span>
-      Every count below is org-wide. <b>Profiles, accounts, team members, webhooks, and API keys are free.</b>
+      <span class="tag">Free side</span>
+      Profiles, accounts, team members, webhooks, and API keys are <b>all free</b>. Only successful publishes meter against your monthly cap.
     </div>
     <div class="note">
       <span class="tag">Hard caps</span>
@@ -299,10 +192,6 @@ const faqs = [
     <div class="note">
       <span class="tag">Alpha credit</span>
       Sign up before <b>2026-07-22</b> and the first 60 days after billing turns on are free. No commitment.
-    </div>
-    <div class="note">
-      <span class="tag">Why per-org</span>
-      Per-profile pricing taxes the people who use the API correctly. Agencies with 30 clients on Ayrshare pay 30×. With us they pay 1×.
     </div>
     <div class="note">
       <span class="tag">Why hard caps</span>
@@ -386,6 +275,41 @@ const faqs = [
   .tier .btn.pri:hover { background: var(--r-accent); border-color: var(--r-accent); }
   [data-theme="dark"] .tier .btn.pri:hover { color: #0e0e0a; }
 
+  /* Business+ enterprise card — single horizontal row beneath the tier
+     grid. Sits in for what used to be a prose paragraph that pointed
+     readers at the "let's talk" path. */
+  .enterprise-card {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: 16px; align-items: center;
+    margin: 18px 0 0;
+    padding: 16px 22px;
+    border: 1px solid var(--r-line);
+    background: var(--r-paper);
+    text-decoration: none; color: var(--r-fg);
+    transition: border-color 100ms, background 100ms;
+  }
+  .enterprise-card:hover {
+    border-color: var(--r-accent);
+    background: var(--r-accent-soft);
+  }
+  .enterprise-card .l .label {
+    font-size: 9px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--r-very);
+    margin-bottom: 4px; font-weight: 700;
+  }
+  .enterprise-card .l .body {
+    font-size: 13px; color: var(--r-dim); line-height: 1.5;
+  }
+  .enterprise-card:hover .l .body { color: var(--r-fg); }
+  .enterprise-card .r {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--r-accent); white-space: nowrap;
+  }
+  @media (max-width: 540px) {
+    .enterprise-card { grid-template-columns: 1fr; gap: 8px; }
+  }
+
   /* Founding-member banner */
   .founding {
     border: 2px dashed var(--r-accent);
@@ -410,55 +334,6 @@ const faqs = [
     font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
     color: var(--r-very); display: block; margin-top: 4px; font-weight: 400;
   }
-
-  /* What's metered table */
-  .metered { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0; }
-  .metered th {
-    text-align: left;
-    font-size: var(--r-fs-xs); letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--r-very);
-    padding: 10px 0; border-bottom: 2px solid var(--r-ink); font-weight: 700;
-  }
-  .metered td {
-    padding: 10px 0; border-bottom: 1px dotted var(--r-very);
-    vertical-align: top;
-  }
-  .metered td.k { color: var(--r-fg); font-weight: 700; }
-  .metered td.v { color: var(--r-dim); }
-  .metered td .free { color: var(--r-accent); font-weight: 700; }
-  .metered td .meter { color: var(--r-ink); font-weight: 700; }
-  .metered code { background: var(--r-accent-soft); padding: 1px 5px; font-size: 0.92em; }
-
-  /* Quota wall */
-  .quota-wall { margin: 12px 0; }
-  .quota-wall .row {
-    display: grid; grid-template-columns: 1fr auto;
-    padding: 8px 0; border-bottom: 1px dotted var(--r-very);
-    align-items: center;
-  }
-  .quota-wall .row:last-child { border-bottom: 0; }
-  .quota-wall .row .l b { color: var(--r-ink); font-weight: 700; }
-  .quota-wall .row .l p { margin: 2px 0 0; font-size: 11px; color: var(--r-very); }
-  .quota-wall .row .l code { background: var(--r-accent-soft); padding: 1px 5px; font-size: 0.92em; }
-  .quota-wall .row .r {
-    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
-    color: var(--r-very);
-  }
-  .quota-wall .row .r.ok { color: var(--r-accent); }
-
-  /* Self-host card */
-  .selfhost {
-    border: 1px solid var(--r-line);
-    background: var(--r-paper);
-    padding: 22px;
-    margin: 6px 0;
-  }
-  .selfhost h3 {
-    font-family: var(--r-mono); margin: 0 0 6px;
-    font-size: 14px; letter-spacing: 0.04em; color: var(--r-ink);
-  }
-  .selfhost p { margin: 0 0 10px; color: var(--r-dim); }
-  .selfhost a { color: var(--r-accent); }
 
   /* Footer CTA strip */
   .cta-strip {

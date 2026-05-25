@@ -40,8 +40,9 @@ export type Platform = {
   gotcha?: string;
 };
 
-/** Marketing-only slugs that aren't in the backend Platform enum. */
-const PLANNED_PLATFORMS: ReadonlySet<string> = new Set(["youtube"]);
+/** Marketing-only slugs that aren't in the backend Platform enum.
+ *  TikTok replaces YouTube as v2 scope per the latest roadmap pass. */
+const PLANNED_PLATFORMS: ReadonlySet<string> = new Set(["tiktok"]);
 
 function statusFor(slug: string): PlatformStatus {
   if (PLANNED_PLATFORMS.has(slug)) return "planned";
@@ -51,19 +52,12 @@ function statusFor(slug: string): PlatformStatus {
 
 type PlatformBase = Omit<Platform, "status">;
 
+/**
+ * Order mirrors the Zernio reference: Twitter/X first, then TikTok, then
+ * LinkedIn, then Bluesky, then the Meta surfaces (IG → FB → Threads),
+ * then Pinterest. Drop the status-bucket sort — single grid, one order.
+ */
 const PLATFORMS_BASE: readonly PlatformBase[] = [
-  {
-    slug: "bluesky",
-    name: "Bluesky",
-    icon: "butterfly",
-    tagline: "AT Proto · live for everyone today",
-    pitch:
-      "App-password connect, no OAuth review, no app gates. The AT Proto stack ships v1's most permissive on-ramp — sign in with an app password and the API is live.",
-    detail:
-      "AT Proto · 300-grapheme posts · 4 images or 1 video · video routes through the dedicated transcoding service automatically",
-    videoSupport: true,
-    carouselSupport: true,
-  },
   {
     slug: "twitter",
     name: "Twitter / X",
@@ -77,6 +71,20 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
     carouselSupport: true,
     gotcha:
       "X retired the free posting tier in 2025 — Pay Per Use is the cheapest entry point. letmepost works on any tier with `tweet.write`.",
+  },
+  {
+    slug: "tiktok",
+    name: "TikTok",
+    icon: "tiktok-logo",
+    tagline: "Content Posting API · v2 scope",
+    pitch:
+      "TikTok's Content Posting API + creator OAuth flow, gated by a CASA-style security audit. Publisher is in build; lands in v2 once the core platforms are stable and the audit clears.",
+    detail:
+      "Content Posting API · video uploads · creator OAuth · audit-gated production access",
+    videoSupport: true,
+    carouselSupport: false,
+    gotcha:
+      "Reserved in the schema for v2. No production traffic flows yet; the route exists for SEO + roadmap visibility.",
   },
   {
     slug: "linkedin",
@@ -93,28 +101,14 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
       "Org / Company Page posting requires MDP approval. v1 ships personal posting; org publishing lands in the next phase.",
   },
   {
-    slug: "pinterest",
-    name: "Pinterest",
-    icon: "pinterest-logo",
-    tagline: "v5 API · image + video pins",
+    slug: "bluesky",
+    name: "Bluesky",
+    icon: "butterfly",
+    tagline: "AT Proto · live for everyone today",
     pitch:
-      "Image pins go through `media_source.url` directly — single round-trip and the pin is live. Video pins run register-media → S3 multipart → poll → createPin transparently.",
+      "App-password connect, no OAuth review, no app gates. The AT Proto stack ships v1's most permissive on-ramp — sign in with an app password and the API is live.",
     detail:
-      "v5 API · image + video pins · cover image required for video · destination URL reachability checked locally",
-    videoSupport: true,
-    carouselSupport: false,
-    gotcha:
-      "Trial Access apps must point at the sandbox host. Production access requires Standard Access approval.",
-  },
-  {
-    slug: "threads",
-    name: "Threads",
-    icon: "threads-logo",
-    tagline: "Meta Threads Graph API · 2–20 carousels",
-    pitch:
-      "Standalone OAuth at threads.net (not Facebook Login). Text, single image, single video, or a 2–20-child mixed-media carousel — Threads's two-step async publish is hidden from the caller.",
-    detail:
-      "Threads Graph API · 500-grapheme posts · 60-day token · containers expire after 24 h",
+      "AT Proto · 300-grapheme posts · 4 images or 1 video · video routes through the dedicated transcoding service automatically",
     videoSupport: true,
     carouselSupport: true,
   },
@@ -145,18 +139,30 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
     carouselSupport: true,
   },
   {
-    slug: "youtube",
-    name: "YouTube",
-    icon: "youtube-logo",
-    tagline: "Data API v3 · CASA verification gate",
+    slug: "threads",
+    name: "Threads",
+    icon: "threads-logo",
+    tagline: "Meta Threads Graph API · 2–20 carousels",
     pitch:
-      "YouTube uploads via Data API v3 are gated by Google's CASA security review (typically 6–12 weeks). letmepost ships the publisher and waits on review; flip-the-switch is one config change once Google clears the audit.",
+      "Standalone OAuth at threads.net (not Facebook Login). Text, single image, single video, or a 2–20-child mixed-media carousel — Threads's two-step async publish is hidden from the caller.",
     detail:
-      "Data API v3 · video upload + metadata · CASA-gated; OAuth scope `youtube.upload`",
+      "Threads Graph API · 500-grapheme posts · 60-day token · containers expire after 24 h",
+    videoSupport: true,
+    carouselSupport: true,
+  },
+  {
+    slug: "pinterest",
+    name: "Pinterest",
+    icon: "pinterest-logo",
+    tagline: "v5 API · image + video pins",
+    pitch:
+      "Image pins go through `media_source.url` directly — single round-trip and the pin is live. Video pins run register-media → S3 multipart → poll → createPin transparently.",
+    detail:
+      "v5 API · image + video pins · cover image required for video · destination URL reachability checked locally",
     videoSupport: true,
     carouselSupport: false,
     gotcha:
-      "Awaiting CASA verification approval. Self-host users with their own Google project + CASA cert can use it today.",
+      "Trial Access apps must point at the sandbox host. Production access requires Standard Access approval.",
   },
 ];
 

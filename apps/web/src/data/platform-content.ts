@@ -49,10 +49,20 @@ export interface PlatformMargNote {
 }
 
 export interface PlatformContent {
-  /** Hero h1 fragments. `prefix underlined suffix` reads "Publish to <X>." */
-  heroH1: { prefix: string; underlined: string; suffix?: string };
-  /** Sub-headline (accent-colored). */
-  heroSub: string;
+  /**
+   * Hero h1 fragments rendered as:
+   *   `{before} <icon /> {Platform} {after}`
+   *   `<break>`
+   *   `<accent>{emphasize}</accent>`
+   *
+   * The platform name + its icon are injected inline by the template
+   * from `PLATFORMS` so this object only owns the surrounding copy.
+   */
+  heroH1: { before: string; after: string; emphasize: string };
+  /** Sub-headline (accent-colored). Optional — the new heroH1 carries
+   *  the value claim inline; older content kept this for the previous
+   *  layout. Left in the type for back-compat. */
+  heroSub?: string;
   /** Lede paragraph. HTML allowed. */
   heroLede: string;
   /** Reassurance line under the CTAs. HTML allowed. */
@@ -130,7 +140,7 @@ export interface PlatformContent {
 // ──────────────────────────────────────────────────────────
 
 const bluesky: PlatformContent = {
-  heroH1: { prefix: "Publish to", underlined: "Bluesky", suffix: "." },
+  heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "App-password. Not OAuth.",
   heroLede:
     "No developer-portal queue. No third-party OAuth review. No demo videos. <b>letmepost</b> gives you a single endpoint to publish text, images, video, reply chains, and quote posts. AT Proto handled, graphemes counted, facets resolved, federated PDSes supported.",
@@ -173,7 +183,7 @@ const bluesky: PlatformContent = {
   playground: {
     steps: ["Connect", "Configure", "Execute"],
     body: "Generate an <b>app password</b> in Bluesky → Settings → Privacy &amp; Security → App passwords. Paste into our dashboard. Post immediately.",
-    cta: { href: "https://dashboard.letmepost.dev/connect/bluesky", label: "CONNECT BLUESKY →" },
+    cta: { href: "https://dashboard.letmepost.dev/connect", label: "CONNECT BLUESKY →" },
     result: "Live in ~12 seconds.",
     resultCaption: "NO OAUTH DANCE",
   },
@@ -319,7 +329,7 @@ for (const r of result.targets) {
 };
 
 const x: PlatformContent = {
-  heroH1: { prefix: "Publish to", underlined: "X", suffix: "." },
+  heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "Skip the $100 Basic tier.",
   heroLede:
     "Stop wrestling with X's API pricing and OAuth complexity. <b>letmepost</b> gives you a single, simple endpoint to publish tweets, threads, images, and video. We handle OAuth 2.0 PKCE, rate limits, t.co URL collapse, and every API version change.",
@@ -361,7 +371,7 @@ const x: PlatformContent = {
   playground: {
     steps: ["Connect", "Configure", "Execute"],
     body: "OAuth 2.0 PKCE handled in the browser. Click connect, authorize on x.com, you're back in the dashboard with a working account.",
-    cta: { href: "https://dashboard.letmepost.dev/connect/twitter", label: "CONNECT X →" },
+    cta: { href: "https://dashboard.letmepost.dev/connect", label: "CONNECT X →" },
     result: "Posting in ~30 seconds.",
     resultCaption: "PKCE HANDLED",
   },
@@ -504,7 +514,7 @@ for (const r of result.targets) {
 };
 
 const pinterest: PlatformContent = {
-  heroH1: { prefix: "Publish to", underlined: "Pinterest", suffix: "." },
+  heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "v5 API. Pins with one POST.",
   heroLede:
     "Image and video pins through the v5 API. <b>letmepost</b> handles board lookup, destination-URL reachability checks, video cover thumbnails, and the register-media + S3 multipart + poll dance that Pinterest demands for video.",
@@ -543,7 +553,7 @@ const pinterest: PlatformContent = {
   playground: {
     steps: ["Connect", "Configure", "Execute"],
     body: "OAuth on pinterest.com, select boards, you're back in the dashboard. Sandbox accounts work for testing; Standard Access for production.",
-    cta: { href: "https://dashboard.letmepost.dev/connect/pinterest", label: "CONNECT PINTEREST →" },
+    cta: { href: "https://dashboard.letmepost.dev/connect", label: "CONNECT PINTEREST →" },
     result: "First pin in ~45 seconds.",
     resultCaption: "BOARDS LOADED",
   },
@@ -687,7 +697,7 @@ for (const r of result.targets) {
 // substantive but without claiming live behavior we can't demonstrate.
 
 const linkedin: PlatformContent = {
-  heroH1: { prefix: "Publish to", underlined: "LinkedIn", suffix: "." },
+  heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "Version pinned. Sunsets monitored.",
   heroLede:
     "LinkedIn sunset five API versions in six months from 2024–25, breaking n8n, Zapier, Make, and every Postiz install. <b>letmepost</b> pins the version header, tracks deprecations, upgrades internally — your code keeps working when LinkedIn ships a breaking change at 2 a.m.",
@@ -727,7 +737,7 @@ const linkedin: PlatformContent = {
   playground: {
     steps: ["Connect", "Configure", "Execute"],
     body: "OAuth on linkedin.com. Personal posts work today (in review). Org posts unlock once our MDP review clears — self-host users can BYO MDP entry today.",
-    cta: { href: "https://dashboard.letmepost.dev/connect/linkedin", label: "CONNECT LINKEDIN →" },
+    cta: { href: "https://dashboard.letmepost.dev/connect", label: "CONNECT LINKEDIN →" },
     result: "Approval-gated.",
     resultCaption: "MDP IN REVIEW · DAY 12 / ~84",
   },
@@ -854,7 +864,7 @@ const result = await lmp.posts.create({
 };
 
 const threads: PlatformContent = {
-  heroH1: { prefix: "Publish to", underlined: "Threads", suffix: "." },
+  heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "Threads Graph. 2–20 carousels.",
   heroLede:
     "Threads has its own OAuth (not Facebook Login) and its own quirky two-step async publish. <b>letmepost</b> abstracts both: standalone OAuth handled, container creation + finalize hidden from the caller, mixed-media carousels treated as a single POST.",
@@ -893,7 +903,7 @@ const threads: PlatformContent = {
   playground: {
     steps: ["Connect", "Configure", "Execute"],
     body: "Threads OAuth on threads.net. Standalone, not bundled with Facebook. Live the day Meta App Review clears for this surface.",
-    cta: { href: "https://dashboard.letmepost.dev/connect/threads", label: "CONNECT THREADS →" },
+    cta: { href: "https://dashboard.letmepost.dev/connect", label: "CONNECT THREADS →" },
     result: "Approval-gated.",
     resultCaption: "META REVIEW · DAY 24 / ~56",
   },
@@ -1019,7 +1029,7 @@ const result = await lmp.posts.create({
 };
 
 const instagram: PlatformContent = {
-  heroH1: { prefix: "Publish to", underlined: "Instagram", suffix: "." },
+  heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "Through our reviewed Meta app.",
   heroLede:
     "<b>Meta App Review is the single biggest reason small teams cannot ship a social publishing API.</b> Eleven weeks, three rejections, four re-shot demo videos. We did that once. Connect via our reviewed Meta app and publish through it. <a href='/blog/why-we-ate-meta-app-review'>Read the postmortem →</a>",
@@ -1063,7 +1073,7 @@ const instagram: PlatformContent = {
   playground: {
     steps: ["Connect", "Configure", "Execute"],
     body: "Facebook Login for Business. <b>One consent grants Pages + IG Business + Threads access.</b> Live the day Meta approval clears for hosted users.",
-    cta: { href: "https://dashboard.letmepost.dev/connect/facebook", label: "CONNECT META →" },
+    cta: { href: "https://dashboard.letmepost.dev/connect", label: "CONNECT META →" },
     result: "Approval-gated.",
     resultCaption: "META REVIEW · DAY 24 / ~56",
   },
@@ -1201,7 +1211,7 @@ const result = await lmp.posts.create({
 };
 
 const facebook: PlatformContent = {
-  heroH1: { prefix: "Publish to", underlined: "Facebook Pages", suffix: "." },
+  heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "Through the same Meta app.",
   heroLede:
     "One Facebook Login grants Pages + IG Business + Threads in a single consent. <b>letmepost</b> handles the Page token exchange, multi-photo + video posting, and the 63,206-character body limit (yes, really).",
@@ -1240,7 +1250,7 @@ const facebook: PlatformContent = {
   playground: {
     steps: ["Connect", "Configure", "Execute"],
     body: "Facebook Login for Business. Pick the Pages your app should post to. Page Access Tokens exchanged and stored encrypted.",
-    cta: { href: "https://dashboard.letmepost.dev/connect/facebook", label: "CONNECT META →" },
+    cta: { href: "https://dashboard.letmepost.dev/connect", label: "CONNECT META →" },
     result: "Approval-gated.",
     resultCaption: "META REVIEW · DAY 24 / ~56",
   },
@@ -1366,48 +1376,48 @@ const result = await lmp.posts.create({
   colophon: "<b>Meta Graph.</b> Pages + IG fan-out. Big text, many photos, one POST.",
 };
 
-const youtube: PlatformContent = {
-  heroH1: { prefix: "Publish to", underlined: "YouTube", suffix: "." },
-  heroSub: "Data API v3. CASA-gated.",
+const tiktok: PlatformContent = {
+  heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
+  heroSub: "Content Posting API. v2 scope.",
   heroLede:
-    "YouTube uploads run through Data API v3 and are gated by Google's CASA security review (typically 6–12 weeks). <b>letmepost</b> ships the publisher and waits on review; flip-the-switch is one config change once Google clears the audit. Self-host users with their own Google project + CASA cert can use it today.",
+    "TikTok's Content Posting API + creator OAuth flow, gated by a CASA-style security audit. <b>letmepost</b> has the publisher in build. Flip-the-switch is one config change once the audit clears. Self-hosters with their own TikTok developer app + audit cert can use it today.",
   reassurance:
-    'Planned · Data API v3 · <a href="https://docs.letmepost.dev/platforms/youtube">read the docs →</a>',
+    'Planned · Content Posting API · <a href="https://docs.letmepost.dev/platforms/tiktok">read the docs →</a>',
   miniCode: `{
-  "targets": [{ "platform": "youtube" }],
-  "accountId": "acc_yt_xyz",
-  "text": "Upload via letmepost.",
-  "options": { "title": "New video", "privacyStatus": "unlisted" }
+  "targets": [{ "platform": "tiktok" }],
+  "accountId": "acc_tt_xyz",
+  "text": "Posted via letmepost.",
+  "options": { "privacyLevel": "PUBLIC_TO_EVERYONE" }
 }`,
 
-  vsHead: "Why letmepost vs Data API v3 direct?",
+  vsHead: "Why letmepost vs Content Posting API direct?",
   vsDirect: [
-    { body: "You complete Google CASA verification (6–12 weeks)" },
+    { body: "You complete TikTok audit verification (6–12 weeks)" },
     { body: "You implement resumable upload across multiple requests" },
     { body: "You manage daily quota cost across all endpoints" },
     { body: "You handle restricted-scope vs unrestricted-scope errors" },
-    { body: "You parse the Channel vs Brand-account distinction" },
+    { body: "You parse the Creator vs Business-account distinction" },
     { body: "You track Google's quota deductions per call type" },
   ],
   vsLetmepost: [
     { body: "Our reviewed Google project covers hosted users (when CASA clears)" },
     { body: "Resumable upload abstracted; one POST + a mediaId" },
     { body: "Quota cost surfaced per-call in the response envelope" },
-    { body: 'Scope errors mapped to <code>youtube_scope_mismatch</code>' },
-    { body: "Channel vs Brand handled at connect time" },
+    { body: 'Scope errors mapped to <code>tiktok_scope_mismatch</code>' },
+    { body: "Creator vs Business handled at connect time" },
     { body: "Daily quota tracked + surfaced via <code>quota.warning</code> webhook" },
   ],
 
   highlight: {
     tone: "warn",
-    title: "⚠  CASA verification gates production",
-    body: "YouTube's Data API write access goes through Google's CASA security audit. <b>6–12 weeks typical.</b> letmepost has the publisher shipped and is sitting in the queue. Self-host users with their own Google project + CASA cert can use it today.",
+    title: "⚠  the security audit gates production",
+    body: "TikTok's Data API write access goes through Google's CASA security audit. <b>6–12 weeks typical.</b> letmepost has the publisher shipped and is sitting in the queue. Self-host users with their own Google project + CASA cert can use it today.",
   },
 
   playground: {
     steps: ["Connect", "Configure", "Execute"],
     body: "Google OAuth + Channel pick. Self-host with your own Google project + CASA cert to use it today.",
-    cta: { href: "https://dashboard.letmepost.dev/connect/youtube", label: "CONNECT YOUTUBE →" },
+    cta: { href: "https://dashboard.letmepost.dev/connect", label: "CONNECT YOUTUBE →" },
     result: "Approval-gated.",
     resultCaption: "CASA REVIEW · IN FLIGHT",
   },
@@ -1423,12 +1433,12 @@ const youtube: PlatformContent = {
   steps: [
     { title: "Get your API key", body: "Sign up at <code>dashboard.letmepost.dev</code>." },
     {
-      title: "Connect a YouTube channel",
-      body: "Google OAuth. Pick the channel. Channel vs Brand-account distinction handled.",
+      title: "Connect a TikTok channel",
+      body: "Google OAuth. Pick the channel. Creator vs Business-account distinction handled.",
     },
     {
       title: "Upload a video",
-      body: 'One <code>POST /v1/posts</code> with the video <code>mediaId</code>. We handle resumable upload, fire <code>post.published</code> when YouTube finalizes.',
+      body: 'One <code>POST /v1/posts</code> with the video <code>mediaId</code>. We handle resumable upload, fire <code>post.published</code> when TikTok finalizes.',
     },
   ],
 
@@ -1456,17 +1466,17 @@ const youtube: PlatformContent = {
   ],
 
   codeExample: {
-    file: "publish-youtube.ts",
+    file: "publish-tiktok.ts",
     caption: "upload a video · typescript",
     code: `import { Letmepost } from '@letmepost/sdk';
 const lmp = new Letmepost({ apiKey: process.env.LMP_API_KEY });
 
 const result = await lmp.posts.create({
-  targets: [{ platform: 'youtube', accountId: 'acc_yt_xyz' }],
+  targets: [{ platform: 'tiktok', accountId: 'acc_yt_xyz' }],
   text: 'A demo of letmepost. Posted via the API.',
   media: [{ type: 'video', mediaId: 'med_video_xyz' }],
   options: {
-    youtube: {
+    tiktok: {
       title: 'letmepost demo',
       privacyStatus: 'unlisted',
       categoryId: '28', // Science & Technology
@@ -1475,15 +1485,15 @@ const result = await lmp.posts.create({
 });`,
   },
 
-  faqSubtitle: "about youtube uploads",
+  faqSubtitle: "about tiktok uploads",
   faqs: [
     {
-      q: "When does YouTube go live?",
-      a: "Hosted users wait on Google CASA verification (6–12 weeks). Self-host with your own Google project + CASA cert today.",
+      q: "When does TikTok go live?",
+      a: "Hosted users wait on TikTok audit verification (6–12 weeks). Self-host with your own Google project + CASA cert today.",
     },
     {
       q: "What's CASA?",
-      a: "Cloud Application Security Assessment. Google's audit for apps requesting restricted scopes like YouTube write. Annual recertification required.",
+      a: "Cloud Application Security Assessment. Google's audit for apps requesting restricted scopes like TikTok write. Annual recertification required.",
     },
     {
       q: "How big can videos be?",
@@ -1491,11 +1501,11 @@ const result = await lmp.posts.create({
     },
     {
       q: "Quota cost?",
-      a: 'Uploads cost ~1,600 units, list calls cost 1, comments cost 50. Daily cap is 10,000 units default. We surface unit cost per call + fire <code>quota.warning</code> approaching the cap. <a href="https://docs.letmepost.dev/tools/youtube-quota-cost-calculator">Calculator tool</a>.',
+      a: 'Uploads cost ~1,600 units, list calls cost 1, comments cost 50. Daily cap is 10,000 units default. We surface unit cost per call + fire <code>quota.warning</code> approaching the cap. <a href="https://docs.letmepost.dev/tools/tiktok-quota-cost-calculator">Calculator tool</a>.',
     },
     {
       q: "Shorts vs full videos?",
-      a: 'Both upload through the same endpoint. <code>privacyStatus</code>, <code>categoryId</code>, and <code>tags</code> map to the standard Data API v3 fields.',
+      a: 'Both upload through the same endpoint. <code>privacyStatus</code>, <code>categoryId</code>, and <code>tags</code> map to the standard Content Posting API fields.',
     },
   ],
 
@@ -1504,7 +1514,7 @@ const result = await lmp.posts.create({
     "Self-host today with your own Google project + CASA cert. Hosted users queue up; live when CASA clears. <b>Same publisher either way.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
-  finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/youtube",
+  finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/tiktok",
 
   closeoutThanks: "* * * DATA API v3 · CASA · IN BUILD * * *",
   closeoutCodeLine: "PLAT · YOUTUBE · PLANNED",
@@ -1520,7 +1530,7 @@ const result = await lmp.posts.create({
     },
     {
       tag: "Quota",
-      body: 'Upload 1,600 units, list 1, comment 50. Daily cap 10,000 default. <a href="https://docs.letmepost.dev/tools/youtube-quota-cost-calculator">Calculator</a>.',
+      body: 'Upload 1,600 units, list 1, comment 50. Daily cap 10,000 default. <a href="https://docs.letmepost.dev/tools/tiktok-quota-cost-calculator">Calculator</a>.',
     },
     {
       tag: "Self-host",
@@ -1528,11 +1538,11 @@ const result = await lmp.posts.create({
     },
     {
       tag: "Webhook timing",
-      body: "<code>post.published</code> fires when YouTube finishes processing. Varies <b>30s–5min</b> depending on video length.",
+      body: "<code>post.published</code> fires when TikTok finishes processing. Varies <b>30s–5min</b> depending on video length.",
     },
   ],
 
-  colophon: "<b>Data API v3.</b> CASA-gated. Self-host today, hosted when audit clears.",
+  colophon: "<b>Content Posting API.</b> CASA-gated. Self-host today, hosted when audit clears.",
 };
 
 export const PLATFORM_CONTENT: Record<string, PlatformContent> = {
@@ -1543,5 +1553,5 @@ export const PLATFORM_CONTENT: Record<string, PlatformContent> = {
   threads,
   instagram,
   facebook,
-  youtube,
+  tiktok,
 };

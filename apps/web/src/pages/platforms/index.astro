@@ -19,7 +19,7 @@ const phosphor: Record<string, string> = {
   facebook: "ph:facebook-logo",
   threads: "ph:threads-logo",
   linkedin: "ph:linkedin-logo",
-  youtube: "ph:youtube-logo",
+  tiktok: "ph:tiktok-logo",
 };
 
 const statusBucket = (status: string): "live" | "in-review" | "planned" => {
@@ -53,24 +53,11 @@ const total = PLATFORMS.length;
   title="Platforms"
   description={`${total} social platforms in v1. Bluesky, X, and Pinterest are live. Instagram, Facebook, Threads, and LinkedIn are in platform review. TikTok lands in v2.`}
 >
-  <Fragment slot="navStatus">
-    <div class="nav-section">Live</div>
-    <div class="status-card">
-      <div class="row">
-        <span class="k"><span class="pulse" aria-hidden="true"></span> Build</span>
-        <span class="v ok">v0.4.2</span>
-      </div>
-      <div class="row"><span class="k">Live</span><span class="v ok">{counts.live} platforms</span></div>
-      <div class="row"><span class="k">In review</span><span class="v">{counts.inReview} platforms</span></div>
-      <div class="row"><span class="k">Planned</span><span class="v">{counts.planned} platform{counts.planned === 1 ? "" : "s"}</span></div>
-    </div>
-  </Fragment>
-
-  <Fragment slot="navColophon">
-    <div class="colophon">
-      Each row flips to <b>live</b> the moment platform review clears. No artificial gates.
-    </div>
-  </Fragment>
+  {/* Override the nav-rail Live status + colophon with empty content
+      so /platforms shows only the primary nav + submenus — the page
+      itself is the platform inventory. */}
+  <Fragment slot="navStatus" />
+  <Fragment slot="navColophon" />
 
   <Tape />
 
@@ -79,12 +66,6 @@ const total = PLATFORMS.length;
     <h1 class="page-h1">
       {total} platforms in v1. <span class="acc">Twenty plus next.</span>
     </h1>
-    <p class="lede">
-      Each row is a publisher we shipped. The status pill is the developer-portal
-      review we're sitting in, not feature-completeness. Bluesky, X, and Pinterest
-      are live today. Instagram, Facebook, Threads, and LinkedIn flip the day each
-      approval clears.
-    </p>
   </header>
 
   <hr class="dash" />
@@ -110,6 +91,17 @@ const total = PLATFORMS.length;
         </a>
       ))
     }
+  </div>
+
+  {/* "More coming" footer card — sits below the platform grid as a
+      quiet acknowledgement that the inventory grows. Two stacked
+      rows: heading + body. */}
+  <div class="more-coming">
+    <div class="hd">More coming</div>
+    <div class="body">
+      The roadmap is long. Mastodon, Reddit, YouTube, Telegram, Snapchat, Google Business, and the Meta + LinkedIn + TikTok ad APIs are all under consideration.
+      <a href="https://github.com/letmepost/letmepost.dev/issues/new">Open an issue with the platform you need next →</a>
+    </div>
   </div>
 
   <hr class="double" />
@@ -231,6 +223,27 @@ const total = PLATFORMS.length;
   }
   .oos ul li::before { content: '× '; color: var(--r-very); font-weight: 700; }
   .oos ul li b { color: var(--r-fg); font-weight: 700; }
+
+  /* "More coming" 2-row card */
+  .more-coming {
+    margin: 22px 0 0;
+    padding: 18px 22px;
+    border: 1px dashed var(--r-very);
+    background: var(--r-paper-deep);
+  }
+  .more-coming .hd {
+    font-family: var(--r-mono); font-weight: 700;
+    font-size: 11px; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--r-accent);
+    margin-bottom: 6px;
+  }
+  .more-coming .body {
+    font-size: 12.5px; line-height: 1.6; color: var(--r-dim);
+  }
+  .more-coming .body a {
+    display: inline-block; margin-top: 6px;
+    color: var(--r-accent);
+  }
 
   @media (max-width: 700px) {
     .pgrid { grid-template-columns: 1fr; }
