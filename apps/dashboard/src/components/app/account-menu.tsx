@@ -1,20 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import {
-  CreditCard,
-  Monitor,
-  Moon,
-  SignOut,
-  Sun,
-} from "@phosphor-icons/react";
+import { Monitor, Moon, SignOut, Sun } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
 import { track } from "@/lib/analytics";
-import { useSubscription } from "@/lib/billing";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,14 +20,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-// Compact account dropdown for the top-right of the page header. Holds the
-// non-navigation admin items (billing, theme, sign out) that used to live
-// in the sidebar footer.
+// Compact account dropdown for the top-right of the page header. Identity,
+// theme, and sign-out. Billing lives in the sidebar's Reference group.
 export function AccountMenu() {
   const router = useRouter();
   const { data: session } = authClient.useSession();
-  const subscription = useSubscription();
-  const isSelfHost = subscription.data?.tier === "self_host";
 
   const initials = (session?.user.name ?? session?.user.email ?? "?")
     .split(/\s+/)
@@ -74,17 +63,6 @@ export function AccountMenu() {
           ) : null}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {!isSelfHost ? (
-          <>
-            <DropdownMenuItem asChild>
-              <Link href="/billing">
-                <CreditCard className="size-4" />
-                <span>Billing</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
         <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
           Theme
         </DropdownMenuLabel>

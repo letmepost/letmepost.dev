@@ -17,6 +17,7 @@ import {
   Plus,
   BookOpen,
   ArrowSquareOut,
+  CreditCard,
 } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
@@ -25,6 +26,7 @@ import { NewOrgDialog } from "@/components/app/new-org-dialog";
 import { LogoMark } from "@/components/app/logo";
 import { SidebarUsageMeter } from "@/components/app/sidebar-usage-meter";
 import { useActiveProfile } from "@/lib/profiles";
+import { useSubscription } from "@/lib/billing";
 import {
   Sidebar,
   SidebarContent,
@@ -68,6 +70,8 @@ export function AppSidebar() {
     setActiveProfile,
     isLoading: profilesLoading,
   } = useActiveProfile();
+  const subscription = useSubscription();
+  const isSelfHost = subscription.data?.tier === "self_host";
 
   async function switchOrg(id: string) {
     try {
@@ -212,30 +216,40 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Reference</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild>
-                  <a
-                    href="https://docs.letmepost.dev"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <BookOpen className="size-4" />
-                    <span>Docs</span>
-                    <ArrowSquareOut className="size-3 ml-auto opacity-60" />
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-0">
+      <SidebarFooter className="gap-1 p-2">
         <SidebarUsageMeter />
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <a
+                href="https://docs.letmepost.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <BookOpen className="size-4" />
+                <span>Docs</span>
+                <ArrowSquareOut className="size-3 ml-auto opacity-60" />
+              </a>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          {!isSelfHost ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={
+                  pathname === "/billing" || pathname.startsWith("/billing/")
+                }
+              >
+                <Link href="/billing">
+                  <CreditCard className="size-4" />
+                  <span>Billing</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
+        </SidebarMenu>
       </SidebarFooter>
 
       <NewOrgDialog open={newOrgOpen} onOpenChange={setNewOrgOpen} />

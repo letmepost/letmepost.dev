@@ -1,38 +1,46 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { isUnlimitedQuota, useSubscription, useUsage } from "@/lib/billing";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
-/**
- * Compact monthly-usage meter that lives in the sidebar nav, just above the
- * user-account footer. Polls every 60s (via `useUsage` defaults) and links
- * to /billing on click. Hidden entirely on self-host instances since billing
- * is disabled there.
- *
- * Sidebar collapses to icon-only on small screens; we hide the meter when
- * that happens — there's no useful icon-mode rendering for a percentage.
- */
+// Monthly usage meter pinned to the sidebar footer. Polls every 60s via
+// useUsage defaults and links to /billing on click. Hidden on self-host
+// since billing is disabled there. Hidden in icon-collapsed mode (no
+// useful rendering for a percentage at 48px wide).
 export function SidebarUsageMeter() {
   const sub = useSubscription();
   const usage = useUsage();
 
-  // Hide entirely on self-host. The hook still fires, but the API responds
-  // with `tier: "self_host"` and we render nothing.
+  // Animated count + bar starts from the prior render's value so a 60s
+  // refetch tweens to the new number instead of snapping.
+  const [animatedCount, setAnimatedCount] = useState(0);
+  const [animatedPercent, setAnimatedPercent] = useState(0);
+
+  const targetCount = usage.data?.postsCount ?? 0;
+  const targetPercent = Math.max(0, Math.min(100, usage.data?.percent ?? 0));
+
+  useEffect(() => {
+    // Briefly defer so the initial paint shows 0, then the CSS transition
+    // on the bar plus the framer-motion counter animate to target.
+    const t = setTimeout(() => {
+      setAnimatedCount(targetCount);
+      setAnimatedPercent(targetPercent);
+    }, 50);
+    return () => clearTimeout(t);
+  }, [targetCount, targetPercent]);
+
   if (sub.data?.tier === "self_host") return null;
 
   if (sub.isLoading || usage.isLoading) {
     return (
-      <div className="px-2 py-2 group-data-[collapsible=icon]:hidden">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-1.5 w-full mt-1.5" />
+      <div className="px-3 py-3 group-data-[collapsible=icon]:hidden">
+        <Skeleton className="h-3 w-16 mb-2" />
+        <Skeleton className="h-5 w-24" />
+        <Skeleton className="h-1.5 w-full mt-2" />
       </div>
     );
   }
@@ -40,11 +48,17 @@ export function SidebarUsageMeter() {
   if (!usage.data || !sub.data) return null;
 
   const unlimited = isUnlimitedQuota(usage.data.quota);
-  const percent = Math.max(0, Math.min(100, usage.data.percent));
-  const color =
-    percent >= 100
+  const quota = usage.data.quota;
+  const tone =
+    targetPercent >= 100
+      ? "destructive"
+      : targetPercent >= 80
+        ? "warn"
+        : "ok";
+  const barColor =
+    tone === "destructive"
       ? "bg-destructive"
-      : percent >= 80
+      : tone === "warn"
         ? "bg-amber-500"
         : "bg-primary";
 
@@ -53,55 +67,75 @@ export function SidebarUsageMeter() {
     const d = new Date(resetIso);
     if (Number.isNaN(d.getTime())) return "soon";
     return d.toLocaleDateString("en-US", {
-      year: "numeric",
       month: "short",
       day: "numeric",
     });
   })();
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Link
-            href="/billing"
+    <Link
+      href="/billing"
+      className={cn(
+        "group/usage relative block px-3 py-3",
+        "ring-1 ring-sidebar-border bg-sidebar-accent/30",
+        "hover:bg-sidebar-accent transition-colors",
+        "group-data-[collapsible=icon]:hidden",
+      )}
+    >
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[10px] uppercase tracking-[0.08em] text-sidebar-foreground/60">
+          Usage
+        </span>
+        {!unlimited ? (
+          <span
             className={cn(
-              "block px-2 py-2 mx-1 mb-1",
-              "hover:bg-sidebar-accent transition-colors",
-              "group-data-[collapsible=icon]:hidden",
+              "text-[10px] tabular-nums font-mono",
+              tone === "destructive"
+                ? "text-destructive"
+                : tone === "warn"
+                  ? "text-amber-500"
+                  : "text-sidebar-foreground/60",
             )}
           >
-            <div className="flex items-baseline justify-between gap-2 text-[11px]">
-              <span className="text-sidebar-foreground/70">Posts</span>
-              <span className="tabular-nums font-mono">
-                {usage.data.postsCount.toLocaleString()}
-                <span className="text-sidebar-foreground/50">
-                  {" / "}
-                  {unlimited || usage.data.quota === null
-                    ? "∞"
-                    : usage.data.quota.toLocaleString()}
-                </span>
-              </span>
-            </div>
-            {!unlimited ? (
-              <div className="h-1 mt-1.5 bg-sidebar-accent overflow-hidden">
-                <div
-                  className={cn(
-                    "h-full transition-[width]",
-                    color,
-                  )}
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-            ) : null}
-          </Link>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          {unlimited
-            ? `Unlimited plan. Resets ${resetLabel} UTC.`
-            : `${percent.toFixed(0)}% used. Resets ${resetLabel} UTC.`}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+            {targetPercent.toFixed(0)}%
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex items-baseline gap-1.5 mb-2">
+        <motion.span
+          key={`count-${targetCount}`}
+          initial={{ opacity: 0, y: -2 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+          className="text-base font-semibold tabular-nums leading-none"
+        >
+          {animatedCount.toLocaleString()}
+        </motion.span>
+        <span className="text-[11px] text-sidebar-foreground/50 leading-none">
+          {unlimited || quota === null
+            ? "/ ∞"
+            : `/ ${quota.toLocaleString()}`}
+        </span>
+      </div>
+
+      {!unlimited ? (
+        <div className="h-1.5 bg-sidebar-border/60 overflow-hidden">
+          <motion.div
+            className={cn("h-full", barColor)}
+            initial={{ width: 0 }}
+            animate={{ width: `${animatedPercent}%` }}
+            transition={{
+              duration: 0.6,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          />
+        </div>
+      ) : null}
+
+      <div className="mt-2 text-[10px] text-sidebar-foreground/50">
+        Resets {resetLabel}
+      </div>
+    </Link>
   );
 }
