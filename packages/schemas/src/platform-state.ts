@@ -27,10 +27,10 @@ export const PLATFORM_STATE: Record<Platform, PlatformState> = {
   bluesky: "live",
   pinterest: "live",
   twitter: "live",
-  linkedin: "pending",
-  facebook: "pending",
-  instagram: "pending",
-  threads: "pending",
+  linkedin: "live",
+  facebook: "live",
+  instagram: "live",
+  threads: "live",
   tiktok: "pending",
 };
 
