@@ -493,10 +493,6 @@ for (const r of result.targets) {
       body: "OAuth 2.0 PKCE handled in the browser. No client secret in your code. Tokens stored AES-256-GCM encrypted.",
     },
     {
-      tag: "Tier",
-      body: "Works on X Pay-Per-Use. <b>No Basic ($100/mo) subscription required.</b> Credits drawn from letmepost's pool.",
-    },
-    {
       tag: "Limits",
       body: "280 weighted chars (CJK = 2, emoji = 2, URLs = 23 via t.co). 4 images OR 1 MP4 video. Threads up to 25 tweets.",
     },

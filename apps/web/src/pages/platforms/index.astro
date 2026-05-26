@@ -83,7 +83,9 @@ const total = PLATFORMS.length;
           <div class="body">
             <div class="top">
               <span class="name">{p.name}</span>
-              <span class="pip">{statusLabel[p.bucket]}</span>
+              {p.bucket !== "live" ? (
+                <span class="pip">{statusLabel[p.bucket]}</span>
+              ) : null}
             </div>
             <div class="tagline">{p.tagline}</div>
             <p class="detail">{p.detail}</p>

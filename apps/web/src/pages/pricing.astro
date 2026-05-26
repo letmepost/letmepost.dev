@@ -46,18 +46,19 @@ const faqs = [
 ---
 
 <BaseLayout
-  title="Pricing"
-  description="Flat-rate pricing. Free tier covers 50 posts/mo. Pro at $79/mo. Business at $299/mo."
+  title="Pricing — flat per-org, no per-profile tax"
+  description="Three tiers, one flat number per month. Free 50/mo, Pro $79 / 5,000, Business $299 / 25,000. Profiles, accounts, team members, webhooks, and API keys are all free. Hard caps, never overage surprises."
 >
   <Tape />
 
   <header class="page-head" data-sticky-anchor>
     <div class="crumb"><a href="/">letmepost</a> / pricing</div>
-    <h1 class="page-h1">Pricing.</h1>
+    <h1 class="page-h1">One flat number. No per-profile tax.</h1>
     <p class="lede">
-      One flat number per month. Post volume is the only metered thing.
-      Profiles, accounts, team members, webhook endpoints, and API keys
-      are all free.
+      Three tiers, one metered thing: posts published. Profiles,
+      accounts, team members, webhook endpoints, and API keys are
+      all free. Quotas are hard caps with two-step warnings at 80%
+      and 100% — no surprise overage charges at 3am.
     </p>
   </header>
 
@@ -66,7 +67,7 @@ const faqs = [
   {/* RATE CARD */}
   <section class="section">
     <h2 class="h-caps">RATE CARD</h2>
-    <div class="subtitle center">flat-rate · billed monthly</div>
+    <div class="subtitle center">three tiers · billed monthly · cancel any time</div>
 
     <div class="tiers">
       <div class="tier">
@@ -159,15 +160,15 @@ const faqs = [
 
   {/* CTA strip */}
   <div class="cta-strip">
-    <h2>Pick a tier.</h2>
-    <p>No credit card required.</p>
+    <h2>The free tier is the trial.</h2>
+    <p>50 posts/mo, full API surface, no credit card. Indefinite.</p>
     <div class="ctas">
       <a
         href="https://dashboard.letmepost.dev"
         class="btn pri"
         data-analytics-event="cta.clicked"
-        data-analytics-props='{"location":"pricing-final","target":"dashboard","page":"pricing","label":"Start free"}'
-      >START FREE →</a>
+        data-analytics-props='{"location":"pricing-final","target":"dashboard","page":"pricing","label":"Send my first post"}'
+      >SEND MY FIRST POST →</a>
       <a href="mailto:rose@letmepost.dev" class="btn">EMAIL US</a>
     </div>
   </div>
@@ -207,7 +208,7 @@ const faqs = [
      no pricing tables at all. */
 
   .tiers {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0;
     margin: 14px 0 18px;
     border: 1px solid var(--r-line);
   }
@@ -249,8 +250,13 @@ const faqs = [
     color: var(--r-very); padding: 10px 0 12px;
     border-bottom: 1px dotted var(--r-very);
     margin-bottom: 12px;
+    white-space: nowrap;
   }
-  .tier .quota b { color: var(--r-ink); font-weight: 700; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .tier .quota b {
+    color: var(--r-ink); font-weight: 700; font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+  }
   .tier ul {
     list-style: none; padding: 0; margin: 0 0 18px;
     font-size: 11.5px; color: var(--r-dim);

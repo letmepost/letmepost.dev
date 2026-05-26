@@ -68,11 +68,11 @@ export default function BillingPage() {
         </FadeIn>
         <Card>
           <CardHeader>
-            <CardTitle>Self-hosted</CardTitle>
+            <CardTitle>Self-hosted. Free, forever, by design.</CardTitle>
             <CardDescription>
-              You're running letmepost under Apache 2.0. There's nothing to
-              charge for and nothing to upgrade. If you'd rather offload
-              operations to us, the hosted version is at{" "}
+              You're running letmepost under Apache 2.0. Nothing to charge
+              for, nothing to upgrade. If you'd rather offload Postgres,
+              Redis, and Meta App Review to us, the hosted version is at{" "}
               <Link href="https://letmepost.dev" className="underline">
                 letmepost.dev
               </Link>
@@ -89,8 +89,8 @@ export default function BillingPage() {
       <FadeIn>
         <h1 className="text-lg font-semibold">Billing</h1>
         <p className="text-xs text-muted-foreground">
-          Your plan, monthly usage, and invoices. Payment methods live in the
-          Lemon Squeezy portal.
+          One flat number a month. Posts published meter against your cap.
+          Profiles, accounts, keys, and webhooks are all free.
         </p>
       </FadeIn>
 
@@ -371,7 +371,7 @@ function CurrentPlanCard({ subscription }: { subscription: Subscription }) {
       <CardHeader>
         <CardTitle>Current plan</CardTitle>
         <CardDescription>
-          Your active subscription with letmepost.dev.
+          What you're on, what it costs, when it renews.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -484,8 +484,7 @@ function UsageCardInner({
       <CardHeader>
         <CardTitle>Usage this period</CardTitle>
         <CardDescription>
-          Posts published count against your monthly quota. Logs and webhooks
-          don&apos;t.
+          Successful publishes meter. Logs, webhook deliveries, and preflight rejections don&apos;t.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -570,8 +569,7 @@ function InvoicesSection() {
       <CardHeader>
         <CardTitle>Invoices.</CardTitle>
         <CardDescription>
-          Lemon Squeezy handles invoice issuance. Download PDFs here or from
-          the billing portal.
+          Issued by Lemon Squeezy. PDFs here or in the billing portal.
         </CardDescription>
       </CardHeader>
       <CardContent className="px-0">

@@ -203,8 +203,8 @@ export default function AccountsListPage() {
             </CardTitle>
             <CardDescription>
               {activeProfile
-                ? `Connect a platform to start publishing under ${activeProfile.name}. Each profile keeps its own set of accounts.`
-                : "Connect your first platform to start publishing through the API."}
+                ? `${activeProfile.name} doesn't have a social account wired up yet. Connect one and you can start publishing under this profile — accounts are scoped per profile.`
+                : "Connect your first platform — Bluesky takes about thirty seconds with an app password, the others run through OAuth. We hold the tokens, encrypted, and refresh on the right schedule."}
             </CardDescription>
           </CardHeader>
           <CardContent>

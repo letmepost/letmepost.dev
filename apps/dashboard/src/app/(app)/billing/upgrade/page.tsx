@@ -72,10 +72,10 @@ export default function UpgradePage() {
             </Link>
           </Button>
         </div>
-        <h1 className="text-lg font-semibold mt-2">Upgrade your plan.</h1>
+        <h1 className="text-lg font-semibold mt-2">Pick a tier.</h1>
         <p className="text-xs text-muted-foreground">
-          Pick the tier that fits your monthly volume. No per-profile or
-          per-seat tax. Cancel anytime.
+          Monthly post volume is the only metered thing. No per-profile
+          tax, no per-seat tax, no overage surprises. Cancel any time.
         </p>
       </FadeIn>
 

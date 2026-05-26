@@ -73,7 +73,9 @@ export default function SignInPage() {
       <Card className="py-6 gap-6">
         <CardHeader className="gap-1.5 px-6">
           <CardTitle className="text-base font-semibold">Sign in</CardTitle>
-          <CardDescription>Welcome back.</CardDescription>
+          <CardDescription>
+            One inbox. One operator. Pick up where you left off.
+          </CardDescription>
         </CardHeader>
         <CardContent className="px-6 space-y-4">
           <div className="space-y-1.5">

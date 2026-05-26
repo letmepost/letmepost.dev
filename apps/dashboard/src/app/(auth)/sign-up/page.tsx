@@ -115,10 +115,11 @@ export default function SignUpPage() {
       <Card className="py-6 gap-6">
         <CardHeader className="gap-1.5 px-6">
           <CardTitle className="text-base font-semibold">
-            Create an account
+            Send your first post in ninety seconds.
           </CardTitle>
           <CardDescription>
-            One user, one organization. You can invite teammates later.
+            Free for 50 posts a month, no card. You + your org now;
+            invite teammates whenever.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-6 space-y-4">

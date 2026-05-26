@@ -131,7 +131,7 @@ export default function DashboardHome() {
     {
       id: "connect",
       title: "Connect your first platform",
-      description: "Bluesky, LinkedIn, Pinterest, or Twitter / X.",
+      description: "Bluesky is fastest - paste an app password and skip OAuth review entirely.",
       done: hasAccount,
       body: <OnboardingConnect onConnected={refresh} />,
     },
@@ -155,8 +155,8 @@ export default function DashboardHome() {
         </div>
         <p className="text-xs text-muted-foreground">
           {setupComplete
-            ? "Your operator surface. Connect accounts, mint API keys, subscribe to webhooks."
-            : "A few quick steps and you're publishing."}
+            ? "Your operator surface. Accounts, keys, webhooks, post log."
+            : "Three steps. Ninety seconds. Your first post is in the log by the end of this checklist."}
         </p>
       </FadeIn>
 
@@ -659,8 +659,7 @@ function RecentActivitySection() {
           </div>
         ) : posts.length === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No posts yet. Once you publish through the API, recent activity
-            shows up here.
+            No posts yet. Send a <code>POST /v1/posts</code> and the receipt lands here.
           </p>
         ) : (
           <div className="divide-y divide-foreground/10 -mx-2">
