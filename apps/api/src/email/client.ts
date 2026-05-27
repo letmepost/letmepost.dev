@@ -17,22 +17,45 @@ function getResend(): Resend {
   return _resend;
 }
 
+// True when both Resend keys are set. Cheap boot-time check so callers
+// can skip enqueueing entirely instead of generating per-job 500s when
+// EMAIL_FROM (or RESEND_API_KEY) is missing in prod.
+export function emailEnabled(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+}
+
+// Mailto unsubscribe address per RFC 8058. Defaults to EMAIL_FROM so
+// replies land in the founder's inbox; override when EMAIL_FROM is a
+// no-reply.
+function unsubscribeAddress(): string | null {
+  const raw = process.env.EMAIL_UNSUBSCRIBE_MAILTO ?? process.env.EMAIL_FROM;
+  if (!raw) return null;
+  // Resend's `from` field allows a "Display Name <addr>" form; the mailto
+  // header wants just the address part.
+  const match = raw.match(/<([^>]+)>/);
+  return match?.[1] ?? raw;
+}
+
 export type SendEmailInput = {
   to: string;
   subject: string;
   // Plain-text body. We intentionally don't ship an HTML alternative —
   // onboarding emails are styled to look like personal one-to-one notes
-  // from the founder, not transactional blasts. Resend treats text-only
-  // emails identically to text+HTML for delivery.
+  // from the founder, not transactional blasts.
   text: string;
   replyTo?: string;
-  // Optional tag for filtering in the Resend dashboard / webhooks.
+  // Optional kind tag, surfaced as `kind` in the Resend dashboard so
+  // sequence-specific debugging is filterable.
   tag?: string;
+  // Set to true to add List-Unsubscribe + List-Unsubscribe-Post headers.
+  // Required by Gmail/Yahoo sender rules for bulk mail (Feb 2024). Even
+  // for low-volume onboarding it's the right default.
+  withUnsubscribe?: boolean;
 };
 
 // Send a single transactional email. Returns the Resend message id on
-// success so the caller can stamp it on whatever audit row (e.g.
-// onboarding_emails.resend_id) needs to dedupe replays.
+// success so the caller can stamp it on whatever audit row needs to
+// dedupe replays.
 export async function sendEmail(input: SendEmailInput): Promise<string> {
   const from = process.env.EMAIL_FROM;
   if (!from) {
@@ -43,13 +66,35 @@ export async function sendEmail(input: SendEmailInput): Promise<string> {
     });
   }
   const resend = getResend();
+
+  const headers: Record<string, string> = {};
+  if (input.withUnsubscribe) {
+    const addr = unsubscribeAddress();
+    if (addr) {
+      // RFC 8058 + Gmail/Yahoo requirements: mailto unsubscribe plus the
+      // one-click POST hint. We only ship the mailto target until we
+      // have a token-backed POST endpoint to handle the one-click form.
+      headers["List-Unsubscribe"] =
+        `<mailto:${addr}?subject=unsubscribe>`;
+      headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+    }
+  }
+
+  const envTag =
+    process.env.SENTRY_ENV ?? process.env.NODE_ENV ?? "development";
+  const tags = [
+    ...(input.tag ? [{ name: "kind", value: input.tag }] : []),
+    { name: "env", value: envTag },
+  ];
+
   const { data, error } = await resend.emails.send({
     from,
     to: input.to,
     subject: input.subject,
     text: input.text,
     ...(input.replyTo ? { replyTo: input.replyTo } : {}),
-    ...(input.tag ? { tags: [{ name: "kind", value: input.tag }] } : {}),
+    ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    tags,
   });
   if (error || !data) {
     throw new LetmepostError({

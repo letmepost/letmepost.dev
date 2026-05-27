@@ -6,7 +6,15 @@ import { db } from "./db/instance.js";
 import * as authSchema from "./db/schema/auth.js";
 import * as oauthSchema from "./db/schema/oauth.js";
 import { uuidv7 } from "./db/uuid.js";
+import { emailEnabled, sendEmail } from "./email/client.js";
 import { scheduleOnboardingEmails } from "./email/onboarding/schedule.js";
+
+// Extract a first name from the better-auth `name` field for use in
+// founder-voice email greetings. Trims first so leading whitespace
+// doesn't produce a "" token before the fallback kicks in.
+function pickFirstName(name: string | undefined): string {
+  return (name ?? "").trim().split(/\s+/)[0] || "there";
+}
 
 function buildSocialProviders() {
   const providers: Record<string, { clientId: string; clientSecret: string }> =
@@ -113,27 +121,55 @@ export const auth = betterAuth({
     },
     ...crossSubDomainCookies,
   },
-  // Fires whenever a user row is created — email+password signup AND
-  // OAuth first-login both land here. We use it to enqueue the founder-
-  // voice onboarding sequence. The function is fire-and-forget: a
-  // failure to schedule must not block signup.
+  // Fires the founder-voice onboarding sequence ONCE per user, only after
+  // the email has been verified. Two trigger points:
+  //
+  //   - user.create.after: OAuth signups arrive with emailVerified=true
+  //     (Google/GitHub verify server-side), so they enqueue here.
+  //   - user.update.after: email+password signups land with
+  //     emailVerified=false, then flip to true after verification — we
+  //     enqueue on that transition.
+  //
+  // Gating on verification stops a bad actor from spamming Resend with
+  // throwaway addresses on launch day (hard bounces → sender reputation
+  // hit → real emails start landing in spam).
+  //
+  // scheduleOnboardingEmails swallows its own errors internally — we
+  // don't wrap with another .catch.
   databaseHooks: {
     user: {
       create: {
         after: async (user) => {
-          const email = (user as { email?: string }).email;
-          const name = (user as { name?: string }).name ?? "";
-          if (!email) return;
-          const firstName = name.split(/\s+/)[0] || "there";
+          const u = user as {
+            email?: string;
+            name?: string;
+            emailVerified?: boolean;
+          };
+          if (!u.email || !u.emailVerified) return;
           void scheduleOnboardingEmails({
             userId: user.id,
-            email,
-            firstName,
-          }).catch((err: unknown) => {
-            console.warn(
-              "[onboarding] scheduleOnboardingEmails failed:",
-              err instanceof Error ? err.message : err,
-            );
+            email: u.email,
+            firstName: pickFirstName(u.name),
+          });
+        },
+      },
+      update: {
+        after: async (user, context) => {
+          const u = user as {
+            email?: string;
+            name?: string;
+            emailVerified?: boolean;
+          };
+          if (!u.email || !u.emailVerified) return;
+          // Only fire on the false → true transition. Without this guard
+          // every profile update on a verified user would re-enqueue.
+          const prev = (context as { previous?: { emailVerified?: boolean } })
+            ?.previous;
+          if (prev?.emailVerified === true) return;
+          void scheduleOnboardingEmails({
+            userId: user.id,
+            email: u.email,
+            firstName: pickFirstName(u.name),
           });
         },
       },
@@ -141,6 +177,40 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
+    // Only enforce verification when Resend is wired. Self-host
+    // instances without email infrastructure get a frictionless signup
+    // (and never receive onboarding emails either — both gates flip
+    // together on `emailEnabled`).
+    requireEmailVerification: emailEnabled(),
+  },
+  emailVerification: {
+    // Re-send a verification link on every signin attempt by an
+    // unverified user. better-auth handles the token + redirect; we
+    // only own the actual transport.
+    sendOnSignIn: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      const firstName = pickFirstName((user as { name?: string }).name);
+      const replyTo = process.env.EMAIL_REPLY_TO ?? process.env.EMAIL_FROM;
+      await sendEmail({
+        to: user.email,
+        subject: "verify your letmepost email",
+        text: `Hey ${firstName},
+
+Click this link to verify your email and finish setting up your letmepost account:
+
+${url}
+
+The link expires in an hour. If you didn't sign up for letmepost, ignore this — nothing happens until the link is clicked.
+
+Rose`,
+        ...(replyTo ? { replyTo } : {}),
+        tag: "verification",
+        // Don't add unsubscribe to a transactional, single-shot
+        // verification email — users can't unsubscribe from a flow
+        // they haven't opted into yet.
+        withUnsubscribe: false,
+      });
+    },
   },
   account: {
     // Auto-link OAuth identities to an existing user when the verified

@@ -1,9 +1,8 @@
 import "dotenv/config";
-// Sentry init has to happen before the BullMQ workers are constructed so
-// every failed job is captured automatically through the listener attached
-// below. Side-effect import order matters.
-import { captureUnexpected, initSentry } from "../observability/sentry.js";
-initSentry("worker");
+// Sentry init lives in `instrument.mjs`, loaded via `node --import` from
+// the npm `start:worker` script. The captureUnexpected helper below is a
+// no-op when DSN was missing at boot.
+import { captureUnexpected } from "../observability/sentry.js";
 import { Worker, UnrecoverableError } from "bullmq";
 import { and, eq, isNull } from "drizzle-orm";
 import { LetmepostError } from "../errors.js";

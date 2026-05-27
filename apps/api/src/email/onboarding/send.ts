@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { DrizzleClient } from "../../db/index.js";
 import { member } from "../../db/schema/auth.js";
 import { platformAccounts } from "../../db/schema/platform_accounts.js";
@@ -127,6 +127,13 @@ export async function processOnboardingEmail(
     text: template.text,
     ...(replyTo ? { replyTo } : {}),
     tag: job.kind,
+    // Mandatory for Gmail/Yahoo (Feb 2024 sender rules) and the right
+    // default anyway — users can hit reply to opt out and the founder
+    // will see it.
+    withUnsubscribe: true,
   });
   return { sent: true, resendId };
 }
+
+// Exposed for unit testing — `shouldSend` is the core decision matrix.
+export const __testing = { shouldSend, readUserState };

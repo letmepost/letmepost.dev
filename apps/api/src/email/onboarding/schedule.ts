@@ -1,3 +1,4 @@
+import { emailEnabled } from "../client.js";
 import {
   getOnboardingEmailQueue,
   type OnboardingEmailJobData,
@@ -15,12 +16,13 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 // email. Idempotent: a stable jobId per (user, kind) means a duplicate
 // call (e.g. better-auth firing the hook twice on retry) lands on
 // `onConflictDoNothing` semantics in BullMQ. Skips entirely when
-// RESEND_API_KEY isn't configured so local dev / self-hosters that don't
-// want emails opt out by simply not setting the key.
+// RESEND_API_KEY or EMAIL_FROM is missing — checked once at enqueue
+// instead of per-job so we don't generate worker DLQ noise in
+// misconfigured prod environments.
 export async function scheduleOnboardingEmails(
   input: ScheduleInput,
 ): Promise<void> {
-  if (!process.env.RESEND_API_KEY) return;
+  if (!emailEnabled()) return;
   const queue = getOnboardingEmailQueue();
 
   const schedule: Array<{
