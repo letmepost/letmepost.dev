@@ -1,4 +1,9 @@
 import "dotenv/config";
+// Sentry init has to happen before the BullMQ workers are constructed so
+// every failed job is captured automatically through the listener attached
+// below. Side-effect import order matters.
+import { captureUnexpected, initSentry } from "../observability/sentry.js";
+initSentry("worker");
 import { Worker, UnrecoverableError } from "bullmq";
 import { and, eq, isNull } from "drizzle-orm";
 import { LetmepostError } from "../errors.js";
@@ -25,12 +30,14 @@ import {
   QUEUE_NAMES,
   getBillingQueue,
   type BillingJobData,
+  type OnboardingEmailJobData,
   type PublishJobData,
   type RefreshTokenJobData,
   type ValidateJobData,
   type WebhookDeliverJobData,
   closeAllQueues,
 } from "./queues.js";
+import { processOnboardingEmail } from "../email/onboarding/send.js";
 import { createDefaultTokenRefreshEnqueuer } from "./refresh-enqueue.js";
 
 /**
@@ -385,6 +392,15 @@ const billingWorker = new Worker<BillingJobData>(
   { connection },
 );
 
+const onboardingEmailWorker = new Worker<OnboardingEmailJobData>(
+  QUEUE_NAMES.onboardingEmail,
+  async (job) => {
+    const result = await processOnboardingEmail(db, job.data);
+    return result;
+  },
+  { connection },
+);
+
 /**
  * Register repeatable schedules for the billing maintenance jobs. Idempotent
  * thanks to a stable `jobId` per kind; reboot adds nothing.
@@ -431,7 +447,31 @@ const workers = [
   refreshTokenWorker,
   webhookDeliverWorker,
   billingWorker,
+  onboardingEmailWorker,
 ];
+
+// Capture every job that exhausts its retries. BullMQ fires "failed" on
+// each attempt; we only escalate to Sentry on the last attempt to keep
+// noise down. UnrecoverableError jobs flag the failure immediately on
+// attempt 0, so they go straight up.
+for (const w of workers) {
+  w.on("failed", (job, err) => {
+    const isFinal =
+      err instanceof UnrecoverableError ||
+      !job ||
+      job.attemptsMade >= (job.opts.attempts ?? 1);
+    if (!isFinal) return;
+    captureUnexpected(err, {
+      tags: { surface: "worker", queue: w.name },
+      extra: {
+        job_id: job?.id,
+        job_name: job?.name,
+        attempts_made: job?.attemptsMade,
+        attempts_max: job?.opts.attempts,
+      },
+    });
+  });
+}
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   console.log(`[worker] received ${signal}, draining…`);

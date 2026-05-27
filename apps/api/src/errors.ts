@@ -2,6 +2,7 @@ import type { Context, ErrorHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { ZodError } from "zod";
 import { slugifyRule, type ErrorCode, type ErrorResponse } from "@letmepost/schemas";
+import { captureUnexpected } from "./observability/sentry.js";
 
 /**
  * Base URL for the public docs. Overridable via `DOCS_BASE_URL` so staging /
@@ -105,6 +106,14 @@ export const onError: ErrorHandler = (err, c: Context) => {
     return err.getResponse();
   }
   console.error("[letmepost] unhandled error", err);
+  captureUnexpected(err, {
+    tags: { surface: "http" },
+    extra: {
+      request_id: ctx.requestId,
+      path: c.req.path,
+      method: c.req.method,
+    },
+  });
   const fallback = new LetmepostError({
     code: "internal_error",
     status: 500,

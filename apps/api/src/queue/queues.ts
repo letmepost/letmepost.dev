@@ -21,6 +21,7 @@ export const QUEUE_NAMES = {
   refreshToken: "refresh-token",
   webhookDeliver: "webhook-deliver",
   billing: "billing",
+  onboardingEmail: "onboarding-email",
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -72,6 +73,19 @@ export type BillingJobData =
   | { kind: "dunning" }
   | { kind: "retention" };
 
+/**
+ * Founder-voice onboarding sequence. One job per email, scheduled at
+ * signup time with a `delay`. `kind` picks the template; the worker
+ * checks the user's current state before sending so e.g. the "stuck?"
+ * email skips users who already connected an account.
+ */
+export type OnboardingEmailJobData = {
+  userId: string;
+  email: string;
+  firstName: string;
+  kind: "d0_welcome" | "d1_first_post" | "d3_stuck" | "d5_webhooks" | "d7_one_question";
+};
+
 const defaultJobOptions: QueueOptions["defaultJobOptions"] = {
   removeOnComplete: { age: 7 * 24 * 60 * 60, count: 1000 },
   removeOnFail: { age: 30 * 24 * 60 * 60 },
@@ -92,6 +106,7 @@ let _validateQueue: Queue<ValidateJobData> | null = null;
 let _refreshTokenQueue: Queue<RefreshTokenJobData> | null = null;
 let _webhookDeliverQueue: Queue<WebhookDeliverJobData> | null = null;
 let _billingQueue: Queue<BillingJobData> | null = null;
+let _onboardingEmailQueue: Queue<OnboardingEmailJobData> | null = null;
 
 export function getPublishQueue(): Queue<PublishJobData> {
   if (!_publishQueue)
@@ -127,6 +142,14 @@ export function getBillingQueue(): Queue<BillingJobData> {
   return _billingQueue;
 }
 
+export function getOnboardingEmailQueue(): Queue<OnboardingEmailJobData> {
+  if (!_onboardingEmailQueue)
+    _onboardingEmailQueue = buildQueue(
+      QUEUE_NAMES.onboardingEmail,
+    ) as Queue<OnboardingEmailJobData>;
+  return _onboardingEmailQueue;
+}
+
 /**
  * Retry policy for webhook delivery — see `src/webhooks/deliver.ts` for the
  * rationale. 8 attempts with exponential backoff starting at 5s. After the
@@ -145,10 +168,12 @@ export async function closeAllQueues(): Promise<void> {
     _refreshTokenQueue?.close(),
     _webhookDeliverQueue?.close(),
     _billingQueue?.close(),
+    _onboardingEmailQueue?.close(),
   ]);
   _publishQueue = null;
   _validateQueue = null;
   _refreshTokenQueue = null;
   _webhookDeliverQueue = null;
   _billingQueue = null;
+  _onboardingEmailQueue = null;
 }

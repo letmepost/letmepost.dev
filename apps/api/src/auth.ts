@@ -6,6 +6,7 @@ import { db } from "./db/instance.js";
 import * as authSchema from "./db/schema/auth.js";
 import * as oauthSchema from "./db/schema/oauth.js";
 import { uuidv7 } from "./db/uuid.js";
+import { scheduleOnboardingEmails } from "./email/onboarding/schedule.js";
 
 function buildSocialProviders() {
   const providers: Record<string, { clientId: string; clientSecret: string }> =
@@ -111,6 +112,32 @@ export const auth = betterAuth({
       generateId: () => uuidv7(),
     },
     ...crossSubDomainCookies,
+  },
+  // Fires whenever a user row is created — email+password signup AND
+  // OAuth first-login both land here. We use it to enqueue the founder-
+  // voice onboarding sequence. The function is fire-and-forget: a
+  // failure to schedule must not block signup.
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          const email = (user as { email?: string }).email;
+          const name = (user as { name?: string }).name ?? "";
+          if (!email) return;
+          const firstName = name.split(/\s+/)[0] || "there";
+          void scheduleOnboardingEmails({
+            userId: user.id,
+            email,
+            firstName,
+          }).catch((err: unknown) => {
+            console.warn(
+              "[onboarding] scheduleOnboardingEmails failed:",
+              err instanceof Error ? err.message : err,
+            );
+          });
+        },
+      },
+    },
   },
   emailAndPassword: {
     enabled: true,

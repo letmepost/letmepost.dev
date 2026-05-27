@@ -1,4 +1,8 @@
 import "dotenv/config";
+// Sentry must init BEFORE anything else imports SDKs we want auto-instrumented
+// (fetch, http, postgres). Side-effect import order matters here.
+import { initSentry } from "./observability/sentry.js";
+initSentry("api");
 import { serve } from "@hono/node-server";
 import { createApp } from "./app.js";
 import {
