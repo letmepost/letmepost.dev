@@ -12,3 +12,4 @@ export * from "./webhook_endpoints.js";
 export * from "./billing_subscriptions.js";
 export * from "./billing_usage.js";
 export * from "./billing_events.js";
+export * from "./email_suppressions.js";

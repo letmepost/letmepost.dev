@@ -28,6 +28,7 @@ import { dataDeletion } from "./routes/data-deletion.js";
 import { deauth } from "./routes/deauth.js";
 import { health } from "./routes/health.js";
 import { lemonSqueezy } from "./routes/lemonsqueezy.js";
+import { resendWebhook } from "./routes/resend.js";
 import { mcp } from "./routes/mcp.js";
 import { media } from "./routes/media.js";
 import { oauthExchange } from "./routes/oauth-exchange.js";
@@ -185,6 +186,9 @@ export function createApp(options: AppOptions = {}) {
   app.route("/v1/posts", posts);
   // Inbound Lemon Squeezy webhooks. Public, signature-verified.
   app.route("/v1/lemonsqueezy", lemonSqueezy);
+  // Inbound Resend webhooks (bounces / complaints). Public, signed via
+  // Svix. Drives the email_suppressions table.
+  app.route("/v1/resend", resendWebhook);
   app.route("/v1/media", media);
   // Hosted MCP endpoint. Streamable HTTP transport, stateless mode, gated
   // by the same API-key auth as /v1/*. Custom domain mcp.letmepost.dev

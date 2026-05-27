@@ -78,12 +78,25 @@ export type BillingJobData =
  * signup time with a `delay`. `kind` picks the template; the worker
  * checks the user's current state before sending so e.g. the "stuck?"
  * email skips users who already connected an account.
+ *
+ * `ONBOARDING_EMAIL_KINDS` is the runtime source of truth — tests and
+ * the schedule fan-out derive from it so adding a new email lights up
+ * everywhere automatically.
  */
+export const ONBOARDING_EMAIL_KINDS = [
+  "d0_welcome",
+  "d1_first_post",
+  "d3_stuck",
+  "d5_webhooks",
+  "d7_one_question",
+] as const;
+export type OnboardingEmailKind = (typeof ONBOARDING_EMAIL_KINDS)[number];
+
 export type OnboardingEmailJobData = {
   userId: string;
   email: string;
   firstName: string;
-  kind: "d0_welcome" | "d1_first_post" | "d3_stuck" | "d5_webhooks" | "d7_one_question";
+  kind: OnboardingEmailKind;
 };
 
 const defaultJobOptions: QueueOptions["defaultJobOptions"] = {

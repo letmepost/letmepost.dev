@@ -2,8 +2,10 @@ import * as Sentry from "@sentry/node";
 
 // Capture an unexpected error with optional metadata. Init lives in the
 // separate `instrument.mjs` loader (see node --import in the npm scripts);
-// `Sentry.captureException` is a no-op when init was skipped, so this is
-// safe to call from any code path without checking DSN configuration.
+// when DSN is unset, `captureException` short-circuits and never ships an
+// event. The withScope callback still runs (cheap, all in-process), so
+// the helper is not strictly free — just cheap enough to call from any
+// path without conditional plumbing.
 export function captureUnexpected(
   err: unknown,
   context?: { tags?: Record<string, string>; extra?: Record<string, unknown> },

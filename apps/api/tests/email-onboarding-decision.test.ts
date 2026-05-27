@@ -1,23 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { __testing } from "../src/email/onboarding/send.js";
+import { ONBOARDING_EMAIL_KINDS } from "../src/queue/queues.js";
 
 const { shouldSend } = __testing;
 
-type Kind =
-  | "d0_welcome"
-  | "d1_first_post"
-  | "d3_stuck"
-  | "d5_webhooks"
-  | "d7_one_question";
 type State = { hasAccount: boolean; hasPost: boolean; hasWebhook: boolean };
 
-const ALL_KINDS: Kind[] = [
-  "d0_welcome",
-  "d1_first_post",
-  "d3_stuck",
-  "d5_webhooks",
-  "d7_one_question",
-];
+// Single source of truth lives in queues.ts so adding a new email kind
+// automatically extends the smoke-test below.
+const ALL_KINDS = ONBOARDING_EMAIL_KINDS;
 
 // Every combination of (hasAccount, hasPost, hasWebhook). hasPost without
 // hasAccount is unreachable in practice (you can't post without an

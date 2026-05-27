@@ -16,14 +16,15 @@ export type OnboardingTemplate = {
   text: string;
 };
 
-// D0 — sent immediately after signup. Always sends. Plants the
-// "reply if stuck" expectation up front.
+// D0 — sent immediately after signup (for OAuth users) or after email
+// verification (for email/password users). Plants the "reply if stuck"
+// expectation up front.
 export function welcome(user: OnboardingUser): OnboardingTemplate {
   return {
-    subject: "you're in",
+    subject: "verified, you're in",
     text: `Hey ${user.firstName},
 
-Saw you signed up for letmepost. I'm Rose, building this solo from India.
+You're verified and in. I'm Rose, building letmepost solo from India.
 
 Three things in case you missed them:
 

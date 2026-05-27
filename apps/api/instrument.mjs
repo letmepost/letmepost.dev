@@ -5,17 +5,17 @@
 //   node --import ./instrument.mjs ./dist/server.js
 //   node --import ./instrument.mjs ./dist/queue/worker.js
 //
-// Side-effect imports inside the app graph (the old pattern) don't work
-// for ESM because dependencies get hoisted before `Sentry.init` runs.
 // Reference: https://docs.sentry.io/platforms/javascript/guides/node/install/esm/
 
+// Load .env BEFORE reading SENTRY_DSN. tsx watch / node --import runs
+// instrument.mjs ahead of the app graph (which is where the app's own
+// `import "dotenv/config"` lives), so the dev key would otherwise be
+// invisible to Sentry init.
+import "dotenv/config";
 import * as Sentry from "@sentry/node";
 
 const dsn = process.env.SENTRY_DSN;
 if (dsn) {
-  // Component tag is set on each event in code via withScope; we tag the
-  // whole transport here with `runtime: node` so the dashboard can split
-  // node vs browser at the project level without re-tagging each call.
   Sentry.init({
     dsn,
     environment:

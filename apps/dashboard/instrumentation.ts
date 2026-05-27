@@ -8,28 +8,18 @@ export async function register(): Promise<void> {
   const dsn = process.env.SENTRY_DSN;
   if (!dsn) return;
 
-  if (process.env.NEXT_RUNTIME === "nodejs") {
-    Sentry.init({
-      dsn,
-      environment:
-        process.env.SENTRY_ENV ?? process.env.NODE_ENV ?? "development",
-      tracesSampleRate: Number.parseFloat(
-        process.env.SENTRY_TRACES_SAMPLE_RATE ?? "0.1",
-      ),
-      initialScope: { tags: { component: "dashboard-node" } },
-    });
-  }
-  if (process.env.NEXT_RUNTIME === "edge") {
-    Sentry.init({
-      dsn,
-      environment:
-        process.env.SENTRY_ENV ?? process.env.NODE_ENV ?? "development",
-      tracesSampleRate: Number.parseFloat(
-        process.env.SENTRY_TRACES_SAMPLE_RATE ?? "0.1",
-      ),
-      initialScope: { tags: { component: "dashboard-edge" } },
-    });
-  }
+  const runtime = process.env.NEXT_RUNTIME;
+  if (runtime !== "nodejs" && runtime !== "edge") return;
+
+  Sentry.init({
+    dsn,
+    environment:
+      process.env.SENTRY_ENV ?? process.env.NODE_ENV ?? "development",
+    tracesSampleRate: Number.parseFloat(
+      process.env.SENTRY_TRACES_SAMPLE_RATE ?? "0.1",
+    ),
+    initialScope: { tags: { component: `dashboard-${runtime}` } },
+  });
 }
 
 export const onRequestError = Sentry.captureRequestError;

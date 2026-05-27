@@ -47,10 +47,14 @@ export type SendEmailInput = {
   // Optional kind tag, surfaced as `kind` in the Resend dashboard so
   // sequence-specific debugging is filterable.
   tag?: string;
-  // Set to true to add List-Unsubscribe + List-Unsubscribe-Post headers.
-  // Required by Gmail/Yahoo sender rules for bulk mail (Feb 2024). Even
-  // for low-volume onboarding it's the right default.
+  // Set to true to add a mailto List-Unsubscribe header. Valid under
+  // RFC 2369; we deliberately skip the RFC 8058 one-click POST hint
+  // until we ship a token-backed HTTPS endpoint.
   withUnsubscribe?: boolean;
+  // Resend dedupe key (24h window). Stable across worker retries so a
+  // mid-send crash doesn't produce a second copy in the recipient's
+  // inbox. Derived per-caller — e.g. `onboarding:<userId>:<kind>`.
+  idempotencyKey?: string;
 };
 
 // Send a single transactional email. Returns the Resend message id on
@@ -71,12 +75,13 @@ export async function sendEmail(input: SendEmailInput): Promise<string> {
   if (input.withUnsubscribe) {
     const addr = unsubscribeAddress();
     if (addr) {
-      // RFC 8058 + Gmail/Yahoo requirements: mailto unsubscribe plus the
-      // one-click POST hint. We only ship the mailto target until we
-      // have a token-backed POST endpoint to handle the one-click form.
-      headers["List-Unsubscribe"] =
-        `<mailto:${addr}?subject=unsubscribe>`;
-      headers["List-Unsubscribe-Post"] = "List-Unsubscribe=One-Click";
+      // Mailto-only List-Unsubscribe is a valid RFC 2369 implementation
+      // that Gmail and Yahoo accept. We deliberately do NOT add
+      // `List-Unsubscribe-Post: List-Unsubscribe=One-Click` because
+      // RFC 8058 §3.1 requires that header to point at an HTTPS URL,
+      // which we haven't shipped a token-backed endpoint for yet.
+      // Misconfigured one-click is worse than mailto-only.
+      headers["List-Unsubscribe"] = `<mailto:${addr}?subject=unsubscribe>`;
     }
   }
 
@@ -87,15 +92,18 @@ export async function sendEmail(input: SendEmailInput): Promise<string> {
     { name: "env", value: envTag },
   ];
 
-  const { data, error } = await resend.emails.send({
-    from,
-    to: input.to,
-    subject: input.subject,
-    text: input.text,
-    ...(input.replyTo ? { replyTo: input.replyTo } : {}),
-    ...(Object.keys(headers).length > 0 ? { headers } : {}),
-    tags,
-  });
+  const { data, error } = await resend.emails.send(
+    {
+      from,
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+      tags,
+    },
+    input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined,
+  );
   if (error || !data) {
     throw new LetmepostError({
       code: "platform_unavailable",
