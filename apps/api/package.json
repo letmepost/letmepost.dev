@@ -6,7 +6,7 @@
   "main": "./src/server.ts",
   "scripts": {
     "predev": "node scripts/copy-openapi.mjs",
-    "dev": "tsx --import ./instrument.mjs watch src/server.ts",
+    "dev": "tsx watch --import ./instrument.mjs src/server.ts",
     "worker": "tsx --import ./instrument.mjs src/queue/worker.ts",
     "prebuild": "node scripts/copy-openapi.mjs",
     "build": "tsc -p tsconfig.build.json && node scripts/copy-openapi.mjs",
