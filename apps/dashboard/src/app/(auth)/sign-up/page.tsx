@@ -77,9 +77,12 @@ export default function SignUpPage() {
       const sessionProbe = await authClient.getSession();
       if (!sessionProbe.data?.session) {
         if (typeof window !== "undefined") {
+          // Stash the requested org name only. The email is already on the
+          // /verify-email URL for display; the session carries it on the
+          // way back, so we don't need to round-trip it through storage.
           window.localStorage.setItem(
             "letmepost:pending-org",
-            JSON.stringify({ name: orgName, email }),
+            JSON.stringify({ name: orgName }),
           );
         }
         router.push(`/verify-email?email=${encodeURIComponent(email)}`);

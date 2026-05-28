@@ -13,7 +13,6 @@ import {
   Image as ImageIcon,
   Trash,
 } from "@phosphor-icons/react";
-import { authClient } from "@/lib/auth-client";
 import { apiFetch, ApiRequestError } from "@/lib/api";
 import { useActiveProfile } from "@/lib/profiles";
 import { queryKeys } from "@/lib/query-keys";
@@ -81,7 +80,6 @@ export function ComposePostModal({
 }) {
   const qc = useQueryClient();
   const { profiles, activeProfile, setActiveProfile } = useActiveProfile();
-  const session = authClient.useSession();
   const tz = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone,
     [],
@@ -115,7 +113,10 @@ export function ComposePostModal({
   }, [open]);
 
   const accountsQuery = useQuery({
-    queryKey: ["accounts", activeProfile?.id ?? null],
+    // Share the cache with the dashboard home + /accounts pages by using
+    // the canonical key shape. Otherwise opening the modal triggers a
+    // redundant network hit even though the same list was just fetched.
+    queryKey: queryKeys.accounts.list(activeProfile?.id ?? null),
     queryFn: async () => {
       const url = activeProfile
         ? `/v1/accounts?profileId=${activeProfile.id}`
@@ -509,16 +510,20 @@ export function ComposePostModal({
             >
               Cancel
             </Button>
-            <Button
-              size="sm"
-              disabled={!canSubmit || submit.isPending}
-              onClick={() => submit.mutate()}
-            >
-              {submit.isPending ? "Working…" : ctaLabel}
-            </Button>
+            {/* Queue + Draft tabs have their own vote CTA inside the
+                coming-soon block. Hiding the primary action here keeps
+                the footer from showing a permanently-disabled twin. */}
+            {tab === "schedule" || tab === "now" ? (
+              <Button
+                size="sm"
+                disabled={!canSubmit || submit.isPending}
+                onClick={() => submit.mutate()}
+              >
+                {submit.isPending ? "Working…" : ctaLabel}
+              </Button>
+            ) : null}
           </div>
 
-          {session.data ? null : null}
         </div>
       </DialogContent>
     </Dialog>

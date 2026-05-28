@@ -4,7 +4,7 @@ import "dotenv/config";
 // no-op when DSN was missing at boot.
 import { captureUnexpected } from "../observability/sentry.js";
 import { Worker, UnrecoverableError } from "bullmq";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { LetmepostError } from "../errors.js";
 import { db } from "../db/instance.js";
 import { posts as postsTable } from "../db/schema/posts.js";
@@ -78,10 +78,24 @@ const publishWorker = new Worker<PublishJobData>(
       return { skipped: true, reason: "canceled" };
     }
 
-    await db
+    // Conditional transition to `publishing`. If the row was canceled (or
+    // already moved by a parallel worker) between the SELECT above and
+    // this UPDATE, the WHERE clause matches nothing, the row count is
+    // zero, and we bail out instead of publishing a post the user
+    // canceled mid-flight.
+    const transitioned = await db
       .update(postsTable)
       .set({ status: "publishing" })
-      .where(eq(postsTable.id, post.id));
+      .where(
+        and(
+          eq(postsTable.id, post.id),
+          inArray(postsTable.status, ["queued", "validated"]),
+        ),
+      )
+      .returning();
+    if (transitioned.length === 0) {
+      return { skipped: true, reason: "raced" };
+    }
 
     const repo = new DrizzlePlatformAccountsRepository(db);
     const account = await repo.findById(post.accountId);

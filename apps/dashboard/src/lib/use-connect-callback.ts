@@ -23,9 +23,16 @@ function asAnalyticsPlatform(
  * event, invalidates the accounts cache, and strips the query so a
  * page reload doesn't re-fire.
  *
- * Mount this on every "landable" surface (dashboard home, accounts page,
- * any custom returnTo target). It's a no-op when the params aren't
- * present.
+ * IMPORTANT: mount this on every page that any caller passes as a
+ * `returnTo` target. Without it, the user lands on a page with the
+ * `?connected=...` params still in the URL, no toast fires, and a
+ * refresh re-fires nothing because nobody read them. Currently mounted
+ * on the dashboard home (`/`) and `/accounts`. If you add another
+ * returnTo destination, mount this hook there too.
+ *
+ * Defense-in-depth: it's a no-op when the params aren't present, so
+ * mounting it on a page that's only sometimes a returnTo target is
+ * cheap and harmless.
  */
 export function useConnectCallback() {
   const searchParams = useSearchParams();
