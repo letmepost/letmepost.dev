@@ -42,6 +42,14 @@ export type OAuthStatePayload = {
   pkce?: {
     codeVerifier: string;
   };
+  /**
+   * Optional caller-provided redirect after the callback completes. The
+   * dashboard sets this to /dashboard or /accounts depending on entry point;
+   * the marketing demo sets it to the landing page. Validated against the
+   * allowlist (TRUSTED_ORIGINS + DASHBOARD_URL) at decode time so a
+   * malicious tab can't forge a phishing redirect.
+   */
+  returnTo?: string;
 };
 
 function readSecret(): string {
@@ -79,6 +87,8 @@ export function encodeOAuthState(input: {
   platform: string;
   /** Provider-specific PKCE bundle for OAuth 2.0 PKCE flows. */
   pkce?: { codeVerifier: string };
+  /** Validated returnTo URL to land on after the callback. */
+  returnTo?: string;
 }): string {
   const payload: OAuthStatePayload = {
     organizationId: input.organizationId,
@@ -91,6 +101,7 @@ export function encodeOAuthState(input: {
       Buffer.from(crypto.getRandomValues(new Uint8Array(8))),
     ),
     ...(input.pkce ? { pkce: input.pkce } : {}),
+    ...(input.returnTo ? { returnTo: input.returnTo } : {}),
   };
   const json = JSON.stringify(payload);
   const encoded = b64urlEncode(json);

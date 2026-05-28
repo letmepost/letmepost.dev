@@ -68,6 +68,24 @@ export default function SignUpPage() {
       }
       track({ name: "signup.completed", properties: { provider: "email" } });
 
+      // When the API has `requireEmailVerification: true` (production),
+      // signUp.email succeeds but no session lands until the user clicks
+      // the verification link. organization.create would 401 in that
+      // window. Probe for a session first; if none, stash the requested
+      // org name and route to the verify-email screen so the user gets a
+      // clear "check your inbox" instead of a confusing 401 toast.
+      const sessionProbe = await authClient.getSession();
+      if (!sessionProbe.data?.session) {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            "letmepost:pending-org",
+            JSON.stringify({ name: orgName, email }),
+          );
+        }
+        router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+        return;
+      }
+
       const slug = deriveSlug(orgName);
       const { data: org, error: orgError } =
         await authClient.organization.create({ name: orgName, slug });

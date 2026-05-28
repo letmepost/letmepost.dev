@@ -75,6 +75,13 @@ export function OnboardingConnect({
       properties: { platform },
     });
     try {
+      // Onboarding connections should return the user to the dashboard
+      // home so they see the post-connect success state, not the static
+      // /accounts list page.
+      const returnTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/`
+          : undefined;
       const res = await apiFetch<ConnectResponse>(
         `/v1/accounts/connect/${platform}`,
         {
@@ -82,7 +89,10 @@ export function OnboardingConnect({
           // Pass profileId so the OAuth state row (when wired) carries it
           // through the redirect; for credentials flows, /complete reads it
           // from its own body below.
-          body: effectiveProfileId ? { profileId: effectiveProfileId } : {},
+          body: {
+            ...(effectiveProfileId ? { profileId: effectiveProfileId } : {}),
+            ...(returnTo ? { returnTo } : {}),
+          },
         },
       );
       if (res.descriptor.kind === "oauth") {

@@ -68,7 +68,24 @@ export default function OnboardingPage() {
           router.replace("/");
           return;
         }
+        // After email verification, users come here without an org. If we
+        // captured their requested org name on the sign-up form, use it;
+        // otherwise fall back to a name derived from their identity.
+        let pendingName: string | null = null;
+        if (typeof window !== "undefined") {
+          const raw = window.localStorage.getItem("letmepost:pending-org");
+          if (raw) {
+            try {
+              const parsed = JSON.parse(raw) as { name?: string };
+              if (parsed.name) pendingName = parsed.name;
+            } catch {
+              // ignore — fall through to fallback
+            }
+            window.localStorage.removeItem("letmepost:pending-org");
+          }
+        }
         const fallback =
+          pendingName ||
           session.user?.name?.trim() ||
           session.user?.email?.split("@")[0] ||
           "My workspace";

@@ -93,6 +93,7 @@ export type ConnectContext = {
     organizationId: string;
     profileId: string | null;
     platform: string;
+    returnTo?: string;
   };
 };
 

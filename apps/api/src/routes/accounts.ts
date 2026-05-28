@@ -118,6 +118,51 @@ export type AccountRoutesOptions = {
   refreshEnqueuer?: import("../queue/refresh-enqueue.js").TokenRefreshEnqueuer;
 };
 
+/**
+ * Allowlist `returnTo` URLs to the same origins we accept as session
+ * trusted-origins. Anything else returns null so the caller falls back to
+ * the default /accounts redirect. This blocks open-redirect attacks where
+ * a malicious page initiates a connect with `returnTo=https://evil.com`
+ * and hijacks the user post-callback.
+ *
+ * Same path the dashboard sends is preserved; only the origin is locked
+ * down.
+ */
+function validateReturnTo(input: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(input);
+  } catch {
+    return null;
+  }
+  const allowed = new Set<string>();
+  const dashboard = process.env.DASHBOARD_URL;
+  if (dashboard) {
+    try {
+      allowed.add(new URL(dashboard).origin);
+    } catch {
+      /* ignore */
+    }
+  }
+  const trusted = process.env.TRUSTED_ORIGINS?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  for (const origin of trusted ?? []) {
+    try {
+      allowed.add(new URL(origin).origin);
+    } catch {
+      /* ignore */
+    }
+  }
+  // Local dev fallback so the marketing-site demo on :3000 works when
+  // running the stack locally without setting envs.
+  if (allowed.size === 0) {
+    allowed.add("http://localhost:3001");
+    allowed.add("http://localhost:3000");
+  }
+  return allowed.has(parsed.origin) ? parsed.toString() : null;
+}
+
 export function createAccountRoutes(options: AccountRoutesOptions = {}) {
   const app = new Hono();
   // Auth is per-route below: writes (connect / disconnect) require a
@@ -186,10 +231,13 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
       const provider = getProvider(platform);
       const { organizationId } = c.var.session;
 
-      // Optional profile scope for OAuth → land the resulting account in
-      // this profile. Read from request body for symmetry with /complete.
+      // Optional profile scope + returnTo for OAuth. Profile lands the new
+      // account in the right bucket; returnTo overrides the post-callback
+      // redirect so callers can ship users back to where they came from
+      // (dashboard home, marketing demo page, etc.) instead of the static
+      // /accounts page.
       const body = (await c.req.json().catch(() => ({}))) as
-        | { profileId?: unknown }
+        | { profileId?: unknown; returnTo?: unknown }
         | undefined;
       const requestedProfileId =
         body && typeof body.profileId === "string" ? body.profileId : null;
@@ -197,6 +245,11 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
       const profileId = requestedProfileId
         ? await resolveProfileId(c.var.db, organizationId, requestedProfileId)
         : null;
+
+      const returnTo =
+        body && typeof body.returnTo === "string"
+          ? validateReturnTo(body.returnTo)
+          : null;
 
       // Sign a state token carrying the org/profile/platform context. The
       // GET callback recovers this from the URL after the platform redirects
@@ -207,7 +260,12 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
       // after this call, so the verifier can't ride client-side state.
       // Passing the raw payload alongside the pre-signed token lets PKCE
       // providers compose without introducing a separate code path.
-      const oauthStatePayload = { organizationId, profileId, platform };
+      const oauthStatePayload = {
+        organizationId,
+        profileId,
+        platform,
+        ...(returnTo ? { returnTo } : {}),
+      };
       const oauthState = encodeOAuthState(oauthStatePayload);
 
       const descriptor = await provider.describeConnect({
@@ -604,8 +662,17 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
       const dashboardUrl = (
         process.env.DASHBOARD_URL ?? "http://localhost:3001"
       ).replace(/\/$/, "");
-      const redirect = (qs: string) =>
-        c.redirect(`${dashboardUrl}/accounts?${qs}`, 302);
+
+      // First-pass redirect target: the static /accounts page. If we
+      // successfully decode the state and it carries a validated
+      // returnTo, that overrides for subsequent redirects (both success
+      // and error). The signed state guarantees the returnTo can't be
+      // tampered with mid-flight.
+      let redirectBase = `${dashboardUrl}/accounts`;
+      const redirect = (qs: string) => {
+        const sep = redirectBase.includes("?") ? "&" : "?";
+        return c.redirect(`${redirectBase}${sep}${qs}`, 302);
+      };
 
       const url = new URL(c.req.url);
       const code = url.searchParams.get("code");
@@ -631,7 +698,11 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
         return redirect(`connect_error=platform_mismatch&platform=${platform}`);
       }
 
-      const { organizationId, profileId, pkce } = decoded.payload;
+      const { organizationId, profileId, pkce, returnTo } = decoded.payload;
+      // Re-validate returnTo at callback time so a state token from a
+      // previous env (different DASHBOARD_URL) can't redirect off-allowlist.
+      const validatedReturnTo = returnTo ? validateReturnTo(returnTo) : null;
+      if (validatedReturnTo) redirectBase = validatedReturnTo;
       const provider = getProvider(platform);
       const redirectUri = new URL(
         `/v1/accounts/oauth/${platform}/callback`,

@@ -82,11 +82,21 @@ export default function NewAccountPage() {
     setDescriptorError(null);
     setSubmitting(true);
     try {
+      // returnTo lands the user back on the dashboard origin (home) after
+      // the OAuth callback instead of the static /accounts page. The API
+      // validates this against TRUSTED_ORIGINS + DASHBOARD_URL.
+      const returnTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/`
+          : undefined;
       const res = await apiFetch<ConnectResponse>(
         `/v1/accounts/connect/${next}`,
         {
           method: "POST",
-          body: effectiveProfileId ? { profileId: effectiveProfileId } : {},
+          body: {
+            ...(effectiveProfileId ? { profileId: effectiveProfileId } : {}),
+            ...(returnTo ? { returnTo } : {}),
+          },
         },
       );
       setDescriptor(res.descriptor);

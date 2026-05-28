@@ -45,6 +45,7 @@ import {
 } from "@/components/app/onboarding-checklist";
 import { OnboardingConnect } from "@/components/app/onboarding-connect";
 import { PLATFORM_BRANDS } from "@/components/app/platform-icons";
+import { useConnectCallback } from "@/lib/use-connect-callback";
 
 const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -64,6 +65,11 @@ export default function DashboardHome() {
   const activeOrg = authClient.useActiveOrganization().data;
   const queryClient = useQueryClient();
   const [latestKey, setLatestKey] = useState<string | null>(null);
+
+  // OAuth connect flows now land here by default (returnTo defaults to
+  // `${origin}/` from both /accounts/new and onboarding). Surface the
+  // success/failure toast on whichever page the user comes back to.
+  useConnectCallback();
 
   // Fetch the full lists; the count cards derive their numbers from
   // `.length`. Sharing the same queryKey as the dedicated list pages means
@@ -300,10 +306,20 @@ function ApiKeyStepBody({
         method: "POST",
         body: { name: "primary", prefix: "lmp_live_", scopes: [] },
       }),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       onCreated(res.key);
       queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys.list() });
-      toast.success("Copy it now. We won't show it again.");
+      // Plaintext is only shown once. The dedicated "Copy" button lives
+      // below the fold on short viewports — new users were clicking
+      // around looking for it and missing the one chance to save the key.
+      // Write to the clipboard automatically so the value is captured
+      // even if they never hit the button.
+      try {
+        await navigator.clipboard.writeText(res.key);
+        toast.success("Copied your API key to the clipboard. Paste it somewhere safe — we won't show it again.");
+      } catch {
+        toast.success("Created. Copy the key below — we won't show it again.");
+      }
     },
     onError: (err: unknown) => {
       toast.error(
