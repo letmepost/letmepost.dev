@@ -485,7 +485,7 @@ function QuickStartBody({
         toast.success(`Posted to ${platform}. Opening the log.`);
       }
       onSent();
-      router.push("/posts");
+      router.push("/logs");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Send failed.");
     } finally {
@@ -528,7 +528,7 @@ function QuickStartBody({
           {sending ? "Sending…" : "Send test post"}
         </Button>
         <Button asChild variant="ghost" size="sm">
-          <Link href="/posts">
+          <Link href="/logs">
             Open the post log
             <ArrowRight className="size-4" />
           </Link>
@@ -599,7 +599,7 @@ function NeedsAttentionSection({ accounts }: { accounts: Account[] }) {
       <CardContent className="space-y-3">
         {failureCount > 0 ? (
           <Link
-            href="/posts?status=failed"
+            href="/logs?status=failed"
             className="flex items-center justify-between gap-3 px-3 py-2 ring-1 ring-foreground/10 hover:ring-foreground/30 hover:bg-muted/40 transition-[box-shadow,background]"
           >
             <div className="flex items-center gap-2 min-w-0">
@@ -643,7 +643,7 @@ function RecentActivitySection() {
             </CardDescription>
           </div>
           <Button asChild variant="outline" size="sm">
-            <Link href="/posts">
+            <Link href="/logs">
               View all
               <ArrowRight className="size-3" />
             </Link>
@@ -677,7 +677,7 @@ function RecentRow({ post }: { post: PostListItem }) {
   const ts = post.publishedAt ?? post.createdAt;
   return (
     <Link
-      href={`/posts/${post.id}`}
+      href={`/logs/${post.id}`}
       className="flex items-center gap-3 px-2 py-2.5 hover:bg-muted/40 transition-colors"
     >
       <Badge variant="outline" className="uppercase tracking-wide shrink-0">

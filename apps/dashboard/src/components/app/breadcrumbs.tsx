@@ -18,7 +18,11 @@ const LABELS: Record<string, string> = {
   new: "New",
   "api-keys": "API keys",
   webhooks: "Webhooks",
-  posts: "Post log",
+  posts: "Posts",
+  logs: "Logs",
+  calendar: "Calendar",
+  analytics: "Analytics",
+  settings: "Settings",
   profiles: "Profiles",
   media: "Media",
 };

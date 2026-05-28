@@ -166,7 +166,7 @@ export function PostsTable({ posts }: { posts: PostListItem[] }) {
             <TableRow
               key={row.id}
               className={cn("cursor-pointer")}
-              onClick={() => router.push(`/posts/${row.original.id}`)}
+              onClick={() => router.push(`/logs/${row.original.id}`)}
             >
               {row.getVisibleCells().map((cell) => (
                 <TableCell key={cell.id}>

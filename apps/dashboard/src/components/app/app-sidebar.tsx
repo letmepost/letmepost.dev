@@ -19,6 +19,10 @@ import {
   ArrowSquareOut,
   CreditCard,
   SignOut,
+  PaperPlaneTilt,
+  CalendarBlank,
+  ChartLine,
+  Gear,
 } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
@@ -51,12 +55,16 @@ import {
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: House },
-  { href: "/posts", label: "Logs", icon: ListBullets },
+  { href: "/posts", label: "Posts", icon: PaperPlaneTilt },
+  { href: "/calendar", label: "Calendar", icon: CalendarBlank },
+  { href: "/logs", label: "Logs", icon: ListBullets },
+  { href: "/analytics", label: "Analytics", icon: ChartLine },
   { href: "/accounts", label: "Accounts", icon: Plug },
   { href: "/profiles", label: "Profiles", icon: Folders },
   { href: "/media", label: "Media", icon: ImageSquare },
   { href: "/api-keys", label: "API keys", icon: Key },
   { href: "/webhooks", label: "Webhooks", icon: Broadcast },
+  { href: "/settings", label: "Settings", icon: Gear },
 ] as const;
 
 export function AppSidebar() {

@@ -214,7 +214,7 @@ export default function PostsPage() {
     <div className="space-y-4" data-page-wide>
       <FadeIn className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-lg font-semibold">Post log</h1>
+          <h1 className="text-lg font-semibold">Logs</h1>
           <p className="text-xs text-muted-foreground">
             Every post your org has sent through letmepost. When something
             fails, this is where you see the rule, the upstream response, and

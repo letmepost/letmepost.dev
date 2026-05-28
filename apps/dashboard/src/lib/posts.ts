@@ -13,7 +13,8 @@ export type PostStatus =
   | "publishing"
   | "published"
   | "failed"
-  | "rejected";
+  | "rejected"
+  | "canceled";
 
 export type PostError = {
   code: string;
@@ -103,6 +104,22 @@ export function getPost(id: string): Promise<PostDetail> {
   return apiFetch<PostDetail>(`/v1/posts/${id}`);
 }
 
+export function reschedulePost(
+  id: string,
+  scheduledAt: string,
+): Promise<PostListItem> {
+  return apiFetch<PostListItem>(`/v1/posts/${id}`, {
+    method: "PATCH",
+    body: { scheduledAt },
+  });
+}
+
+export function cancelPost(id: string): Promise<{ id: string; status: "canceled" }> {
+  return apiFetch<{ id: string; status: "canceled" }>(`/v1/posts/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export const POST_STATUSES: PostStatus[] = [
   "queued",
   "validated",
@@ -110,6 +127,7 @@ export const POST_STATUSES: PostStatus[] = [
   "published",
   "failed",
   "rejected",
+  "canceled",
 ];
 
 /**

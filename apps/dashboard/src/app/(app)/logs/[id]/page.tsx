@@ -68,7 +68,7 @@ export default function PostDetailPage() {
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" asChild>
-        <Link href="/posts">
+        <Link href="/logs">
           <ArrowLeft className="size-4" />
           Back to log
         </Link>

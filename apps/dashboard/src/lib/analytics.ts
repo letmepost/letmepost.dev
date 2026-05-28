@@ -44,7 +44,8 @@ type PostStatus =
   | "publishing"
   | "published"
   | "rejected"
-  | "failed";
+  | "failed"
+  | "canceled";
 
 type WebhookEventType =
   | "post.queued"
@@ -222,7 +223,16 @@ export type DashboardEvent =
 
   // ── Org & settings ──────────────────────────────────────────────────
   | { name: "member.invited"; properties: { role: string } }
-  | { name: "theme.changed"; properties: { from: string; to: string } };
+  | { name: "theme.changed"; properties: { from: string; to: string } }
+
+  // ── Feature requests ────────────────────────────────────────────────
+  // Surface area for v2 demand signals — every "I want this" click on a
+  // coming-soon screen lands here with the feature identifier so we can
+  // rank the backlog by actual votes instead of guesses.
+  | {
+      name: "feature.requested";
+      properties: { feature: "analytics" | "queue" | "draft" | "bulk_csv" };
+    };
 
 export function track<T extends DashboardEvent>(event: T): void {
   if (typeof window === "undefined") return;
