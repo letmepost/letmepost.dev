@@ -200,9 +200,9 @@ Click this link to verify your email and finish setting up your letmepost accoun
 
 ${url}
 
-The link expires in an hour. If you didn't sign up for letmepost, ignore this — nothing happens until the link is clicked.
+The link expires in an hour. If you didn't sign up for letmepost, ignore this. Nothing happens until the link is clicked.
 
-Rose`,
+Kamal`,
         ...(replyTo ? { replyTo } : {}),
         tag: "verification",
         // Don't add unsubscribe to a transactional, single-shot
