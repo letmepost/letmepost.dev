@@ -71,6 +71,12 @@ const publishWorker = new Worker<PublishJobData>(
       // Idempotent replay — someone already finalised this post.
       return { skipped: true, reason: "already-published" };
     }
+    if (post.status === "canceled") {
+      // The DELETE handler removes the BullMQ job, but a race can leave a
+      // job already in flight when cancellation lands. Skip cleanly instead
+      // of publishing a post the user asked us not to send.
+      return { skipped: true, reason: "canceled" };
+    }
 
     await db
       .update(postsTable)

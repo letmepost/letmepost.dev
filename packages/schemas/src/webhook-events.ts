@@ -49,6 +49,8 @@ export const WEBHOOK_EVENT_TYPES = [
   "post.published",
   "post.rejected",
   "post.failed",
+  "post.canceled",
+  "post.rescheduled",
   "token.expiring",
   "token.revoked",
   "version.deprecated",

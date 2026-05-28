@@ -64,6 +64,13 @@
       "when": 1779891421816,
       "tag": "0008_silent_millenium_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1779949603720,
+      "tag": "0009_strong_ender_wiggin",
+      "breakpoints": true
     }
   ]
 }

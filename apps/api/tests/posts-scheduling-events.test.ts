@@ -45,13 +45,19 @@ type CapturedEnqueue = { data: PublishJobData; delayMs: number | undefined };
 function captureEnqueuer(): {
   enqueuer: PublishEnqueuer;
   calls: CapturedEnqueue[];
+  removals: string[];
 } {
   const calls: CapturedEnqueue[] = [];
+  const removals: string[] = [];
   return {
     calls,
+    removals,
     enqueuer: {
       async enqueue(data, opts) {
         calls.push({ data, delayMs: opts?.delayMs });
+      },
+      async remove(postId) {
+        removals.push(postId);
       },
     },
   };

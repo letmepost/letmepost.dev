@@ -18,6 +18,7 @@ export const postStatus = pgEnum("post_status", [
   "published",
   "failed",
   "rejected",
+  "canceled",
 ]);
 
 export const posts = pgTable(

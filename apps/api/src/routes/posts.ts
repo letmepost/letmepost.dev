@@ -807,6 +807,150 @@ posts.get("/:id", apiKeyOrSession(), async (c) => {
   });
 });
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Mutations on scheduled posts — reschedule + cancel
+ * Both share the same precondition: status=queued AND scheduledAt is in the
+ * future. Once a post has fired (publishing/published/failed/rejected) the
+ * window for these is closed.
+ *
+ * Auth is apiKeyOrSession so the dashboard can call these directly with a
+ * cookie session; programmatic callers use an API key. Profile scope is
+ * enforced identically to GET /v1/posts/:id (404 not 403).
+ * ───────────────────────────────────────────────────────────────────────── */
+
+const PatchPostBody = z.object({
+  scheduledAt: z.string().datetime(),
+});
+
+async function loadModifiableScheduled(
+  c: {
+    var: {
+      db: import("../db/index.js").DrizzleClient;
+      apiKey: { organizationId: string; profileId: string | null };
+    };
+    req: { param: (k: string) => string };
+  },
+): Promise<PostWithAccount> {
+  const id = c.req.param("id");
+  const { organizationId } = c.var.apiKey;
+  const repo = new DrizzlePostsReadRepository(c.var.db);
+  const post = await repo.findByIdWithAccount(id);
+  if (!post || post.organizationId !== organizationId) {
+    throw new LetmepostError({
+      code: "not_found",
+      status: 404,
+      message: "Post not found.",
+    });
+  }
+  assertKeyCanAccessProfile(c.var.apiKey, post.account);
+  if (post.status !== "queued") {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 409,
+      message: `Cannot modify a post in status "${post.status}". Only queued scheduled posts can be rescheduled or canceled.`,
+      rule: "post.status",
+    });
+  }
+  if (!post.scheduledAt || post.scheduledAt.getTime() <= Date.now()) {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 409,
+      message: "This post is already firing or has no scheduledAt. The window for changes has closed.",
+      rule: "post.scheduledAt.window",
+    });
+  }
+  return post;
+}
+
+posts.patch("/:id", apiKeyOrSession(), async (c) => {
+  const raw = await c.req.json().catch(() => null);
+  const parsed = PatchPostBody.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: issue?.message ?? "Invalid request body.",
+      rule: issue?.path.join(".") || "body",
+      platformResponse: parsed.error.issues,
+    });
+  }
+  const post = await loadModifiableScheduled(c);
+  const when = new Date(parsed.data.scheduledAt);
+  const delayMs = when.getTime() - Date.now();
+  if (delayMs < MIN_FUTURE_DELAY_MS) {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: "scheduledAt must be at least 1 second in the future.",
+      rule: "scheduledAt.future",
+      remediation:
+        "Send a timestamp at least 1 second ahead of now.",
+    });
+  }
+
+  // Replace the BullMQ job first. If this fails the row stays as-is and the
+  // caller can retry; if we updated the row first and the queue op blew up
+  // we'd have a row out of sync with a job that still fires at the old time.
+  await c.var.publishEnqueuer.remove(post.id);
+  await c.var.publishEnqueuer.enqueue(
+    {
+      postId: post.id,
+      organizationId: post.organizationId,
+      ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+    },
+    { delayMs },
+  );
+  await c.var.db
+    .update(postsTable)
+    .set({ scheduledAt: when })
+    .where(eq(postsTable.id, post.id));
+
+  await c.var.webhookDispatcher.dispatch({
+    organizationId: post.organizationId,
+    type: "post.rescheduled",
+    data: {
+      id: post.id,
+      platform: post.account.platform,
+      accountId: post.accountId,
+      profileId: post.account.profileId,
+      previousScheduledAt: post.scheduledAt?.toISOString(),
+      scheduledAt: when.toISOString(),
+    },
+    ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+  });
+
+  return c.json({
+    ...publicView({ ...post, scheduledAt: when }),
+  });
+});
+
+posts.delete("/:id", apiKeyOrSession(), async (c) => {
+  const post = await loadModifiableScheduled(c);
+
+  await c.var.publishEnqueuer.remove(post.id);
+  await c.var.db
+    .update(postsTable)
+    .set({ status: "canceled" })
+    .where(eq(postsTable.id, post.id));
+
+  await c.var.webhookDispatcher.dispatch({
+    organizationId: post.organizationId,
+    type: "post.canceled",
+    data: {
+      id: post.id,
+      platform: post.account.platform,
+      accountId: post.accountId,
+      profileId: post.account.profileId,
+      scheduledAt: post.scheduledAt?.toISOString(),
+      canceledAt: new Date().toISOString(),
+    },
+    ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+  });
+
+  return c.json({ id: post.id, status: "canceled" });
+});
+
 function classifyError(err: unknown): {
   status: "rejected" | "failed";
   eventType: WebhookEventType | null;
