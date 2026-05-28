@@ -8,6 +8,67 @@ The canonical record lives in the git history; this page summarises the mileston
 
 ## 2026-05
 
+### Added — scheduling lifecycle endpoints
+
+- **`PATCH /v1/posts/:id`** — reschedule a queued post. Body `{ scheduledAt }`. Atomic: removes the existing BullMQ job, enqueues a new one at the updated delay, then persists the new time. Window-gated to `status=queued AND scheduledAt > now` — a `409` lands once the worker has the row. Dispatches [`post.rescheduled`](/webhooks/post-rescheduled) on success with both old and new timestamps.
+- **`DELETE /v1/posts/:id`** — cancel a queued post before it fires. Same window. Removes the BullMQ job and transitions the row to the new terminal state `canceled`. Dispatches [`post.canceled`](/webhooks/post-canceled).
+- **Stable BullMQ jobIds.** `POST /v1/posts` now writes scheduled jobs with `jobId: publish:<postId>` so the cancel/reschedule endpoints can find and replace by post id without tracking BullMQ-assigned ids on the row.
+- **Worker race-safe transition.** The publish worker's queued→publishing step is now a conditional `UPDATE … WHERE status IN ('queued','validated')` — if a `DELETE` lands between the worker's SELECT and UPDATE, the transition matches zero rows and the worker bails out cleanly. No more canceled posts going out by accident.
+- **New post status:** `canceled`. Terminal. Set exclusively via `DELETE`.
+- **New webhook events:** [`post.canceled`](/webhooks/post-canceled), [`post.rescheduled`](/webhooks/post-rescheduled).
+
+### Added — dashboard restructure
+
+- **`/posts` is now the compose surface.** Grid + list views of scheduled and published posts, with a Create Post modal modeled on Zernio's two-column shape (content left, profile + accounts + Schedule / Now / Queue / Draft tabs right). Queue + Draft are selectable but show a coming-soon empty state with a vote button — captures demand signal via the `feature.requested` analytics event.
+- **`/logs` (renamed from old `/posts`)** — same log-viewer behavior, more honest URL. The page was always a "did my post land?" log, not a "what's coming up?" management surface.
+- **`/calendar`** — month grid, scheduled posts as chips on day cells. Click a chip → side drawer with reschedule (datetime picker) and cancel buttons wired through the new endpoints.
+- **`/settings`** — tabbed: Usage (current cycle, profiles + posts progress, reset date), Profile (read-only name + email), Danger Zone (account deletion via support). Billing kept at the dedicated `/billing` route.
+- **`/analytics`** — placeholder with a "prioritize this" vote button.
+- Sidebar reorganized with new routes + matching Phosphor icons.
+
+### Added — observability + onboarding emails
+
+- **Sentry on api, worker, and dashboard.** Node init via a separate `instrument.mjs` loaded with `node --import` so OpenTelemetry auto-instrumentation works under ESM. Dashboard wired via `@sentry/nextjs`. DSN configurable per service.
+- **Founder-voice onboarding email sequence.** Five emails over seven days — D0 welcome, D1 first-post nudge, D3 stuck-check, D5 webhooks nudge, D7 Sean Ellis PMF question. Gated on email verification so a bad actor can't burn sender reputation with throwaway addresses. Each email is a pure function of the user's state; D1/D3/D5 skip themselves when their gating condition is already met (e.g. D3 skips users who already connected an account).
+- **Resend transport** with `Idempotency-Key` deduplication and svix-signed webhook for delivery + complaint events.
+- **Suppression list.** Hard bounces and complaints from the Resend webhook write to `email_suppressions` (PK on lowercased email). The onboarding worker checks this list before sending. Best-effort cancellation of queued onboarding jobs for newly-suppressed addresses.
+- **RFC 2369 mailto `List-Unsubscribe` header** on every transactional onboarding email. RFC 8058 one-click was skipped pending the HTTPS endpoint.
+
+### Fixed — auth blockers
+
+- **401 on email signup.** With `requireEmailVerification: true` (production), `signUp.email` succeeded but no session landed until the user clicked the verification link. The dashboard's signup form then immediately called `organization.create` and 401'd. Fixed by probing `getSession()` after signup; if no session, the requested org name is stashed in localStorage and the user routes to a new `/verify-email` screen that polls for verification and forwards to `/onboarding` once the session arrives. `/onboarding` picks up the stashed name and creates the org with what the user originally typed.
+- **API key plaintext now auto-copies to clipboard** on creation in the onboarding flow. The dedicated copy button lives below the fold on short viewports and new users were missing it on the only render where the plaintext is visible. Falls back to the button if clipboard permission is denied.
+- **OAuth callback `returnTo`.** `POST /v1/accounts/connect/:platform` now accepts `returnTo` (validated against `DASHBOARD_URL` + `TRUSTED_ORIGINS` to block open-redirect) and carries it through the signed state. Callback redirects there instead of the static `/accounts` page, so dashboard users return to the home dashboard and marketing-site demo connections can return to the landing page. Shared `useConnectCallback` hook surfaces the success/error toast on whatever page the user lands on.
+
+### Added — billing (Lemon Squeezy)
+
+- **Three tiers: Free (50 posts/mo), Pro ($79/mo for 5k), Business ($299/mo for 25k).** Self-host is unlimited; enterprise was dropped from the tier ladder until a sales path exists.
+- **`POST /v1/billing/checkout`** mints a Lemon Squeezy checkout URL via their Checkouts API (not the legacy `/buy/` URL).
+- **Webhook handler** at `POST /v1/lemonsqueezy/webhook` — CSRF-hardened, status-aware (respects LS's order/subscription state), event-id derived from body hash since Lemon Squeezy has no `X-Event-Id` header. Dispatches `subscription.activated`, `subscription.cancelled`, `subscription.tier_changed`, `billing.payment_failed`, `billing.delinquent`, `billing.recovered`, `quota.warning`, `quota.exceeded`.
+- **Quota gate on `POST /v1/posts`.** Idempotent replays skip the counter (the idempotency middleware short-circuits before the handler). Infinity-quota tiers (self_host, grandfather) bypass the cap entirely.
+- **Dashboard billing surface** — plan card, usage meter (animated counter + bar, polled every 60s), upgrade flow, invoices list, eager-written cancel + reactivate state.
+- **Dunning + retention jobs** run on the billing queue: hourly past_due → delinquent sweep, nightly per-org log cleanup respecting tier retention windows.
+- **`BILLING_ENABLED` env gate** so self-host instances can skip the entire surface without a code branch.
+
+### Added — official SDKs
+
+- **`@letmepost/sdk` (TypeScript)** on npm. Hand-written client mirroring every `/v1/*` endpoint, with first-class types pulled from the same `@letmepost/schemas` package the API uses.
+- **Python (`letmepost`) and Go (`github.com/letmepost/letmepost-go`)** generated from the OpenAPI spec via openapi-generator-cli, published from CI. The spec is down-converted from OpenAPI 3.1 → 3.0 before Go codegen for `oneOf` compatibility.
+
+### Added — GitHub + Google OAuth, account linking, first-touch attribution
+
+- **Social sign-in** on the dashboard for Google and GitHub. OAuth identities auto-link to existing email-password accounts when the verified email matches (Google and GitHub are on the `trustedProviders` allowlist; both verify emails server-side before issuing tokens, so auto-link is safe).
+- **`requireLocalEmailVerified: false`** on the linking path — a verified-OAuth email matches an unverified local email cleanly, because the OAuth provider's verification is what we actually rely on.
+- **First-touch attribution snapshot** at signup: `signupSource`, `signupUtmSource`, `signupUtmMedium`, `signupUtmCampaign`, `signupUtmContent`, `signupUtmTerm`, `signupReferrer`, `signupLandingPath`. Captured from URL params + localStorage at the moment the form is focused or an OAuth flow begins. Persisted on the `user` row.
+
+### Added — Notion-backed blog
+
+- `letmepost.dev/blog` is rendered from a Notion database via a daily Vercel cron. Reading-view design — single column, large type, syntax-highlighted code. Each post has alt text on the cover image and breadcrumbs back to the index. Fonts self-hosted for FCP.
+
+### Changed — marketing site redesigned
+
+- Receipt-themed visual identity across landing, pricing, blog, tools, `/platforms`, `/api`, `/agents`, `/about`, `/llms.txt`. New brand mark + wordmark synced to docs and dashboard. SEO upgrades — FAQ + Product schema, `/about`, `/llms.txt`, latest-writing strip on the landing, breadcrumbs on the blog.
+
 ### Added — Pinterest live
 
 - Pinterest Standard Access approval cleared. Pinterest is now connectable for every signup. Image pins, video pins, board picker, default-board setting, and the v5 API version pinned in the platform-versions registry.

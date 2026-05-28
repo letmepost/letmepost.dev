@@ -1,0 +1,45 @@
+---
+title: post.canceled
+description: A queued scheduled post was canceled via DELETE /v1/posts/:id before it fired.
+---
+
+Fires when an operator cancels a queued scheduled post via `DELETE /v1/posts/:id`. The BullMQ job is removed and the row transitions to `status: "canceled"` before this event dispatches.
+
+The event does **not** fire for posts that reached `rejected` or `failed` through the normal publish path — those carry their own events. `post.canceled` is specifically the operator-initiated cancellation signal.
+
+## Payload
+
+```json post.canceled.json
+{
+  "id": "evt_...",
+  "type": "post.canceled",
+  "createdAt": "2026-05-08T11:55:00Z",
+  "organizationId": "org_...",
+  "data": {
+    "id": "post_...",
+    "platform": "bluesky",
+    "accountId": "...",
+    "profileId": "...",
+    "scheduledAt": "2026-05-08T12:00:00Z",
+    "canceledAt": "2026-05-08T11:55:00Z"
+  }
+}
+```
+
+`scheduledAt` is the time the post **would have fired** if it hadn't been canceled. `canceledAt` is when the cancellation was accepted.
+
+## Use it for
+
+- Reverting any pre-publish work you queued in anticipation (CMS draft state, scheduled announcements, attribution links).
+- Notifying upstream tools that the planned post won't go out.
+- Audit trail: pair with `post.queued` to reconstruct the full lifecycle of any scheduled item.
+
+## Cancellation race
+
+If you receive `post.canceled` **before** the platform-side post would have fired, that's the expected path. If you receive it **after** a `post.published` event for the same `post.id`, ignore the cancel — the worker had already finalized the publish and the cancellation arrived too late to stop it. The API's window gate (`status=queued AND scheduledAt > now`) makes this race vanishingly rare, but consumers should still handle it idempotently.
+
+## Related
+
+- [`DELETE /v1/posts/{id}`](/api-reference/#delete-/v1/posts/{id}) — the endpoint that triggers this event.
+- [Scheduled posts guide](/guides/schedule-post) — full lifecycle including cancel + reschedule.
+- [`post.rescheduled` webhook](/webhooks/post-rescheduled) — sibling event for the move-the-time case.

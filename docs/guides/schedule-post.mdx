@@ -81,8 +81,10 @@ A scheduled target moves through these statuses:
 
 ```
 queued    →   publishing   →   published
-                          ↘   rejected
-                          ↘   failed
+   ↓                      ↘   rejected
+   ↓                      ↘   failed
+   ↓
+ canceled  (terminal — set by DELETE before the job fires)
 ```
 
 Subscribe to webhooks for each transition. Events fire **per target**, not per batch:
@@ -91,6 +93,40 @@ Subscribe to webhooks for each transition. Events fire **per target**, not per b
 - [`post.published`](/webhooks/post-published) — successful publish on a target.
 - [`post.rejected`](/webhooks/post-rejected) — preflight or platform rejected; not retried.
 - [`post.failed`](/webhooks/post-failed) — transient failure; the worker may retry per the queue policy.
+- [`post.rescheduled`](/webhooks/post-rescheduled) — operator moved the firing time via `PATCH`.
+- [`post.canceled`](/webhooks/post-canceled) — operator canceled the post before it fired.
+
+## Reschedule
+
+Move a queued post to a new time with `PATCH /v1/posts/:id`. The window is `status=queued AND scheduledAt > now` — once the worker picks the row up, the window closes and the API returns `409`.
+
+```bash reschedule.sh
+curl -X PATCH https://api.letmepost.dev/v1/posts/<postId> \
+  -H "Authorization: Bearer $LMP_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"scheduledAt":"2026-05-09T15:00:00Z"}'
+```
+
+The operation is atomic: the API removes the existing BullMQ job, enqueues a new one at the updated delay, then persists the new `scheduledAt`. If the queue swap fails the row stays as-is — no orphaned rows pointing at a job that never fires.
+
+A `post.rescheduled` webhook fires on success with both the old and new timestamps.
+
+## Cancel
+
+Cancel a queued post with `DELETE /v1/posts/:id`. Same window as reschedule.
+
+```bash cancel.sh
+curl -X DELETE https://api.letmepost.dev/v1/posts/<postId> \
+  -H "Authorization: Bearer $LMP_KEY"
+```
+
+```json 200.json
+{ "id": "post_…", "status": "canceled" }
+```
+
+The BullMQ job is removed and the row transitions to `status: "canceled"`. A `post.canceled` webhook fires on success.
+
+**Race-safety:** if a worker has already started running the job when the cancel lands, the worker's conditional transition (`UPDATE … WHERE status IN ('queued','validated')`) sees `canceled` and short-circuits — the publish never happens.
 
 ## Idempotency on scheduled posts
 
@@ -103,5 +139,9 @@ Subscribe to webhooks for each transition. Events fire **per target**, not per b
 ## See also
 
 - [`POST /v1/posts` reference](/api-reference/#post-/v1/posts)
+- [`PATCH /v1/posts/{id}` reference](/api-reference/#patch-/v1/posts/{id})
+- [`DELETE /v1/posts/{id}` reference](/api-reference/#delete-/v1/posts/{id})
 - [Idempotency](/idempotency)
 - [`post.queued` webhook](/webhooks/post-queued)
+- [`post.rescheduled` webhook](/webhooks/post-rescheduled)
+- [`post.canceled` webhook](/webhooks/post-canceled)

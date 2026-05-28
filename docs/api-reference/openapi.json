@@ -108,9 +108,10 @@
           "publishing",
           "published",
           "failed",
-          "rejected"
+          "rejected",
+          "canceled"
         ],
-        "description": "Lifecycle state of a single per-target post row."
+        "description": "Lifecycle state of a single per-target post row. `canceled` is the terminal state reached via `DELETE /v1/posts/{id}` on a queued scheduled post."
       },
       "ErrorCode": {
         "type": "string",
@@ -1213,6 +1214,8 @@
           "post.published",
           "post.rejected",
           "post.failed",
+          "post.canceled",
+          "post.rescheduled",
           "token.expiring",
           "token.revoked",
           "version.deprecated"
@@ -2012,6 +2015,166 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Reschedule a queued post",
+        "description": "Move a scheduled post to a new firing time. Only allowed when `status=queued` AND `scheduledAt` is still in the future — once a post enters `publishing` or any terminal state, the window closes and the request returns `409`.\n\nThe operation is atomic: the API replaces the BullMQ job (removes the old delayed job, enqueues a new one at the updated delay) and only persists the new `scheduledAt` if the queue swap succeeded. A `post.rescheduled` webhook fires on success, carrying both the old and new timestamps.",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "scheduledAt"
+                ],
+                "properties": {
+                  "scheduledAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "ISO-8601 timestamp with timezone. Must be at least 1 second in the future."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reschedule applied; row reflects the new `scheduledAt`.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostListItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Post is no longer in the modifiable window (status != `queued` or `scheduledAt` already passed). Error rule: `post.status` or `post.scheduledAt.window`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Cancel a queued scheduled post",
+        "description": "Cancel a scheduled post before it fires. Only allowed when `status=queued` AND `scheduledAt` is still in the future — same window as `PATCH`. Removes the BullMQ job and transitions the row to `status=canceled`. A `post.canceled` webhook fires on success.\n\nIf a worker is already processing the job when cancellation lands, the worker's conditional `UPDATE … WHERE status IN ('queued','validated')` short-circuits and the publish never happens.",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancellation applied.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/X-Request-Id"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "canceled"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Post is no longer in the cancellable window. Error rule: `post.status` or `post.scheduledAt.window`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"

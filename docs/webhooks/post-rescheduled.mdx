@@ -1,0 +1,49 @@
+---
+title: post.rescheduled
+description: An operator moved a queued post to a new scheduledAt via PATCH /v1/posts/:id.
+---
+
+Fires when `PATCH /v1/posts/:id` successfully moves a queued scheduled post to a new firing time. The BullMQ job is replaced (old removed, new enqueued at the updated delay) and the row's `scheduledAt` is persisted before this event dispatches.
+
+## Payload
+
+```json post.rescheduled.json
+{
+  "id": "evt_...",
+  "type": "post.rescheduled",
+  "createdAt": "2026-05-08T11:45:00Z",
+  "organizationId": "org_...",
+  "data": {
+    "id": "post_...",
+    "platform": "bluesky",
+    "accountId": "...",
+    "profileId": "...",
+    "previousScheduledAt": "2026-05-08T12:00:00Z",
+    "scheduledAt": "2026-05-09T15:00:00Z"
+  }
+}
+```
+
+Both timestamps are present so consumers can update calendar UI, notification triggers, or analytics buckets without a separate lookup.
+
+## Use it for
+
+- Mirroring the schedule change in any external calendar or planning tool.
+- Resetting notification timers tied to the post's original firing window.
+- Audit trail: pair with `post.queued` and the eventual `post.published` (or `post.canceled`) to reconstruct the post's full lifecycle.
+
+## Ordering
+
+`post.rescheduled` fires after the row is updated. A consumer that subscribed to both `post.queued` and `post.rescheduled` will see them in this order:
+
+1. `post.queued` (original `scheduledAt`)
+2. `post.rescheduled` (any number of times — each PATCH emits one)
+3. `post.published` / `post.canceled` / `post.failed` / `post.rejected` (terminal)
+
+Idempotency on the consumer side is the same as for any other webhook — dedupe on event id, not on logical state.
+
+## Related
+
+- [`PATCH /v1/posts/{id}`](/api-reference/#patch-/v1/posts/{id}) — the endpoint that triggers this event.
+- [Scheduled posts guide](/guides/schedule-post) — full lifecycle including reschedule + cancel.
+- [`post.canceled` webhook](/webhooks/post-canceled) — sibling event for the cancel-the-post case.
