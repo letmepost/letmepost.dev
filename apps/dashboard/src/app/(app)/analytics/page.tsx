@@ -16,7 +16,10 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center text-center min-h-[70vh] py-16 px-6">
+    <div
+      data-page-wide
+      className="flex flex-col items-center justify-center text-center min-h-[70vh] w-full py-16 px-6"
+    >
       <div className="size-12 rounded-full bg-muted/60 grid place-items-center mb-4">
         <ChartLine className="size-6 text-muted-foreground" />
       </div>
