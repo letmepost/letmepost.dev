@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  X,
+  ArrowLeft,
   Plus,
   Lightning,
   Clock,
@@ -19,15 +21,8 @@ import { queryKeys } from "@/lib/query-keys";
 import { track } from "@/lib/analytics";
 import { PLATFORM_BRANDS } from "@/components/app/platform-icons";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -38,17 +33,11 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Compose-post modal modeled on the spec sketched in the screenshot reviews:
- * two-column layout (content left, recipients + publishing right), with four
- * publishing tabs (Schedule, Now, Queue, Draft).
- *
- * Queue + Draft are intentionally selectable but render a coming-soon empty
- * state with a "vote" button — this telegraphs the roadmap and captures
- * intent through the `feature.requested` analytics event so the backlog can
- * be reordered by real demand.
- *
- * The CTA label changes based on the active tab. Schedule + Now hit POST
- * /v1/posts; the others are no-ops for now.
+ * Full-page composer at /posts/new. Two columns at large viewports
+ * (content left, profile + accounts + publishing right); stacks on small
+ * screens. Skips the dialog wrapper used previously — the modal layout
+ * was cramped at typical viewports and didn't survive the keyboard on
+ * mobile.
  */
 
 type Account = {
@@ -56,6 +45,7 @@ type Account = {
   platform: string;
   displayName?: string;
   handle?: string;
+  platformAccountId?: string;
 };
 
 type Tab = "schedule" | "now" | "queue" | "draft";
@@ -69,15 +59,8 @@ type MediaItem = {
 
 const MAX_MEDIA_PER_POST = 4;
 
-export function ComposePostModal({
-  open,
-  onOpenChange,
-  onSuccess,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSuccess?: () => void;
-}) {
+export default function ComposePostPage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const { profiles, activeProfile, setActiveProfile } = useActiveProfile();
   const tz = useMemo(
@@ -87,35 +70,19 @@ export function ComposePostModal({
 
   const [text, setText] = useState("");
   const [tab, setTab] = useState<Tab>("schedule");
-  const [when, setWhen] = useState("");
+  const [when, setWhen] = useState(() => {
+    // Default scheduled time: 1h from now in user's local tz.
+    const t = new Date(Date.now() + 60 * 60 * 1000);
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`;
+  });
   const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(
     new Set(),
   );
   const [media, setMedia] = useState<MediaItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reset state every time the modal opens so a previous draft doesn't
-  // leak into the next session.
-  useEffect(() => {
-    if (open) {
-      setText("");
-      setMedia([]);
-      setSelectedAccountIds(new Set());
-      setTab("schedule");
-      // Default scheduled time: 1h from now in user's local tz (datetime-local
-      // input wants tz-less format).
-      const t = new Date(Date.now() + 60 * 60 * 1000);
-      const pad = (n: number) => n.toString().padStart(2, "0");
-      setWhen(
-        `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}T${pad(t.getHours())}:${pad(t.getMinutes())}`,
-      );
-    }
-  }, [open]);
-
   const accountsQuery = useQuery({
-    // Share the cache with the dashboard home + /accounts pages by using
-    // the canonical key shape. Otherwise opening the modal triggers a
-    // redundant network hit even though the same list was just fetched.
     queryKey: queryKeys.accounts.list(activeProfile?.id ?? null),
     queryFn: async () => {
       const url = activeProfile
@@ -124,13 +91,10 @@ export function ComposePostModal({
       const res = await apiFetch<{ data: Account[] }>(url);
       return res.data;
     },
-    enabled: open,
   });
 
   const accounts = accountsQuery.data ?? [];
 
-  // Auto-select all accounts on the active profile when the list arrives.
-  // The user can deselect individual chips; matches Zernio's behaviour.
   useEffect(() => {
     if (accounts.length > 0 && selectedAccountIds.size === 0) {
       setSelectedAccountIds(new Set(accounts.map((a) => a.id)));
@@ -209,8 +173,7 @@ export function ComposePostModal({
       });
       toast.success(tab === "schedule" ? "Scheduled" : "Published");
       qc.invalidateQueries({ queryKey: ["posts"] });
-      onOpenChange(false);
-      onSuccess?.();
+      router.push("/posts");
     },
     onError: (err: unknown) => {
       toast.error(
@@ -253,37 +216,43 @@ export function ComposePostModal({
     (tab === "schedule" || tab === "now");
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-full h-[min(720px,90vh)] p-0 grid grid-cols-1 md:grid-cols-2 overflow-hidden">
-        <DialogTitle className="sr-only">Create post</DialogTitle>
-        <DialogDescription className="sr-only">
-          Compose, target, and schedule or publish a post.
-        </DialogDescription>
-
-        {/* Left: content */}
-        <div className="border-r flex flex-col p-6 overflow-y-auto">
-          <div className="space-y-1 mb-4">
-            <h2 className="text-lg font-semibold">Create post</h2>
+    <div className="space-y-4" data-page-wide>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <Button asChild variant="ghost" size="icon">
+            <Link href="/posts">
+              <ArrowLeft className="size-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-lg font-semibold">Create post</h1>
             <p className="text-xs text-muted-foreground">
-              create & publish content
+              Compose, attach media, and pick where + when it lands.
             </p>
           </div>
+        </div>
+      </div>
 
-          <Label htmlFor="content" className="text-xs uppercase tracking-wide">
-            Content
-          </Label>
-          <textarea
-            id="content"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="what's on your mind…"
-            className="mt-2 min-h-32 w-full resize-y bg-muted/30 p-3 text-sm outline-none focus:bg-muted/40 transition-colors"
-          />
-          <div className="flex justify-end text-xs text-muted-foreground mt-1 tabular-nums">
-            {text.length} chars
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
+        {/* Left: content + media */}
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="content" className="text-xs uppercase tracking-wide">
+              Content
+            </Label>
+            <textarea
+              id="content"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="what's on your mind…"
+              className="mt-2 min-h-48 w-full resize-y bg-muted/30 p-3 text-sm outline-none focus:bg-muted/40 transition-colors ring-1 ring-foreground/10 focus:ring-foreground/20"
+            />
+            <div className="flex justify-end text-xs text-muted-foreground mt-1 tabular-nums">
+              {text.length} chars
+            </div>
           </div>
 
-          <div className="mt-4">
+          <div>
             <Label className="text-xs uppercase tracking-wide">Media</Label>
             {tab === "schedule" && media.length > 0 ? (
               <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1">
@@ -291,13 +260,14 @@ export function ComposePostModal({
                 Switch to Publish Now to keep these attachments.
               </p>
             ) : null}
-            <div className="grid grid-cols-3 gap-2 mt-2">
+            <div className="grid grid-cols-4 gap-2 mt-2">
               {media.map((m) => (
                 <div
                   key={m.id}
                   className="aspect-square ring-1 ring-foreground/10 overflow-hidden relative group bg-muted/30"
                 >
                   {m.contentType.startsWith("image") ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={m.url}
                       alt=""
@@ -332,7 +302,7 @@ export function ComposePostModal({
                   ) : (
                     <>
                       <ImageIcon className="size-4" />
-                      <span>Add media</span>
+                      <span>Add</span>
                     </>
                   )}
                 </button>
@@ -352,52 +322,40 @@ export function ComposePostModal({
           </div>
         </div>
 
-        {/* Right: recipients + publishing */}
-        <div className="flex flex-col p-6 overflow-y-auto">
-          <div className="flex items-start justify-between">
-            <div className="space-y-1">
-              <Label className="text-xs uppercase tracking-wide">
-                Profile
-              </Label>
-              <Select
-                value={activeProfile?.id ?? ""}
-                onValueChange={(v) => setActiveProfile(v)}
-              >
-                <SelectTrigger className="w-56">
-                  <SelectValue placeholder="Pick a profile" />
-                </SelectTrigger>
-                <SelectContent>
-                  {profiles.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-              aria-label="Close"
+        {/* Right: profile + accounts + publishing */}
+        <div className="space-y-4">
+          <div className="space-y-1">
+            <Label className="text-xs uppercase tracking-wide">Profile</Label>
+            <Select
+              value={activeProfile?.id ?? ""}
+              onValueChange={(v) => setActiveProfile(v)}
             >
-              <X className="size-4" />
-            </Button>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Pick a profile" />
+              </SelectTrigger>
+              <SelectContent>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="mt-4">
+          <div>
             <Label className="text-xs uppercase tracking-wide">
-              Connected accounts on this profile
+              Accounts on this profile
             </Label>
             {accountsQuery.isLoading ? (
               <p className="text-xs text-muted-foreground mt-2">Loading…</p>
             ) : accounts.length === 0 ? (
               <p className="text-xs text-muted-foreground mt-2">
-                No accounts connected. Visit{" "}
-                <a href="/accounts" className="underline">
-                  Accounts
-                </a>{" "}
-                first.
+                No accounts connected.{" "}
+                <Link href="/accounts" className="underline">
+                  Connect one
+                </Link>{" "}
+                to publish.
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2 mt-2">
@@ -422,10 +380,10 @@ export function ComposePostModal({
                       {Icon ? <Icon className="size-4 shrink-0" /> : null}
                       <div className="min-w-0">
                         <p className="font-semibold capitalize truncate">
-                          {a.platform}
+                          {brand?.label ?? a.platform}
                         </p>
                         <p className="text-muted-foreground truncate">
-                          {a.displayName ?? a.handle ?? a.id.slice(0, 8)}
+                          {a.displayName ?? a.handle ?? a.platformAccountId?.slice(0, 12) ?? a.id.slice(0, 8)}
                         </p>
                       </div>
                     </button>
@@ -435,7 +393,7 @@ export function ComposePostModal({
             )}
           </div>
 
-          <div className="mt-6">
+          <div>
             <Label className="text-xs uppercase tracking-wide">
               Publishing
             </Label>
@@ -466,9 +424,9 @@ export function ComposePostModal({
               />
             </div>
 
-            <div className="mt-3 min-h-32">
+            <div className="mt-3">
               {tab === "schedule" ? (
-                <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
                   <div className="space-y-1">
                     <Label htmlFor="when" className="text-xs">
                       Date & time
@@ -480,18 +438,15 @@ export function ComposePostModal({
                       onChange={(e) => setWhen(e.target.value)}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Timezone</Label>
-                    <div className="h-9 px-3 ring-1 ring-foreground/10 grid place-items-start content-center text-xs truncate">
-                      {tz}
-                    </div>
-                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Your timezone: <span className="font-mono">{tz}</span>
+                  </p>
                 </div>
               ) : tab === "now" ? (
                 <p className="text-xs text-muted-foreground">
                   Publish immediately to every selected account. Failure on
-                  one account doesn't block the others — the per-target
-                  result lands in the response.
+                  one account doesn't block the others — per-target results
+                  land in the response and the post log.
                 </p>
               ) : (
                 <ComingSoonState
@@ -502,17 +457,14 @@ export function ComposePostModal({
             </div>
           </div>
 
-          <div className="mt-auto pt-6 flex items-center justify-end gap-2">
+          <div className="pt-2 flex items-center justify-end gap-2 border-t">
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => onOpenChange(false)}
+              onClick={() => router.push("/posts")}
             >
               Cancel
             </Button>
-            {/* Queue + Draft tabs have their own vote CTA inside the
-                coming-soon block. Hiding the primary action here keeps
-                the footer from showing a permanently-disabled twin. */}
             {tab === "schedule" || tab === "now" ? (
               <Button
                 size="sm"
@@ -523,10 +475,9 @@ export function ComposePostModal({
               </Button>
             ) : null}
           </div>
-
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 }
 
@@ -570,11 +521,11 @@ function ComingSoonState({
     feature === "queue"
       ? {
           title: "Queues — coming soon",
-          desc: "Save a per-profile slot template (Mon 9am, Wed 2pm…) and drop content into the next free slot. Tap to vote it up the backlog.",
+          desc: "Save a per-profile slot template (Mon 9am, Wed 2pm…) and drop content into the next free slot. Vote to bump it.",
         }
       : {
           title: "Drafts — coming soon",
-          desc: "Keep half-written posts around for later without scheduling them. Tap to vote it up the backlog.",
+          desc: "Keep half-written posts around for later without scheduling them. Vote to bump it.",
         };
   return (
     <div className="ring-1 ring-dashed ring-foreground/15 p-4 text-center space-y-2">

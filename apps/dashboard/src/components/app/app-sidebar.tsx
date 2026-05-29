@@ -23,6 +23,8 @@ import {
   CalendarBlank,
   ChartLine,
   Gear,
+  SquaresFour,
+  Scroll as ScrollIcon,
 } from "@phosphor-icons/react";
 
 import { authClient } from "@/lib/auth-client";
@@ -43,6 +45,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -53,18 +58,49 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: House },
-  { href: "/posts", label: "Posts", icon: PaperPlaneTilt },
-  { href: "/calendar", label: "Calendar", icon: CalendarBlank },
-  { href: "/logs", label: "Logs", icon: ListBullets },
-  { href: "/analytics", label: "Analytics", icon: ChartLine },
-  { href: "/accounts", label: "Accounts", icon: Plug },
-  { href: "/profiles", label: "Profiles", icon: Folders },
-  { href: "/media", label: "Media", icon: ImageSquare },
-  { href: "/api-keys", label: "API keys", icon: Key },
-  { href: "/webhooks", label: "Webhooks", icon: Broadcast },
-  { href: "/settings", label: "Settings", icon: Gear },
+// Three groups in priority order:
+//   - Operate: the daily flow (compose → schedule → publish → audit)
+//   - Setup: things you connect once and reuse (orgs, accounts, media)
+//   - Developer: API surface (keys, webhooks)
+// Settings lives in the footer alongside Docs + Billing.
+//
+// Posts is a parent item with three sub-pages (Grid / List / Calendar);
+// clicking the parent navigates to /posts (= grid view). The children
+// auto-expand whenever the active route is under /posts/*.
+const NAV_GROUPS = [
+  {
+    label: "Operate",
+    items: [
+      { href: "/", label: "Dashboard", icon: House },
+      {
+        href: "/posts",
+        label: "Posts",
+        icon: PaperPlaneTilt,
+        children: [
+          { href: "/posts", label: "Grid", icon: SquaresFour },
+          { href: "/posts/list", label: "List", icon: ListBullets },
+          { href: "/posts/calendar", label: "Calendar", icon: CalendarBlank },
+        ],
+      },
+      { href: "/logs", label: "Logs", icon: ScrollIcon },
+      { href: "/analytics", label: "Analytics", icon: ChartLine },
+    ],
+  },
+  {
+    label: "Setup",
+    items: [
+      { href: "/accounts", label: "Accounts", icon: Plug },
+      { href: "/profiles", label: "Profiles", icon: Folders },
+      { href: "/media", label: "Media", icon: ImageSquare },
+    ],
+  },
+  {
+    label: "Developer",
+    items: [
+      { href: "/api-keys", label: "API keys", icon: Key },
+      { href: "/webhooks", label: "Webhooks", icon: Broadcast },
+    ],
+  },
 ] as const;
 
 export function AppSidebar() {
@@ -223,31 +259,77 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Operate</SidebarGroupLabel>
+        {/* Primary CTA — Create post — pinned above the section nav so
+            it's the first thing your eye hits. Lives in the sidebar
+            (not the page header) so it's reachable from anywhere. */}
+        <SidebarGroup className="group-data-[collapsible=icon]:px-1">
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => {
-                const Icon = item.icon;
-                const active =
-                  item.href === "/"
-                    ? pathname === "/"
-                    : pathname === item.href ||
-                      pathname.startsWith(`${item.href}/`);
-                return (
-                  <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={active}>
-                      <Link href={item.href}>
-                        <Icon className="size-4" />
-                        <span>{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground font-semibold"
+                >
+                  <Link href="/posts/new">
+                    <Plus className="size-4" />
+                    <span>Create post</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  const active =
+                    item.href === "/"
+                      ? pathname === "/"
+                      : pathname === item.href ||
+                        pathname.startsWith(`${item.href}/`);
+                  const hasChildren =
+                    "children" in item && item.children !== undefined;
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton asChild isActive={active}>
+                        <Link href={item.href}>
+                          <Icon className="size-4" />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                      {hasChildren && active ? (
+                        <SidebarMenuSub>
+                          {item.children!.map((child) => {
+                            const ChildIcon = child.icon;
+                            const childActive = pathname === child.href;
+                            return (
+                              <SidebarMenuSubItem key={child.href}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={childActive}
+                                >
+                                  <Link href={child.href}>
+                                    <ChildIcon className="size-3.5" />
+                                    <span>{child.label}</span>
+                                  </Link>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            );
+                          })}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
       </SidebarContent>
 
@@ -281,6 +363,19 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : null}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              asChild
+              isActive={
+                pathname === "/settings" || pathname.startsWith("/settings/")
+              }
+            >
+              <Link href="/settings">
+                <Gear className="size-4" />
+                <span>Settings</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
         <SidebarUsageMeter />
       </SidebarFooter>

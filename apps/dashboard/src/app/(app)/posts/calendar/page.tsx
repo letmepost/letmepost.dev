@@ -9,6 +9,7 @@ import { useActiveProfile } from "@/lib/profiles";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScheduledPostDrawer } from "@/components/app/scheduled-post-drawer";
+import { PLATFORM_BRANDS } from "@/components/app/platform-icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,11 +17,8 @@ import { cn } from "@/lib/utils";
  * hand-rolled (no calendar lib) so we keep dependency weight low and the day
  * cells stay easy to style. Each post renders as a chip; click → drawer with
  * the reschedule / cancel actions wired through PATCH/DELETE /v1/posts/:id.
- *
- * Status palette mirrors the Logs page so the same color means the same thing
- * everywhere.
  */
-export default function CalendarPage() {
+export default function PostsCalendarPage() {
   const [cursor, setCursor] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -72,36 +70,27 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="space-y-4" data-page-wide>
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Calendar</h1>
-          <p className="text-xs text-muted-foreground">
-            Scheduled and published posts on a month grid. Click a chip to
-            reschedule or cancel.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => jump(-1)}>
-            <CaretLeft className="size-4" />
-          </Button>
-          <span className="text-sm font-semibold min-w-32 text-center tabular-nums">
-            {monthLabel}
-          </span>
-          <Button variant="ghost" size="icon" onClick={() => jump(1)}>
-            <CaretRight className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const now = new Date();
-              setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
-            }}
-          >
-            Today
-          </Button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-end gap-2">
+        <Button variant="ghost" size="icon" onClick={() => jump(-1)}>
+          <CaretLeft className="size-4" />
+        </Button>
+        <span className="text-sm font-semibold min-w-32 text-center tabular-nums">
+          {monthLabel}
+        </span>
+        <Button variant="ghost" size="icon" onClick={() => jump(1)}>
+          <CaretRight className="size-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const now = new Date();
+            setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+          }}
+        >
+          Today
+        </Button>
       </div>
 
       <div className="grid grid-cols-7 text-xs uppercase tracking-wide text-muted-foreground">
@@ -145,24 +134,26 @@ export default function CalendarPage() {
                 {day}
               </span>
               <div className="flex-1 space-y-1 overflow-hidden">
-                {posts.slice(0, 3).map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onClick={() => setSelected(p)}
-                    className={cn(
-                      "block w-full text-left text-[10px] truncate px-1.5 py-0.5",
-                      "ring-1 ring-foreground/10 hover:ring-foreground/30 transition-shadow",
-                      statusBg(p.status),
-                    )}
-                    title={p.text}
-                  >
-                    <span className="font-mono uppercase mr-1 opacity-70">
-                      {p.platform.slice(0, 2)}
-                    </span>
-                    {p.text}
-                  </button>
-                ))}
+                {posts.slice(0, 3).map((p) => {
+                  const brand = PLATFORM_BRANDS.find((b) => b.id === p.platform);
+                  const Icon = brand?.Icon;
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setSelected(p)}
+                      className={cn(
+                        "flex items-center gap-1 w-full text-left text-[10px] truncate px-1.5 py-0.5",
+                        "ring-1 ring-foreground/10 hover:ring-foreground/30 transition-shadow",
+                        statusBg(p.status),
+                      )}
+                      title={p.text}
+                    >
+                      {Icon ? <Icon className="size-3 shrink-0" /> : null}
+                      <span className="truncate">{p.text}</span>
+                    </button>
+                  );
+                })}
                 {posts.length > 3 ? (
                   <p className="text-[10px] text-muted-foreground">
                     +{posts.length - 3} more

@@ -2076,7 +2076,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PostListItem"
+                  "$ref": "#/components/schemas/Post"
                 }
               }
             }
