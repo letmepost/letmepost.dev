@@ -96,9 +96,10 @@
           "linkedin",
           "pinterest",
           "threads",
+          "tiktok",
           "twitter"
         ],
-        "description": "Supported platforms in v1."
+        "description": "Supported platforms. `tiktok` is currently in App Review — connect requests return `platform_not_enabled` until approval lands."
       },
       "PostStatus": {
         "type": "string",

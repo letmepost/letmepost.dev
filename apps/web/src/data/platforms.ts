@@ -41,8 +41,9 @@ export type Platform = {
 };
 
 /** Marketing-only slugs that aren't in the backend Platform enum.
- *  TikTok replaces YouTube as v2 scope per the latest roadmap pass. */
-const PLANNED_PLATFORMS: ReadonlySet<string> = new Set(["tiktok"]);
+ *  Empty for now — TikTok moved into the enum once the upload-inbox
+ *  publisher landed; its state is `pending` until App Review clears. */
+const PLANNED_PLATFORMS: ReadonlySet<string> = new Set();
 
 function statusFor(slug: string): PlatformStatus {
   if (PLANNED_PLATFORMS.has(slug)) return "planned";
@@ -76,11 +77,11 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
     slug: "tiktok",
     name: "TikTok",
     icon: "tiktok-logo",
-    tagline: "Content Posting API · v2 scope",
+    tagline: "Content Posting API · in App Review",
     pitch:
-      "TikTok's Content Posting API + creator OAuth flow, gated by a CASA-style security audit. Publisher is in build; lands in v2 once the core platforms are stable and the audit clears.",
+      "Content Posting API with OAuth 2.0 PKCE + push_by_file upload to the user's TikTok inbox. Publisher is built and ready; we're under App Review for the Direct Post scope. Connect is gated until approval — until then sandbox / audit accounts post privacy=SELF_ONLY.",
     detail:
-      "Content Posting API · video uploads · creator OAuth · audit-gated production access",
+      "Content Posting API · video uploads · OAuth PKCE · App Review in progress",
     videoSupport: true,
     carouselSupport: false,
     gotcha:

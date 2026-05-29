@@ -29,8 +29,8 @@ Every platform letmepost.dev supports goes through the same API surface — `POS
   <Card title="Pinterest" icon="pinterest" iconType="brands" href="/platforms/pinterest">
     v5 API · OAuth 2.0 · Image + video pins · Cover image required for video.
   </Card>
-  <Card title="TikTok" icon="tiktok" iconType="brands" href="/platforms/tiktok">
-    Content Posting API · OAuth 2.0 PKCE · Upload-inbox in v1 (SELF_ONLY on audit accounts).
+  <Card title="TikTok — in review" icon="tiktok" iconType="brands" href="/platforms/tiktok">
+    Content Posting API · OAuth 2.0 PKCE · Upload-inbox path. Pending TikTok app review — connect is gated until approval lands.
   </Card>
   <Card title="Bluesky" icon="bluesky" iconType="brands" href="/platforms/bluesky">
     AT Proto · App-password connect (no OAuth) · Text + media + first comment.
@@ -62,10 +62,9 @@ The per-platform pages above link to the exact constraints and the OAuth scope s
 
 Deliberately cut:
 
-- **TikTok** — audit complexity. Two separate review tracks with frequent rejections. Reserved as a v2 add.
 - **Reddit, Telegram, Discord, Snapchat, Google Business, WhatsApp** — long-tail platforms with fewer than 1k accounts each in the dataset that drove platform priority decisions.
 
-The DB enum keeps a slot reserved for TikTok so a future re-add is purely additive — no breaking schema change.
+TikTok was originally cut for the same audit-complexity reason; it's now landed under App Review and surfaces as `in review` until the upload-inbox track clears.
 
 ## Build order
 

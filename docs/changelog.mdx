@@ -8,6 +8,14 @@ The canonical record lives in the git history; this page summarises the mileston
 
 ## 2026-05
 
+### Added — TikTok (in App Review)
+
+- **TikTok provider** with OAuth 2.0 PKCE, push_by_file upload to the user's TikTok inbox, and a status-poll worker with bucketed backoff (5s → 30s → 120s up to a 30-minute deadline).
+- **State: `pending`** — the dashboard greys the tile and the API rejects connect with `platform_not_enabled` until App Review clears. The publisher itself is fully built; flipping the state in `packages/schemas/src/platform-state.ts` (or via the `PLATFORM_STATE_OVERRIDES` env) is the only step left once approval lands.
+- **Sandbox / audit accounts**: posts go to the inbox with `privacy=SELF_ONLY` and the user confirms publish in the TikTok app. Direct Post (`video.publish`) unlocks the moment review approves — no code change needed.
+- New queue: `tiktok-publish-status-poll` with deterministic per-attempt delay (`tiktokPublishStatusPollDelayMs`).
+- Docs at [/platforms/tiktok](/platforms/tiktok) covering caps, scopes, audit gating, and the inbox flow.
+
 ### Added — scheduling lifecycle endpoints
 
 - **`PATCH /v1/posts/:id`** — reschedule a queued post. Body `{ scheduledAt }`. Atomic: removes the existing BullMQ job, enqueues a new one at the updated delay, then persists the new time. Window-gated to `status=queued AND scheduledAt > now` — a `409` lands once the worker has the row. Dispatches [`post.rescheduled`](/webhooks/post-rescheduled) on success with both old and new timestamps.
