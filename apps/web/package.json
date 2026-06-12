@@ -37,6 +37,6 @@
     "@letmepost/config-tsconfig": "workspace:*",
     "@types/node": "^25.9.1",
     "@vercel/node": "^5.8.4",
-    "typescript": "^5.7.2"
+    "typescript": "^6.0.3"
   }
 }
