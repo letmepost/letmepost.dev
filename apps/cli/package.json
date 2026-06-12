@@ -34,7 +34,7 @@
     "commander": "^12.1.0",
     "kleur": "^4.1.5",
     "open": "^10.1.0",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@letmepost/config-tsconfig": "workspace:*",
