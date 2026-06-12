@@ -118,7 +118,7 @@ export function AppSidebar() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "P") {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "p") {
         if (profilesLoading || profiles.length <= 1) return;
         e.preventDefault();
         profileSwitchTrigger.current = "keyboard_shortcut";
