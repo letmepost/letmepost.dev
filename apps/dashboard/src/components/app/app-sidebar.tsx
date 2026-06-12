@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -107,12 +107,28 @@ export function AppSidebar() {
   const { data: organizations } = authClient.useListOrganizations();
   const activeOrg = authClient.useActiveOrganization().data;
   const [newOrgOpen, setNewOrgOpen] = useState(false);
+  const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
+  const profileSwitchTrigger = useRef<"keyboard_shortcut" | "dropdown">("dropdown");
   const {
     profiles,
     activeProfile,
     setActiveProfile,
     isLoading: profilesLoading,
   } = useActiveProfile();
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === "P") {
+        if (profilesLoading || profiles.length <= 1) return;
+        e.preventDefault();
+        profileSwitchTrigger.current = "keyboard_shortcut";
+        setProfileSwitcherOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [profilesLoading, profiles.length]);
+
   const subscription = useSubscription();
   const isSelfHost = subscription.data?.tier === "self_host";
 
@@ -214,7 +230,13 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <DropdownMenu>
+                <DropdownMenu
+                  open={profileSwitcherOpen}
+                  onOpenChange={(open) => {
+                    if (open) profileSwitchTrigger.current = "dropdown";
+                    setProfileSwitcherOpen(open);
+                  }}
+                >
                   <DropdownMenuTrigger asChild>
                     <SidebarMenuButton
                       className="data-[state=open]:bg-sidebar-accent"
@@ -236,7 +258,17 @@ export function AppSidebar() {
                     {profiles.map((p) => (
                       <DropdownMenuItem
                         key={p.id}
-                        onSelect={() => setActiveProfile(p.id)}
+                        onSelect={() => {
+                          track({
+                            name: "profile.switched",
+                            properties: {
+                              from_profile_id: activeProfile?.id ?? null,
+                              to_profile_id: p.id,
+                              trigger: profileSwitchTrigger.current,
+                            },
+                          });
+                          setActiveProfile(p.id);
+                        }}
                       >
                         <span className="truncate flex-1">{p.name}</span>
                         {activeProfile?.id === p.id ? (

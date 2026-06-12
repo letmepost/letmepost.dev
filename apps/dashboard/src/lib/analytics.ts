@@ -222,6 +222,16 @@ export type DashboardEvent =
       };
     }
 
+  // ── Profiles ────────────────────────────────────────────────────────
+  | {
+      name: "profile.switched";
+      properties: {
+        from_profile_id: string | null;
+        to_profile_id: string;
+        trigger: "keyboard_shortcut" | "dropdown";
+      };
+    }
+
   // ── Org & settings ──────────────────────────────────────────────────
   | { name: "member.invited"; properties: { role: string } }
   | { name: "theme.changed"; properties: { from: string; to: string } }
