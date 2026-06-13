@@ -259,6 +259,7 @@ export function AppSidebar() {
                       <DropdownMenuItem
                         key={p.id}
                         onSelect={() => {
+                          if (p.id === activeProfile?.id) return;
                           track({
                             name: "profile.switched",
                             properties: {
