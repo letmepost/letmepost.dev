@@ -144,6 +144,12 @@ export function createApp(options: AppOptions = {}) {
     const session = options.testSession;
     const injectSession: MiddlewareHandler = async (c, next) => {
       c.set("session", session);
+      c.set("apiKey", {
+        organizationId: session.organizationId,
+        apiKeyId: `session:${session.userId}`,
+        scopes: ["posts:read", "posts:write"],
+        profileId: null,
+      });
       await next();
     };
     app.route(

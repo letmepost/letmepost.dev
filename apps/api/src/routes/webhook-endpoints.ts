@@ -8,24 +8,8 @@ import { webhookEndpoints } from "../db/schema/webhook_endpoints.js";
 import { LetmepostError } from "../errors.js";
 import { idempotency } from "../middleware/idempotency.js";
 import { rateLimit } from "../middleware/rate-limit.js";
-import { requireSession } from "../middleware/session.js";
+import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
 import { deliverWebhook } from "../webhooks/deliver.js";
-
-/**
- * `/v1/webhook-endpoints` — dashboard-scoped CRUD for outbound webhook
- * subscriptions. Mirrors the api-keys route in two load-bearing ways:
- *
- *   1. The signing secret is generated here, shown once in the create
- *      response, and never returned again. We store both the plaintext (used
- *      at delivery time) AND a sha256 of it (secret_hash) so operators can
- *      rotate with proof-of-knowledge if we ever need it.
- *   2. Delete is a hard delete (match api-keys' "revoke once, gone" model).
- *      The `active` flag exists so operators can pause delivery without
- *      losing the endpoint.
- *
- * Event-type filter: the public Zod enum in @letmepost/schemas is the
- * authority. We validate here so nobody ever persists a typo.
- */
 
 const UrlSchema = z
   .string()
@@ -37,7 +21,6 @@ const UrlSchema = z
 const EventsSchema = z
   .array(z.enum(WEBHOOK_EVENT_TYPES))
   .default([])
-  // De-dupe on the way in — nobody wants to explain why they got 3 copies.
   .transform((arr) => Array.from(new Set(arr)));
 
 const CreateEndpointRequest = z.object({
@@ -64,11 +47,6 @@ const TestDeliveryRequest = z
   })
   .default({ type: "post.published" });
 
-/**
- * Sample payload used when the caller doesn't supply their own `data`. Shape
- * loosely mirrors what a real `post.published` event carries so consumer
- * handlers wired against it Just Work for testing.
- */
 const SAMPLE_DATA: Record<string, unknown> = {
   postId: "00000000-0000-0000-0000-000000000000",
   platform: "bluesky",
@@ -83,9 +61,6 @@ function hashSecret(plaintext: string): string {
 }
 
 function generateSigningSecret(): string {
-  // 32 bytes of entropy, base64url — slightly longer than the api-key secret
-  // because the webhook secret is the consumer's *only* line of defense and
-  // has no prefix-of-known-origin to aid revocation lookups.
   return `whsec_${randomBytes(32).toString("base64url")}`;
 }
 
@@ -104,11 +79,6 @@ function publicView(row: typeof webhookEndpoints.$inferSelect) {
 }
 
 export type WebhookEndpointRoutesOptions = {
-  /**
-   * Override the default session middleware. Production never passes this.
-   * Tests pass a no-op that relies on `createApp`'s `testSession` override to
-   * have already set `c.var.session`.
-   */
   sessionMiddleware?: MiddlewareHandler;
 };
 
@@ -116,11 +86,10 @@ export function createWebhookEndpointRoutes(
   options: WebhookEndpointRoutesOptions = {},
 ) {
   const app = new Hono();
-  app.use("*", options.sessionMiddleware ?? requireSession());
+  app.use("*", options.sessionMiddleware ?? apiKeyOrSession());
   app.use("*", rateLimit());
   app.use("*", idempotency());
 
-  /** POST /v1/webhook-endpoints — create an endpoint. Secret shown once. */
   app.post(
     "/",
     zValidator("json", CreateEndpointRequest, (result) => {
@@ -137,7 +106,7 @@ export function createWebhookEndpointRoutes(
     }),
     async (c) => {
       const { url, events, description } = c.req.valid("json");
-      const { organizationId } = c.var.session;
+      const { organizationId } = c.var.apiKey;
 
       const signingSecret = generateSigningSecret();
       const [row] = await c.var.db
@@ -162,7 +131,6 @@ export function createWebhookEndpointRoutes(
       return c.json(
         {
           ...publicView(row),
-          // One-shot — this is the only time the caller will ever see it.
           signingSecret,
         },
         201,
@@ -170,9 +138,8 @@ export function createWebhookEndpointRoutes(
     },
   );
 
-  /** GET /v1/webhook-endpoints — list for the session's active org. */
   app.get("/", async (c) => {
-    const { organizationId } = c.var.session;
+    const { organizationId } = c.var.apiKey;
     const rows = await c.var.db
       .select()
       .from(webhookEndpoints)
@@ -181,10 +148,9 @@ export function createWebhookEndpointRoutes(
     return c.json({ data: rows.map(publicView) });
   });
 
-  /** GET /v1/webhook-endpoints/:id — detail (no secret). */
   app.get("/:id", async (c) => {
     const id = c.req.param("id");
-    const { organizationId } = c.var.session;
+    const { organizationId } = c.var.apiKey;
     const [row] = await c.var.db
       .select()
       .from(webhookEndpoints)
@@ -205,7 +171,6 @@ export function createWebhookEndpointRoutes(
     return c.json(publicView(row));
   });
 
-  /** PATCH /v1/webhook-endpoints/:id — partial update. */
   app.patch(
     "/:id",
     zValidator("json", UpdateEndpointRequest, (result) => {
@@ -222,7 +187,7 @@ export function createWebhookEndpointRoutes(
     }),
     async (c) => {
       const id = c.req.param("id");
-      const { organizationId } = c.var.session;
+      const { organizationId } = c.var.apiKey;
       const patch = c.req.valid("json");
 
       const update: Partial<typeof webhookEndpoints.$inferInsert> = {};
@@ -261,16 +226,8 @@ export function createWebhookEndpointRoutes(
     },
   );
 
-  /**
-   * POST /v1/webhook-endpoints/:id/test — fire a synthetic event at the
-   * endpoint's URL synchronously and return what the consumer responded.
-   *
-   * Bypasses BullMQ on purpose: operators want immediate feedback ("did my
-   * handler 200?") not eventual delivery semantics. The real signing secret
-   * is used so the consumer's HMAC verification path is the same one
-   * production would hit. SAMPLE_DATA is the default payload; callers can
-   * override with whatever JSON they want.
-   */
+  // Synchronous on purpose — operators want immediate "did my handler 200?"
+  // feedback, not queued delivery.
   app.post(
     "/:id/test",
     zValidator("json", TestDeliveryRequest, (result) => {
@@ -287,7 +244,7 @@ export function createWebhookEndpointRoutes(
     }),
     async (c) => {
       const id = c.req.param("id");
-      const { organizationId } = c.var.session;
+      const { organizationId } = c.var.apiKey;
       const { type, data } = c.req.valid("json");
 
       const [row] = await c.var.db
@@ -338,10 +295,9 @@ export function createWebhookEndpointRoutes(
     },
   );
 
-  /** DELETE /v1/webhook-endpoints/:id — hard delete, matches api-keys model. */
   app.delete("/:id", async (c) => {
     const id = c.req.param("id");
-    const { organizationId } = c.var.session;
+    const { organizationId } = c.var.apiKey;
 
     const [row] = await c.var.db
       .delete(webhookEndpoints)
