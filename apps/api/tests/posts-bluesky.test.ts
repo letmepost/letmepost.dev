@@ -74,20 +74,20 @@ describeIfDb("POST /v1/posts (bluesky, stored account)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "Hello from letmepost.dev",
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        platform: string;
-        uri?: string;
-        cid?: string;
+        status: string;
+        results: Array<{ platform: string; uri?: string; cid?: string }>;
       };
-      expect(body.platform).toBe("bluesky");
-      expect(body.uri).toMatch(/^at:\/\//);
-      expect(body.cid).toBe("bafy-mock");
+      expect(body.status).toBe("published");
+      expect(body.results[0]!.platform).toBe("bluesky");
+      expect(body.results[0]!.uri).toMatch(/^at:\/\//);
+      expect(body.results[0]!.cid).toBe("bafy-mock");
     });
   });
 
@@ -177,7 +177,7 @@ describeIfDb("POST /v1/posts (bluesky, stored account)", () => {
           Authorization: `Bearer ${fixtureB.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixtureA.accountId },
+          targets: [{ accountId: fixtureA.accountId }],
           text: "should not publish",
         }),
       });
@@ -218,7 +218,7 @@ describeIfDb("POST /v1/posts (bluesky, stored account)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "   ",
         }),
       });
@@ -243,7 +243,7 @@ describeIfDb("POST /v1/posts (bluesky, stored account)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "a".repeat(301),
         }),
       });
@@ -282,26 +282,33 @@ describeIfDb("POST /v1/posts (bluesky, stored account)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "test",
         }),
       });
 
-      expect(res.status).toBe(401);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: {
-          code: string;
-          platform?: string;
-          platformResponse?: unknown;
-          remediation?: string;
-        };
+        status: string;
+        results: Array<{
+          platform: string;
+          status: string;
+          error?: {
+            code: string;
+            platformResponse?: unknown;
+            remediation?: string;
+          };
+        }>;
       };
-      expect(body.error.code).toBe("platform_auth_failed");
-      expect(body.error.platform).toBe("bluesky");
-      expect(body.error.platformResponse).toMatchObject({
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.platform).toBe("bluesky");
+      expect(result.error!.code).toBe("platform_auth_failed");
+      expect(result.error!.platformResponse).toMatchObject({
         error: "AuthenticationRequired",
       });
-      expect(body.error.remediation).toContain("app password");
+      expect(result.error!.remediation).toContain("app password");
     });
   });
 
@@ -341,27 +348,34 @@ describeIfDb("POST /v1/posts (bluesky, stored account)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "test",
         }),
       });
 
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: {
-          code: string;
-          platform?: string;
-          platformResponse?: unknown;
-          message?: string;
-        };
+        status: string;
+        results: Array<{
+          platform: string;
+          status: string;
+          error?: {
+            code: string;
+            platformResponse?: unknown;
+            message?: string;
+          };
+        }>;
       };
-      expect(body.error.code).toBe("platform_rejected");
-      expect(body.error.platform).toBe("bluesky");
-      expect(body.error.platformResponse).toMatchObject({
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.platform).toBe("bluesky");
+      expect(result.error!.code).toBe("platform_rejected");
+      expect(result.error!.platformResponse).toMatchObject({
         error: "InvalidRequest",
         message: "Record validation failed",
       });
-      expect(body.error.message).toContain("Record validation failed");
+      expect(result.error!.message).toContain("Record validation failed");
     });
   });
 });
