@@ -8,6 +8,7 @@ import type { Publisher } from "../_shared/publisher.js";
 import {
   BlueskyClient,
   type BlueskyBlobRef,
+  type BlueskyCreatePostInput,
   type BlueskyEmbed,
   type BlueskyPostResult,
   type BlueskySession,
@@ -50,6 +51,12 @@ export type BlueskyPublishInput = {
   firstComment?: { text: string };
   /** Required only if any media item references a `mediaId`. */
   mediaContext?: MediaResolverContext;
+  /** Thread this post under a parent (strong ref). `root` defaults to parent. */
+  replyTo?: {
+    uri: string;
+    cid: string;
+    root?: { uri: string; cid: string };
+  };
 };
 
 /** A media item with bytes resolved, ready for preflight + upload. */
@@ -112,7 +119,7 @@ async function publishFirstComment(
 
 export const blueskyPublisher: Publisher<BlueskyCredentials, BlueskyPublishInput> = {
   async publish(creds, input): Promise<PublishResult> {
-    const { text, media = [], firstComment, mediaContext } = input;
+    const { text, media = [], firstComment, mediaContext, replyTo } = input;
 
     validateBlueskyText(text);
 
@@ -214,9 +221,16 @@ export const blueskyPublisher: Publisher<BlueskyCredentials, BlueskyPublishInput
 
     const embed = buildEmbed(loaded, blobRefs);
 
-    const mainInput: Parameters<BlueskyClient["createPost"]>[1] = embed
-      ? { text, embed }
-      : { text };
+    const mainInput: BlueskyCreatePostInput = { text };
+    if (embed) mainInput.embed = embed;
+    if (replyTo) {
+      // root defaults to the parent (top-level reply); an explicit root keeps
+      // deeper replies anchored to the thread's original post.
+      mainInput.reply = {
+        root: replyTo.root ?? { uri: replyTo.uri, cid: replyTo.cid },
+        parent: { uri: replyTo.uri, cid: replyTo.cid },
+      };
+    }
     const main = await client.createPost(session, mainInput);
 
     const response: PublishResult = {

@@ -76,6 +76,10 @@ export type PublishInput = {
   threads?: { replyToId?: string };
   /** X / Twitter-specific overrides (replyToTweetId, quoteTweetId). */
   twitter?: { replyToTweetId?: string; quoteTweetId?: string };
+  /** Bluesky-specific overrides (reply threading; root defaults to parent). */
+  bluesky?: {
+    replyTo?: { uri: string; cid: string; root?: { uri: string; cid: string } };
+  };
   /** TikTok-specific per-post overrides (privacy, comment / duet / stitch toggles, branded content). */
   tiktok?: {
     privacy?: "public_to_everyone" | "mutual_follow_friend" | "self_only";
@@ -245,6 +249,9 @@ export async function publishForAccount(
       }
       if (input.mediaContext !== undefined) {
         blueskyInput.mediaContext = input.mediaContext;
+      }
+      if (input.bluesky?.replyTo !== undefined) {
+        blueskyInput.replyTo = input.bluesky.replyTo;
       }
       // Pull the user's PDS off tokenMetadata so self-hosted PDSes route
       // service-auth + image uploads correctly. The video service base

@@ -616,6 +616,19 @@ function buildPublishInputForTarget(
         tt.brandOrganicToggle = target.options.brandOrganicToggle;
       }
       input.tiktok = tt;
+    } else if (target.options.platform === "bluesky") {
+      const o = target.options;
+      if (o.replyToUri !== undefined && o.replyToCid !== undefined) {
+        input.bluesky = {
+          replyTo: {
+            uri: o.replyToUri,
+            cid: o.replyToCid,
+            ...(o.replyRootUri !== undefined && o.replyRootCid !== undefined
+              ? { root: { uri: o.replyRootUri, cid: o.replyRootCid } }
+              : {}),
+          },
+        };
+      }
     }
   }
 

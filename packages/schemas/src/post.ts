@@ -221,10 +221,20 @@ export const TargetOptions = z
       brandContentToggle: z.boolean().optional(),
       brandOrganicToggle: z.boolean().optional(),
     }),
+    z.object({
+      platform: z.literal("bluesky"),
+      // Thread under another post. uri + cid (an AT Proto strong ref) come
+      // from the parent post's response. replyRoot* is optional — omit it to
+      // reply to a top-level post (root defaults to parent); pass it to chain
+      // deeper so every reply stays anchored to the thread root.
+      replyToUri: z.string().min(1).optional(),
+      replyToCid: z.string().min(1).optional(),
+      replyRootUri: z.string().min(1).optional(),
+      replyRootCid: z.string().min(1).optional(),
+    }),
     // Empty-option platforms — included so callers get a clean
     // `targets.options.platform_mismatch` rule on platform/account
     // disagreement rather than an opaque `invalid discriminator value`.
-    z.object({ platform: z.literal("bluesky") }),
     z.object({ platform: z.literal("facebook") }),
     z.object({ platform: z.literal("instagram") }),
     z.object({ platform: z.literal("linkedin") }),
@@ -241,6 +251,34 @@ export const TargetOptions = z
           "Pass either `replyToTweetId` or `quoteTweetId`, not both — X rejects tweets that combine the two.",
         path: ["replyToTweetId"],
       });
+    }
+    if (v.platform === "bluesky") {
+      if ((v.replyToUri !== undefined) !== (v.replyToCid !== undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "Bluesky replies need both `replyToUri` and `replyToCid` (a strong ref from the parent post).",
+          path: [v.replyToUri === undefined ? "replyToUri" : "replyToCid"],
+        });
+      }
+      if ((v.replyRootUri !== undefined) !== (v.replyRootCid !== undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "`replyRootUri` and `replyRootCid` must be provided together.",
+          path: [v.replyRootUri === undefined ? "replyRootUri" : "replyRootCid"],
+        });
+      }
+      if (
+        (v.replyRootUri !== undefined || v.replyRootCid !== undefined) &&
+        !(v.replyToUri !== undefined && v.replyToCid !== undefined)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            "`replyRoot*` requires `replyToUri` + `replyToCid` (the parent). Omit it to reply to a top-level post — root defaults to the parent.",
+          path: ["replyToUri"],
+        });
+      }
     }
   });
 export type TargetOptions = z.infer<typeof TargetOptions>;

@@ -24,7 +24,7 @@ iconType: brands
 | Alt text per item | 2000 graphemes |
 | Post types supported | text, single image, multi-image, video |
 | Scheduling | Yes (via `scheduledAt`) |
-| Reply chain | Yes (first-comment supported) |
+| Reply / threads | Yes — reply to any post via `options.replyToUri` + `replyToCid` |
 | First comment | Yes (`firstComment.text`) |
 | Inbox / DM | Not supported in v1 |
 | Analytics | Not supported in v1 (AT Proto exposes no impressions data) |
@@ -109,6 +109,28 @@ The publisher runs Bluesky's documented video flow transparently: mint a service
 ```
 
 The reply posts as a child of the main record under the same DID. If the parent publishes but the comment fails, the parent stays — the response carries a `warnings[]` entry with `code: "first_comment_failed"` instead of failing the whole call.
+
+### Reply (threading)
+
+Thread a post under any existing Bluesky post by passing the parent's strong ref — its `uri` **and** `cid` — in the target's `options`. Both come straight from the parent post's publish response.
+
+```json reply.json
+{
+  "targets": [
+    {
+      "accountId": "...",
+      "options": {
+        "platform": "bluesky",
+        "replyToUri": "at://did:plc:abc/app.bsky.feed.post/3kr…",
+        "replyToCid": "bafyrei…"
+      }
+    }
+  ],
+  "text": "2/ …continuing the thread"
+}
+```
+
+`replyToUri` and `replyToCid` must be sent together. To build a multi-post thread: publish post 1, read its `uri` + `cid` from the response, and pass them as post 2's `replyToUri`/`replyToCid`. For replies deeper than the first, also pin the thread's original post with `replyRootUri` + `replyRootCid` so every reply stays anchored to the root — omit the root and it defaults to the parent (correct for a reply to a top-level post).
 
 ## Wisdom (platform-specific things that bite)
 
