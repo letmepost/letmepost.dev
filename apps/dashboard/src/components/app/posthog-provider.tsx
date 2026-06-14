@@ -45,6 +45,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
       capture_pageview: false,
       capture_pageleave: true,
       autocapture: true,
+      cross_subdomain_cookie: true,
     });
   }, []);
 
