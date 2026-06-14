@@ -1,0 +1,6 @@
+# https://docs.coderabbit.ai/getting-started/configure-coderabbit
+reviews:
+  auto_review:
+    enabled: true
+    base_branches:
+      - "main"
