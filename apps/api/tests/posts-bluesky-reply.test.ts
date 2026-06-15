@@ -160,4 +160,40 @@ describeIfDb("POST /v1/posts (bluesky reply threading)", () => {
       expect(body.error.code).toBe("validation_failed");
     });
   });
+
+  it("rejects a scheduled bluesky reply (worker can't carry reply context)", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const app = createApp({ db: tx });
+      const res = await app.request("/v1/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+        },
+        body: JSON.stringify({
+          targets: [
+            {
+              accountId: fixture.accountId,
+              options: {
+                platform: "bluesky",
+                replyToUri: "at://did:plc:test/app.bsky.feed.post/parent",
+                replyToCid: "bafy-parent",
+              },
+            },
+          ],
+          text: "scheduled reply",
+          scheduledAt: new Date(Date.now() + 3_600_000).toISOString(),
+        }),
+      });
+
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as {
+        error: { code: string; rule?: string };
+      };
+      expect(body.error.code).toBe("validation_failed");
+      expect(body.error.rule).toBe("scheduledAt.no_bluesky_reply");
+    });
+  });
 });

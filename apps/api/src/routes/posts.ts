@@ -246,6 +246,17 @@ posts.post(
               "Drop firstComment from this request, or omit scheduledAt to publish synchronously.",
           });
         }
+        if (input.bluesky?.replyTo) {
+          throw new LetmepostError({
+            code: "validation_failed",
+            status: 400,
+            message:
+              "Scheduled posts do not yet support Bluesky reply threading — publish immediately or drop the reply options.",
+            rule: "scheduledAt.no_bluesky_reply",
+            remediation:
+              "Drop the bluesky `replyTo*` options from this request, or omit scheduledAt to publish the reply synchronously.",
+          });
+        }
       }
 
       const batchId = randomUUID();

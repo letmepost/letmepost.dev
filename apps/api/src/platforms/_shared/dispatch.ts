@@ -76,7 +76,6 @@ export type PublishInput = {
   threads?: { replyToId?: string };
   /** X / Twitter-specific overrides (replyToTweetId, quoteTweetId). */
   twitter?: { replyToTweetId?: string; quoteTweetId?: string };
-  /** Bluesky-specific overrides (reply threading; root defaults to parent). */
   bluesky?: {
     replyTo?: { uri: string; cid: string; root?: { uri: string; cid: string } };
   };

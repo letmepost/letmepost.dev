@@ -223,10 +223,6 @@ export const TargetOptions = z
     }),
     z.object({
       platform: z.literal("bluesky"),
-      // Thread under another post. uri + cid (an AT Proto strong ref) come
-      // from the parent post's response. replyRoot* is optional — omit it to
-      // reply to a top-level post (root defaults to parent); pass it to chain
-      // deeper so every reply stays anchored to the thread root.
       replyToUri: z.string().min(1).optional(),
       replyToCid: z.string().min(1).optional(),
       replyRootUri: z.string().min(1).optional(),

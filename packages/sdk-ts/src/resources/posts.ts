@@ -44,10 +44,8 @@ export type TargetOptions =
     }
   | {
       platform: "bluesky";
-      /** Thread under a parent post. Take both from the parent's `uri`/`cid`. */
       replyToUri?: string;
       replyToCid?: string;
-      /** Optional thread root. Omit to reply to a top-level post (root = parent). */
       replyRootUri?: string;
       replyRootCid?: string;
     }

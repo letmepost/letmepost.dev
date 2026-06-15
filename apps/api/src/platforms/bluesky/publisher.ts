@@ -51,7 +51,6 @@ export type BlueskyPublishInput = {
   firstComment?: { text: string };
   /** Required only if any media item references a `mediaId`. */
   mediaContext?: MediaResolverContext;
-  /** Thread this post under a parent (strong ref). `root` defaults to parent. */
   replyTo?: {
     uri: string;
     cid: string;
@@ -224,8 +223,6 @@ export const blueskyPublisher: Publisher<BlueskyCredentials, BlueskyPublishInput
     const mainInput: BlueskyCreatePostInput = { text };
     if (embed) mainInput.embed = embed;
     if (replyTo) {
-      // root defaults to the parent (top-level reply); an explicit root keeps
-      // deeper replies anchored to the thread's original post.
       mainInput.reply = {
         root: replyTo.root ?? { uri: replyTo.uri, cid: replyTo.cid },
         parent: { uri: replyTo.uri, cid: replyTo.cid },
