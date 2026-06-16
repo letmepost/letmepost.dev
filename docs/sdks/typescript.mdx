@@ -29,6 +29,41 @@ export class Letmepost {
 }
 ```
 
+## Reply threading (Bluesky)
+
+Build a Bluesky thread by publishing the root post, then replying to it with the parent's strong ref. Both `uri` and `cid` come back in the publish response under `results[]`. Pass them per target in `options`:
+
+```ts
+const lmp = new Letmepost(process.env.LMP_KEY as LmpKey);
+
+// 1. Publish the root post.
+const root = await lmp.post(
+  { targets: [{ accountId: "acc_…" }], text: "1/ kicking off a thread" },
+  "thread-root-001",
+);
+const parent = root.results[0];
+
+// 2. Reply to it. replyToUri + replyToCid are sent together.
+await lmp.post(
+  {
+    targets: [
+      {
+        accountId: "acc_…",
+        options: {
+          platform: "bluesky",
+          replyToUri: parent.uri,
+          replyToCid: parent.cid,
+        },
+      },
+    ],
+    text: "2/ it threads now",
+  },
+  "thread-reply-002",
+);
+```
+
+For replies deeper than the first, also pin the thread's original post with `replyRootUri` and `replyRootCid` so every reply stays anchored to the root. Omit the root and it defaults to the parent, which is correct for a reply to a top-level post.
+
 The schemas live in [`@letmepost/schemas`](https://github.com/rosekamallove/letmepost.dev/tree/main/packages/schemas) — once published, importing types from there is the safe path.
 
 Watch the [GitHub release feed](https://github.com/rosekamallove/letmepost.dev/releases) for the SDK announcement.
