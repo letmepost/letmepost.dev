@@ -5,30 +5,29 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ---------------------------------------------------------------------------
-   Dashboard tokens — paper + forest-green palette mirroring the landing,
-   plumbed through the full shadcn token set so every surface (sidebar, card,
-   popover, chart, badge, sonner) reads from the same palette in both modes.
+   Dashboard tokens — "Clarity" palette, matching the marketing site:
+   warm off-white canvas, forest-green accent, Space Grotesk (display) +
+   Hanken Grotesk (body) + IBM Plex Mono (code), gentle rounding. Plumbed
+   through the full shadcn token set so every surface reads from the same
+   palette in light + dark.
 
-   Palette anchors (single source of truth):
-     - paper       hsl(30 25% 98%)   light bg
-     - paper-elev  hsl(30 20% 96%)   raised surfaces
-     - paper-deep  hsl(30 18% 93%)   inputs, hover
-     - ink         hsl(24 10% 10%)   primary text
-     - ink-mute    hsl(24 6% 42%)    secondary text  (was 48% → too pale)
-     - forest      hsl(150 45% 32%)  primary CTA
-     - rust        hsl(18 55% 45%)   warning / chart-2
-     - clay        hsl(40 35% 50%)   chart-3
-     - moss        hsl(120 18% 38%)  chart-4
-     - bark        hsl(28 20% 30%)   chart-5
+   Anchors (from web/src/styles/clarity.css):
+     --bg #fbfaf6 / #0e0f0c    canvas
+     --panel #ffffff / #15160f surfaces
+     --panel-2 #f6f4ec/#191b12 muted/secondary
+     --ink #15140f / #e9ebe2   text
+     --mut #6b665d / #9fa395   secondary text
+     --line #e6e2d8 / #232518  borders
+     --acc #1c6b43 / #5fe0a0   primary
    --------------------------------------------------------------------------- */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Commit Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
-  --font-mono: "Commit Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
-  --font-heading: "Commit Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
-  --font-serif: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", "Menlo", "Consolas", monospace;
+  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Space Grotesk", ui-serif, Georgia, "Times New Roman", serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -63,46 +62,43 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  /* Zero radius — matches the landing's brutalist feel. */
-  --radius-sm: 0;
-  --radius-md: 0;
-  --radius-lg: 0;
-  --radius-xl: 0;
-  --radius-2xl: 0;
-  --radius-3xl: 0;
-  --radius-4xl: 0;
+  /* Gentle rounding — matches Clarity (buttons ~8px, cards ~14px). */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 :root {
-  --background: hsl(30 25% 98%);
-  --foreground: hsl(24 10% 10%);
+  --background: #fbfaf6;
+  --foreground: #15140f;
 
-  --card: hsl(30 20% 96%);
-  --card-foreground: hsl(24 10% 10%);
-  --popover: hsl(30 20% 96%);
-  --popover-foreground: hsl(24 10% 10%);
+  --card: #ffffff;
+  --card-foreground: #15140f;
+  --popover: #ffffff;
+  --popover-foreground: #15140f;
 
-  --primary: hsl(150 45% 32%);
-  --primary-foreground: hsl(30 25% 98%);
+  --primary: #1c6b43;
+  --primary-foreground: #ffffff;
 
-  --secondary: hsl(30 18% 93%);
-  --secondary-foreground: hsl(24 10% 10%);
-  --muted: hsl(30 18% 93%);
-  --muted-foreground: hsl(24 6% 42%);
+  --secondary: #f6f4ec;
+  --secondary-foreground: #15140f;
+  --muted: #f6f4ec;
+  --muted-foreground: #6b665d;
 
-  --accent: hsl(150 45% 32% / 0.10);
-  --accent-foreground: hsl(150 45% 22%);
+  --accent: rgba(28, 107, 67, 0.08);
+  --accent-foreground: #165937;
 
-  --destructive: hsl(0 70% 45%);
-  --destructive-foreground: hsl(30 25% 98%);
-  --success: hsl(142 55% 36%);
-  --success-foreground: hsl(30 25% 98%);
-  --warning: hsl(28 75% 45%);
-  --warning-foreground: hsl(30 25% 98%);
+  --destructive: #c14a4a;
+  --destructive-foreground: #ffffff;
+  --success: #1c6b43;
+  --success-foreground: #ffffff;
+  --warning: #8a7a3e;
+  --warning-foreground: #ffffff;
 
-  --border: hsl(28 14% 82%);
-  --input: hsl(28 14% 82%);
-  --ring: hsl(150 45% 32%);
+  --border: #e6e2d8;
+  --input: #e6e2d8;
+  --ring: #1c6b43;
 
   --chart-1: hsl(150 45% 32%);
   --chart-2: hsl(18 55% 45%);
@@ -110,20 +106,18 @@
   --chart-4: hsl(120 18% 38%);
   --chart-5: hsl(28 20% 30%);
 
-  --radius: 0;
+  --radius: 0.625rem;
 
-  --sidebar: hsl(30 22% 95%);
-  --sidebar-foreground: hsl(24 10% 10%);
-  --sidebar-primary: hsl(150 45% 32%);
-  --sidebar-primary-foreground: hsl(30 25% 98%);
-  --sidebar-accent: hsl(150 45% 32% / 0.12);
-  --sidebar-accent-foreground: hsl(150 45% 22%);
-  --sidebar-border: hsl(28 14% 82%);
-  --sidebar-ring: hsl(150 45% 32%);
+  --sidebar: #f6f4ec;
+  --sidebar-foreground: #15140f;
+  --sidebar-primary: #1c6b43;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: rgba(28, 107, 67, 0.10);
+  --sidebar-accent-foreground: #165937;
+  --sidebar-border: #e6e2d8;
+  --sidebar-ring: #1c6b43;
 
-  /* Platform brand colors — light mode uses each brand's true tone.
-     Dark mode brightens the dim ones (X, Threads, Pinterest, LinkedIn) so
-     they don't disappear against the dark surface. */
+  /* Platform brand colors — light mode uses each brand's true tone. */
   --brand-bluesky: #1083fe;
   --brand-facebook: #1877f2;
   --brand-instagram: #e4405f;
@@ -134,38 +128,36 @@
   --brand-twitter: #000000;
 }
 
-/* Dark — deep ink with warm cream text, lighter forest so it pops on dark.
-   Mirrors the landing's code surface (ink bg, paper text). */
 .dark {
-  --background: hsl(24 12% 8%);
-  --foreground: hsl(30 22% 94%);
+  --background: #0e0f0c;
+  --foreground: #e9ebe2;
 
-  --card: hsl(24 11% 11%);
-  --card-foreground: hsl(30 22% 94%);
-  --popover: hsl(24 11% 11%);
-  --popover-foreground: hsl(30 22% 94%);
+  --card: #15160f;
+  --card-foreground: #e9ebe2;
+  --popover: #15160f;
+  --popover-foreground: #e9ebe2;
 
-  --primary: hsl(150 50% 55%);
-  --primary-foreground: hsl(24 12% 8%);
+  --primary: #5fe0a0;
+  --primary-foreground: #06281a;
 
-  --secondary: hsl(24 10% 15%);
-  --secondary-foreground: hsl(30 22% 94%);
-  --muted: hsl(24 10% 15%);
-  --muted-foreground: hsl(30 12% 62%);
+  --secondary: #191b12;
+  --secondary-foreground: #e9ebe2;
+  --muted: #191b12;
+  --muted-foreground: #9fa395;
 
-  --accent: hsl(150 50% 55% / 0.14);
-  --accent-foreground: hsl(150 50% 70%);
+  --accent: rgba(95, 224, 160, 0.14);
+  --accent-foreground: #7bf0bb;
 
-  --destructive: hsl(0 65% 58%);
-  --destructive-foreground: hsl(24 12% 8%);
-  --success: hsl(142 55% 55%);
-  --success-foreground: hsl(24 12% 8%);
-  --warning: hsl(28 75% 60%);
-  --warning-foreground: hsl(24 12% 8%);
+  --destructive: #e06a6a;
+  --destructive-foreground: #0e0f0c;
+  --success: #5fe0a0;
+  --success-foreground: #06281a;
+  --warning: #e0b24f;
+  --warning-foreground: #0e0f0c;
 
-  --border: hsl(24 8% 22%);
-  --input: hsl(24 8% 22%);
-  --ring: hsl(150 50% 55%);
+  --border: #232518;
+  --input: #232518;
+  --ring: #5fe0a0;
 
   --chart-1: hsl(150 50% 55%);
   --chart-2: hsl(18 65% 58%);
@@ -173,18 +165,17 @@
   --chart-4: hsl(120 25% 55%);
   --chart-5: hsl(28 25% 60%);
 
-  --sidebar: hsl(24 11% 10%);
-  --sidebar-foreground: hsl(30 22% 94%);
-  --sidebar-primary: hsl(150 50% 55%);
-  --sidebar-primary-foreground: hsl(24 12% 8%);
-  --sidebar-accent: hsl(150 50% 55% / 0.16);
-  --sidebar-accent-foreground: hsl(150 50% 70%);
-  --sidebar-border: hsl(24 8% 22%);
-  --sidebar-ring: hsl(150 50% 55%);
+  --sidebar: #15160f;
+  --sidebar-foreground: #e9ebe2;
+  --sidebar-primary: #5fe0a0;
+  --sidebar-primary-foreground: #06281a;
+  --sidebar-accent: rgba(95, 224, 160, 0.16);
+  --sidebar-accent-foreground: #7bf0bb;
+  --sidebar-border: #232518;
+  --sidebar-ring: #5fe0a0;
 
   /* Brand overrides — pure black X / Threads are invisible, dim Pinterest
-     red and FB blue have sub-3:1 contrast on the deep ink bg. Lifted for
-     ≥4.5:1. IG's hot-pink reads fine in both modes. */
+     red and FB blue have sub-3:1 contrast on the deep ink bg. Lifted. */
   --brand-bluesky: #4da8ff;
   --brand-facebook: #4d99f5;
   --brand-instagram: #ff5d7a;
@@ -200,30 +191,36 @@
     @apply border-border outline-ring/50;
   }
   html {
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "ss01", "cv11";
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
   }
   ::selection {
-    background: hsl(150 45% 32% / 0.22);
+    background: rgba(28, 107, 67, 0.18);
     color: var(--foreground);
   }
-  /* Tighter focus ring — shadcn's default outline-ring/50 reads loose with
-     zero-radius components. */
+  .dark ::selection {
+    background: rgba(95, 224, 160, 0.20);
+  }
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
-  /* Inline `<code>` matches the landing's accent-tinted treatment. */
+  /* Inline `<code>` matches the marketing site's accent-tinted treatment. */
   :not(pre) > code {
-    background: hsl(150 45% 32% / 0.10);
+    font-family: var(--font-mono);
+    background: rgba(28, 107, 67, 0.10);
     color: var(--foreground);
     padding: 1px 5px;
+    border-radius: 4px;
     font-size: 0.88em;
   }
   .dark :not(pre) > code {
-    background: hsl(150 50% 55% / 0.14);
+    background: rgba(95, 224, 160, 0.14);
   }
 }

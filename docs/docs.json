@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "maple",
+  "theme": "luma",
   "name": "letmepost.dev",
   "description": "Open-source social media publishing API. Preflight validation, transparent errors, idempotency, stable platform versions.",
   "colors": {
@@ -15,7 +15,6 @@
   "appearance": {
     "default": "system"
   },
-  "css": "/style.css",
   "logo": {
     "light": "https://letmepost.dev/logo.png",
     "dark": "https://letmepost.dev/logo-dark.png",
