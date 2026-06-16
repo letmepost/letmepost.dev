@@ -290,22 +290,6 @@
         "href": "https://github.com/letmepost/letmepost.dev",
         "icon": "github",
         "iconType": "brands"
-      },
-      {
-        "label": "X",
-        "href": "https://x.com/letmepostdotdev",
-        "icon": "x-twitter",
-        "iconType": "brands"
-      },
-      {
-        "label": "llms.txt",
-        "href": "/llms.txt",
-        "icon": "file-lines"
-      },
-      {
-        "label": "OpenAPI",
-        "href": "/api-reference/openapi.json",
-        "icon": "download"
       }
     ],
     "primary": {
