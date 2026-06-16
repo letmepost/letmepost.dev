@@ -287,7 +287,7 @@ a.card:hover { border-color: var(--acc); transform: translateY(-2px); }
 
 /* ── final CTA ─────────────────────────────────────────────────────── */
 .final { margin: 40px -40px 0; background: var(--btn-bg); color: #fff; border-radius: 20px; padding: 72px 56px; text-align: center; }
-[data-theme="dark"] .final { background: var(--panel); border: 1px solid var(--line); }
+[data-theme="dark"] .final { background: var(--panel-2); border: 1px solid var(--line); }
 .final h2 { font-family: var(--disp); font-weight: 600; font-size: 46px; letter-spacing: -0.025em; margin: 0 0 16px; color: #fff; }
 [data-theme="dark"] .final h2 { color: var(--ink); }
 .final p { font-size: 18px; color: rgba(255,255,255,0.72); max-width: 48ch; margin: 0 auto 30px; }
@@ -298,6 +298,9 @@ a.card:hover { border-color: var(--acc); transform: translateY(-2px); }
 .final .btn.ghost { border-color: rgba(255,255,255,0.28); color: #fff; }
 .final .btn.ghost:hover { border-color: #fff; }
 [data-theme="dark"] .final .btn.ghost { border-color: var(--line); color: var(--ink); }
+/* On dark, the primary button is mint — use dark ink text, not white. */
+[data-theme="dark"] .final .btn.pri { color: #06281a; }
+[data-theme="dark"] .final .btn.pri:hover { background: var(--acc-ink); color: #06281a; }
 
 /* ── detail-page components (platform / api) ──────────────────────── */
 .spec-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--panel); }

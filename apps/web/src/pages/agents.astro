@@ -1,5 +1,6 @@
 ---
 import BaseLayout, { type JsonLdGraph } from "../layouts/BaseLayout.astro";
+import FanoutDiagram from "../components/FanoutDiagram.astro";
 import { faqPageSchema } from "../lib/seo.ts";
 import { highlight } from "../lib/highlight.ts";
 
@@ -77,29 +78,34 @@ const jsonLd: JsonLdGraph[] = [faqPageSchema(faqs)];
   jsonLd={jsonLd}
 >
   <header class="wrap page-head">
-    <p class="eyebrow">For agents</p>
-    <h1 class="cl-h1" style="max-width: 17ch;">letmepost speaks <span class="acc">MCP</span> natively.</h1>
-    <p class="sub" style="max-width: 60ch;">
-      One install line. Twenty-one MCP tools. Your agent publishes to eight social
-      platforms (text, image, video, scheduled, replied, quoted) without you shipping
-      a per-platform SDK. OAuth 2.1 with Dynamic Client Registration, so the agent
-      registers itself.
-    </p>
-    <div class="ctas" style="margin-top: 30px;">
-      <a
-        class="btn pri lg"
-        href="https://docs.letmepost.dev/agents/mcp"
-        data-analytics-event="docs.link_clicked"
-        data-analytics-props='{"from_page":"agents","to_section":"mcp"}'
-      >Read MCP docs →</a>
-      <a
-        class="btn ghost lg"
-        href="https://github.com/letmepost/letmepost.dev"
-        target="_blank"
-        rel="noopener"
-        data-analytics-event="external.github_clicked"
-        data-analytics-props='{"from_page":"agents","location":"agents-hero"}'
-      >GitHub ↗</a>
+    <div class="agents-hero">
+      <div class="agents-hero-copy">
+        <p class="eyebrow">For agents</p>
+        <h1 class="cl-h1">letmepost speaks <span class="acc">MCP</span> natively.</h1>
+        <p class="sub">
+          One install line. Twenty-one MCP tools. Your agent publishes to eight social
+          platforms (text, image, video, scheduled, replied, quoted) without you shipping
+          a per-platform SDK. OAuth 2.1 with Dynamic Client Registration, so the agent
+          registers itself.
+        </p>
+        <div class="ctas" style="margin-top: 30px;">
+          <a
+            class="btn pri lg"
+            href="https://docs.letmepost.dev/agents/mcp"
+            data-analytics-event="docs.link_clicked"
+            data-analytics-props='{"from_page":"agents","to_section":"mcp"}'
+          >Read MCP docs →</a>
+          <a
+            class="btn ghost lg"
+            href="https://github.com/letmepost/letmepost.dev"
+            target="_blank"
+            rel="noopener"
+            data-analytics-event="external.github_clicked"
+            data-analytics-props='{"from_page":"agents","location":"agents-hero"}'
+          >GitHub ↗</a>
+        </div>
+      </div>
+      <div class="agents-hero-vis"><FanoutDiagram mode="agents" /></div>
     </div>
   </header>
 
@@ -202,6 +208,18 @@ const jsonLd: JsonLdGraph[] = [faqPageSchema(faqs)];
 </BaseLayout>
 
 <style>
+  .agents-hero { display: grid; grid-template-columns: 1fr 1fr; gap: 52px; align-items: center; }
+  .agents-hero .cl-h1 { font-size: 52px; max-width: 14ch; }
+  .agents-hero .sub { max-width: 46ch; }
+  @media (max-width: 980px) {
+    .agents-hero { grid-template-columns: 1fr; gap: 36px; }
+    .agents-hero .cl-h1 { font-size: 42px; max-width: none; }
+    .agents-hero .sub { max-width: none; }
+  }
+  @media (max-width: 560px) {
+    .agents-hero .cl-h1 { font-size: 32px; }
+  }
+
   .clients { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; }
   .client { font-family: var(--mono); font-size: 12.5px; color: var(--mut); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; }
   .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-top: 36px; }

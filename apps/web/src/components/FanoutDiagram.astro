@@ -1,13 +1,28 @@
 ---
 /**
- * "Fig. 1 — Fan-out topology" hero schematic: one SOURCE (POST /v1/posts)
- * fanning out through animated curved wires to every connected platform.
- * Platforms come from PLATFORMS (canonical), live ones sorted first. No
- * status chips, no background grid — just the topology. The flow pulse
- * respects prefers-reduced-motion.
+ * "Fan-out topology" schematic: one source fanning out through animated
+ * curved wires to every connected platform. Platforms come from PLATFORMS
+ * (canonical), live ones sorted first.
+ *
+ * mode="post" (default, landing): source is `POST /v1/posts`.
+ * mode="agents" (for-agents page): source cycles through popular AI agent
+ * logos — same fan-out, framed as "your agent posts everywhere".
  */
 import PlatformIcon from "./PlatformIcon.astro";
+import { Icon } from "astro-icon/components";
 import { PLATFORMS } from "../data/platforms.ts";
+
+interface Props {
+  mode?: "post" | "agents";
+}
+const { mode = "post" } = Astro.props;
+
+const AGENTS = [
+  { icon: "simple-icons:claude", name: "Claude" },
+  { icon: "simple-icons:openai", name: "ChatGPT" },
+  { icon: "simple-icons:cursor", name: "Cursor" },
+  { icon: "simple-icons:zedindustries", name: "Zed" },
+];
 
 const order: Record<string, number> = { live: 0, trial: 0, pending: 1, planned: 2 };
 const seen = new Set<string>();
@@ -25,15 +40,36 @@ const wires = platforms.map((_, i) => {
   const y = i * ROW_H + ROW_H / 2;
   return `M0 ${cy} C ${W * 0.55} ${cy} ${W * 0.45} ${y} ${W} ${y}`;
 });
+
+const label =
+  mode === "agents"
+    ? "Fan-out topology: your AI agent publishes to every connected platform through one tool call"
+    : "Fan-out topology: one POST to /v1/posts fans out to every connected platform";
 ---
 
-<figure class="topo" aria-label="Fan-out topology: one POST to /v1/posts fans out to every connected platform">
+<figure class="topo" aria-label={label}>
   <div class="topo-body" style={`--row-h:${ROW_H}px`}>
-    <div class="topo-source">
-      <span class="lbl">Source</span>
-      <span class="m">POST</span>
-      <span class="path">/v1/posts</span>
-    </div>
+    {
+      mode === "agents" ? (
+        <div class="topo-source agents">
+          <span class="lbl">Your agent</span>
+          <span class="agent-rotator" data-agent-rotator>
+            {AGENTS.map((a, i) => (
+              <span class={`agent${i === 0 ? " on" : ""}`}>
+                <Icon name={a.icon} width={18} height={18} />
+                {a.name}
+              </span>
+            ))}
+          </span>
+        </div>
+      ) : (
+        <div class="topo-source">
+          <span class="lbl">Source</span>
+          <span class="m">POST</span>
+          <span class="path">/v1/posts</span>
+        </div>
+      )
+    }
 
     <svg class="topo-wires" viewBox={`0 0 ${W} ${H}`} width={W} height={H} preserveAspectRatio="none" aria-hidden="true">
       {wires.map((d) => <path class="wire" d={d} />)}
@@ -70,6 +106,13 @@ const wires = platforms.map((_, i) => {
   .topo-source .m { font-family: var(--mono); font-weight: 600; font-size: 18px; color: var(--acc); line-height: 1.1; }
   .topo-source .path { font-family: var(--mono); font-size: 15px; color: var(--ink); }
 
+  /* agents mode: rotating AI-agent logo in the source box */
+  .topo-source.agents { gap: 8px; }
+  .agent-rotator { position: relative; display: flex; align-items: center; justify-content: center; height: 26px; }
+  .agent-rotator .agent { position: absolute; inset: 0; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--mono); font-weight: 600; font-size: 16px; color: var(--ink); white-space: nowrap; opacity: 0; transition: opacity 320ms ease; }
+  .agent-rotator .agent.on { opacity: 1; }
+  .agent-rotator .agent :global(svg) { color: var(--acc); }
+
   .topo-wires { display: block; height: 100%; overflow: visible; }
   .topo-wires .wire { fill: none; stroke: var(--line); stroke-width: 1.5; }
   .topo-wires .flow {
@@ -100,3 +143,24 @@ const wires = platforms.map((_, i) => {
     .topo-row { border-bottom: 1px solid var(--line); }
   }
 </style>
+
+<script>
+  // Cycle the AI-agent logo in agents-mode fan-out diagrams.
+  function bindFanoutRotator() {
+    document.querySelectorAll<HTMLElement>("[data-agent-rotator]").forEach((root) => {
+      if (root.dataset.lmpBound) return;
+      root.dataset.lmpBound = "1";
+      const agents = Array.from(root.querySelectorAll<HTMLElement>(".agent"));
+      if (agents.length < 2) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      let i = 0;
+      setInterval(() => {
+        agents[i].classList.remove("on");
+        i = (i + 1) % agents.length;
+        agents[i].classList.add("on");
+      }, 2000);
+    });
+  }
+  bindFanoutRotator();
+  document.addEventListener("astro:page-load", bindFanoutRotator);
+</script>
