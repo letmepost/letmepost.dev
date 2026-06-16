@@ -173,7 +173,7 @@ export type DashboardEvent =
   | {
       name: "post_log.filtered";
       properties: {
-        filter_field: "platform" | "status" | "error_code";
+        filter_field: "platform" | "status" | "error_code" | "search";
         filter_value: string;
       };
     }

@@ -139,6 +139,59 @@ describeIfDb("GET /v1/posts (Post Log list)", () => {
     });
   });
 
+  it("filters by free-text ?q (case-insensitive substring on body)", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      await seedPosts(tx, {
+        organizationId: fixture.organizationId,
+        accountId: fixture.accountId,
+        count: 3,
+        template: (i) => ({
+          text:
+            i === 0
+              ? "Launch day is finally here"
+              : i === 1
+                ? "Behind the LAUNCH"
+                : "Weekly roundup",
+        }),
+      });
+
+      const app = createApp({ db: tx });
+      const res = await app.request("/v1/posts?q=launch", {
+        headers: { Authorization: `Bearer ${fixture.apiKey.plaintext}` },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { text: string }[] };
+      expect(body.data).toHaveLength(2);
+      expect(
+        body.data.every((p) => p.text.toLowerCase().includes("launch")),
+      ).toBe(true);
+    });
+  });
+
+  it("treats LIKE wildcards in ?q literally (no `%` expansion)", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      await seedPosts(tx, {
+        organizationId: fixture.organizationId,
+        accountId: fixture.accountId,
+        count: 2,
+        template: (i) => ({ text: i === 0 ? "50% off today" : "plain text" }),
+      });
+
+      const app = createApp({ db: tx });
+      const res = await app.request(`/v1/posts?q=${encodeURIComponent("50%")}`, {
+        headers: { Authorization: `Bearer ${fixture.apiKey.plaintext}` },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { text: string }[] };
+      expect(body.data).toHaveLength(1);
+      expect(body.data[0]!.text).toBe("50% off today");
+    });
+  });
+
   it("paginates via opaque cursor; cursor decodes to a valid (createdAt, id)", async () => {
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {

@@ -76,6 +76,7 @@ export type ListPostsFilters = {
   platform?: string[];
   status?: PostStatus[];
   errorCode?: string[];
+  q?: string;
   after?: string;
   before?: string;
   limit?: number;
@@ -88,6 +89,7 @@ function buildQuery(f: ListPostsFilters): string {
   if (f.platform) for (const v of f.platform) params.append("platform", v);
   if (f.status) for (const v of f.status) params.append("status", v);
   if (f.errorCode) for (const v of f.errorCode) params.append("errorCode", v);
+  if (f.q) params.set("q", f.q);
   if (f.after) params.set("after", f.after);
   if (f.before) params.set("before", f.before);
   if (f.limit !== undefined) params.set("limit", String(f.limit));

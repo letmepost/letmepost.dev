@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import type { PostStatus } from "@letmepost/schemas";
 import type { DrizzleClient } from "../db/index.js";
 import { platformAccounts } from "../db/schema/platform_accounts.js";
@@ -126,6 +126,8 @@ export type PostListFilters = {
   /** Exclusive upper bound on `createdAt`. */
   before?: Date;
   errorCodes?: string[];
+  /** Case-insensitive substring match on the post body (`posts.text`). */
+  search?: string;
 };
 
 export type PostListPaging = {
@@ -231,6 +233,12 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
       conditions.push(
         codeExprs.length === 1 ? head : (or(...codeExprs) as typeof head),
       );
+    }
+
+    if (filters.search) {
+      // Escape LIKE metacharacters so the term matches literally.
+      const escaped = filters.search.replace(/[\\%_]/g, (m) => `\\${m}`);
+      conditions.push(ilike(posts.text, `%${escaped}%`));
     }
 
     if (paging.cursor) {

@@ -1897,6 +1897,17 @@
             }
           },
           {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Case-insensitive substring match on the post body. Wildcard characters are matched literally.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
             "name": "after",
             "in": "query",
             "required": false,

@@ -713,6 +713,7 @@ const ListPostsQuery = z.object({
   platform: z.array(Platform).optional(),
   status: z.array(PostStatus).optional(),
   errorCode: z.array(z.string().min(1)).optional(),
+  q: z.string().trim().min(1).max(200).optional(),
   after: z.string().datetime().optional(),
   before: z.string().datetime().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -765,6 +766,7 @@ posts.get("/", apiKeyOrSession(), async (c) => {
     platform: readArrayQuery(c, "platform"),
     status: readArrayQuery(c, "status"),
     errorCode: readArrayQuery(c, "errorCode"),
+    q: c.req.query("q"),
     after: c.req.query("after"),
     before: c.req.query("before"),
     limit: c.req.query("limit"),
@@ -805,6 +807,7 @@ posts.get("/", apiKeyOrSession(), async (c) => {
   if (q.platform) filters.platforms = q.platform;
   if (q.status) filters.statuses = q.status as Post["status"][];
   if (q.errorCode) filters.errorCodes = q.errorCode;
+  if (q.q) filters.search = q.q;
   if (q.after) filters.after = new Date(q.after);
   if (q.before) filters.before = new Date(q.before);
 
