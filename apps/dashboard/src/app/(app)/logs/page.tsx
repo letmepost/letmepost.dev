@@ -6,7 +6,6 @@ import {
   ArrowsClockwise,
   Check,
   Clock,
-  FunnelSimple,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
@@ -230,8 +229,6 @@ export default function PostsPage() {
       </FadeIn>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <FunnelSimple className="size-4 text-muted-foreground" />
-
         {profiles.length > 0 ? (
           <Select
             value={profileId || "all"}
