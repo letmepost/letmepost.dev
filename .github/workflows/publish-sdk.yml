@@ -1,0 +1,86 @@
+# Publishes @letmepost/sdk to npm with a provenance attestation.
+#
+# Trigger: push a tag like `sdk-v0.2.0`. The tag version must match
+# packages/sdk-ts/package.json — a mismatch fails the run before publishing.
+# Also runnable manually from the Actions tab (workflow_dispatch), with an
+# optional dry-run that packs without publishing.
+#
+# One-time setup (first publish): add an npm granular access token as the
+# NPM_TOKEN repo secret — "Read and write", scoped to @letmepost/sdk (or all
+# packages), with 2FA bypass for automation. After the first publish you can
+# switch to npm OIDC trusted publishing (Package settings → Trusted Publishers,
+# workflow `publish-sdk.yml`) and delete the secret; provenance is signed by
+# GitHub's OIDC either way.
+#
+# Release process:
+#   1. Merge the version bump (packages/sdk-ts/package.json) to main.
+#   2. git tag sdk-v0.2.0 && git push origin sdk-v0.2.0
+
+name: Publish SDK
+
+on:
+  push:
+    tags:
+      - "sdk-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and pack only, skip the actual publish"
+        type: boolean
+        default: false
+
+concurrency:
+  group: publish-sdk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish @letmepost/sdk
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to mint the OIDC token npm uses for the provenance attestation.
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack (pnpm)
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches package version
+        if: github.event_name == 'push'
+        run: |
+          PKG_VERSION="$(node -p "require('./packages/sdk-ts/package.json').version")"
+          TAG_VERSION="${GITHUB_REF_NAME#sdk-v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} (${TAG_VERSION}) does not match packages/sdk-ts/package.json (${PKG_VERSION})."
+            exit 1
+          fi
+          echo "Releasing @letmepost/sdk@${PKG_VERSION}"
+
+      - name: Build
+        run: pnpm --filter @letmepost/sdk build
+
+      - name: Publish (dry run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        working-directory: packages/sdk-ts
+        run: pnpm publish --no-git-checks --access public --dry-run
+
+      - name: Publish to npm
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        working-directory: packages/sdk-ts
+        # pnpm (not npm) so the workspace:* devDependency is rewritten on publish.
+        run: pnpm publish --provenance --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
