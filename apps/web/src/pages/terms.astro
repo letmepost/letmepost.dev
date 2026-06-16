@@ -1,7 +1,5 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Tape from "../components/Tape.astro";
-import Closeout from "../components/Closeout.astro";
 const updated = "2026-04-27";
 ---
 
@@ -9,136 +7,93 @@ const updated = "2026-04-27";
   title="Terms of Service: using letmepost.dev"
   description="Terms governing use of letmepost.dev."
 >
-  <Tape />
-
-  <header class="page-head" data-sticky-anchor>
-    <div class="crumb"><a href="/">letmepost</a> / terms</div>
-    <h1 class="page-h1">Terms of service.</h1>
-    <p class="lede" style="color: var(--r-very); font-size: 12px; letter-spacing: 0.06em;">Last updated: {updated}</p>
+  <header class="wrap page-head">
+    <p class="crumb"><a href="/">letmepost</a> / terms</p>
+    <p class="eyebrow">Legal</p>
+    <h1 class="cl-h1" style="max-width: 14ch;">Terms of service.</h1>
+    <p class="trust">Last updated: {updated}</p>
   </header>
 
-  <hr class="dash" />
-
-  <div class="prose">
-
+  <section class="wrap sec tight" style="padding-top: 28px;">
+    <div class="prose">
       <p>
-        These terms govern your use of letmepost.dev. By using the service, you
-        agree to them. If you don't agree, don't use the service. If you use the
-        service on behalf of an organisation, you agree on its behalf.
+        These terms govern your use of letmepost.dev. By using the service, you agree to
+        them. If you don't agree, don't use the service. If you use the service on behalf
+        of an organisation, you agree on its behalf.
       </p>
 
       <h2>1. The service</h2>
       <p>
-        letmepost.dev is an API for publishing content to third-party social
-        platforms that you control or are authorised to post to. It is operated
-        by M/S Rose Creator (trading as letmepost.dev), a sole proprietorship
-        based in India. It is
-        provided "as is", without warranty of any kind. The core code is open
-        source under the Apache 2.0 license; the hosted service runs that same
-        code.
+        letmepost.dev is an API for publishing content to third-party social platforms
+        that you control or are authorised to post to. It is operated by M/S Rose Creator
+        (trading as letmepost.dev), a sole proprietorship based in India. It is provided
+        "as is", without warranty of any kind. The core code is open source under the
+        Apache 2.0 license; the hosted service runs that same code.
       </p>
 
       <h2>2. Your account</h2>
       <ul>
-        <li>
-          You're responsible for keeping your API keys secret. Treat them like
-          passwords.
-        </li>
-        <li>
-          You must be authorised to post to any social account you connect. We
-          only act on your behalf.
-        </li>
-        <li>
-          You must comply with the terms of every third-party platform you
-          publish to. If the platform bans your account, that's between you and
-          them.
-        </li>
+        <li>You're responsible for keeping your API keys secret. Treat them like passwords.</li>
+        <li>You must be authorised to post to any social account you connect. We only act on your behalf.</li>
+        <li>You must comply with the terms of every third-party platform you publish to. If the platform bans your account, that's between you and them.</li>
       </ul>
 
       <h2>3. Acceptable use</h2>
       <p>Do not use letmepost.dev to:</p>
       <ul>
-        <li>
-          Spam, harass, deceive, or impersonate anyone on any connected
-          platform.
-        </li>
-        <li>
-          Evade a third-party platform's rate limits, automation rules, or
-          moderation decisions.
-        </li>
-        <li>
-          Post content that is illegal where either you or the recipient
-          audience lives.
-        </li>
-        <li>
-          Attempt to reverse-engineer our rate limiting, degrade the service, or
-          target other users.
-        </li>
-        <li>
-          Resell the API as a generic "post to social" service without
-          meaningful value-add. You can absolutely build products on top of it —
-          that's what it's for.
-        </li>
+        <li>Spam, harass, deceive, or impersonate anyone on any connected platform.</li>
+        <li>Evade a third-party platform's rate limits, automation rules, or moderation decisions.</li>
+        <li>Post content that is illegal where either you or the recipient audience lives.</li>
+        <li>Attempt to reverse-engineer our rate limiting, degrade the service, or target other users.</li>
+        <li>Resell the API as a generic "post to social" service without meaningful value-add. You can absolutely build products on top of it; that's what it's for.</li>
       </ul>
-      <p>
-        We may suspend accounts that violate this section with notice where
-        practical, immediately where not.
-      </p>
+      <p>We may suspend accounts that violate this section with notice where practical, immediately where not.</p>
 
       <h2>4. Rate limits and fair use</h2>
       <p>
-        Published rate limits apply per API key. Exceeding them returns
-        <code>429</code> responses. We reserve the right to throttle or refuse
-        traffic that materially degrades the service for other users.
+        Published rate limits apply per API key. Exceeding them returns <code>429</code>
+        responses. We reserve the right to throttle or refuse traffic that materially
+        degrades the service for other users.
       </p>
 
       <h2>5. Pricing and payment</h2>
       <p>
-        Pricing is published on the site. Paid tiers are billed monthly in
-        advance and non-refundable for the current period. You can cancel any
-        time; your plan stays active until the period ends.
+        Pricing is published on the site. Paid tiers are billed monthly in advance and
+        non-refundable for the current period. You can cancel any time; your plan stays
+        active until the period ends.
       </p>
 
       <h2>6. Changes to the service</h2>
       <p>
-        We may change, add to, or remove features. We'll give reasonable notice
-        of breaking changes via the changelog and webhook events
-        (<code>version.deprecated</code>). The OpenAPI spec is versioned; we do
-        not silently change request/response shapes.
+        We may change, add to, or remove features. We'll give reasonable notice of
+        breaking changes via the changelog and webhook events
+        (<code>version.deprecated</code>). The OpenAPI spec is versioned; we do not
+        silently change request/response shapes.
       </p>
 
       <h2>7. Termination</h2>
       <p>
-        You can close your account at any time from the dashboard (once shipped)
-        or by emailing us. We can terminate accounts that violate these terms or
-        expose us to legal risk.
+        You can close your account at any time from the dashboard (once shipped) or by
+        emailing us. We can terminate accounts that violate these terms or expose us to
+        legal risk.
       </p>
 
       <h2>8. Liability</h2>
       <p>
-        To the maximum extent permitted by law, our total liability for any
-        claim arising from your use of the service is capped at the amount you
-        paid us in the three months preceding the claim, or ₹5,000, whichever is
-        greater. We are not liable for lost profits, lost data on third-party
-        platforms, or platform bans.
+        To the maximum extent permitted by law, our total liability for any claim arising
+        from your use of the service is capped at the amount you paid us in the three
+        months preceding the claim, or ₹5,000, whichever is greater. We are not liable
+        for lost profits, lost data on third-party platforms, or platform bans.
       </p>
 
       <h2>9. Governing law</h2>
       <p>
-        These terms are governed by the laws of India. Disputes are subject to
-        the exclusive jurisdiction of the courts in the registered address of
-        the operator.
+        These terms are governed by the laws of India. Disputes are subject to the
+        exclusive jurisdiction of the courts in the registered address of the operator.
       </p>
 
       <h2>10. Contact</h2>
-      <p>
-        <a href="mailto:support@letmepost.dev">support@letmepost.dev</a>
-      </p>
-  </div>
-
-  <hr class="double" />
-
-  <Closeout codeLine="000 LMP TERMS · 2026-05-23" />
-  <Tape bottom />
+      <p><a href="mailto:support@letmepost.dev">support@letmepost.dev</a></p>
+    </div>
+  </section>
 </BaseLayout>
-

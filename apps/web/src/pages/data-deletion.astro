@@ -1,7 +1,5 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Tape from "../components/Tape.astro";
-import Closeout from "../components/Closeout.astro";
 const updated = "2026-04-27";
 ---
 
@@ -9,24 +7,20 @@ const updated = "2026-04-27";
   title="Data Deletion: delete your account and tokens"
   description="How to delete your letmepost.dev account and associated data."
 >
-  <Tape />
-
-  <header class="page-head" data-sticky-anchor>
-    <div class="crumb"><a href="/">letmepost</a> / data deletion</div>
-    <h1 class="page-h1">Data deletion.</h1>
-    <p class="lede" style="color: var(--r-very); font-size: 12px; letter-spacing: 0.06em;">Last updated: {updated}</p>
+  <header class="wrap page-head">
+    <p class="crumb"><a href="/">letmepost</a> / data deletion</p>
+    <p class="eyebrow">Legal</p>
+    <h1 class="cl-h1" style="max-width: 14ch;">Data deletion.</h1>
+    <p class="trust">Last updated: {updated}</p>
   </header>
 
-  <hr class="dash" />
-
-  <div class="prose">
-
+  <section class="wrap sec tight" style="padding-top: 28px;">
+    <div class="prose">
       <p>
-        letmepost.dev is operated by M/S Rose Creator (trading as letmepost.dev),
-        a sole proprietorship based in India. You can have your letmepost.dev account and all
-        associated data deleted at any time. This page tells platform reviewers
-        (Meta, LinkedIn, X, Pinterest) how that works and gives you a contact
-        path.
+        letmepost.dev is operated by M/S Rose Creator (trading as letmepost.dev), a sole
+        proprietorship based in India. You can have your letmepost.dev account and all
+        associated data deleted at any time. This page tells platform reviewers (Meta,
+        LinkedIn, X, Pinterest) how that works and gives you a contact path.
       </p>
 
       <h2>What gets deleted</h2>
@@ -34,65 +28,43 @@ const updated = "2026-04-27";
         <li>Your user account and organisation.</li>
         <li>All connected social-platform accounts and their OAuth tokens.</li>
         <li>All post records (scheduled, published, failed).</li>
-        <li>
-          API keys, webhook endpoints, and any custom configuration tied to your
-          organisation.
-        </li>
+        <li>API keys, webhook endpoints, and any custom configuration tied to your organisation.</li>
       </ul>
       <p>
-        Logs older than 30 days are already rotated out. Logs newer than 30 days
-        are purged as part of the deletion request; aggregated metrics with no
-        personal data may remain.
+        Logs older than 30 days are already rotated out. Logs newer than 30 days are
+        purged as part of the deletion request; aggregated metrics with no personal data
+        may remain.
       </p>
 
       <h2>How to request deletion</h2>
       <p>Until the self-serve dashboard ships, request deletion by email:</p>
       <ol>
-        <li>
-          Send an email from the address on your letmepost.dev account to <a
-            href="mailto:support@letmepost.dev">support@letmepost.dev</a
-          >.
-        </li>
-        <li>
-          Subject: <code>Data deletion request</code>.
-        </li>
-        <li>
-          We'll confirm within 3 business days and complete deletion within 30
-          days (faster in practice).
-        </li>
+        <li>Send an email from the address on your letmepost.dev account to <a href="mailto:support@letmepost.dev">support@letmepost.dev</a>.</li>
+        <li>Subject: <code>Data deletion request</code>.</li>
+        <li>We'll confirm within 3 business days and complete deletion within 30 days (faster in practice).</li>
       </ol>
 
       <p>
-        We will email a confirmation once deletion is complete and retain only
-        what is legally required (e.g. invoice records for tax purposes).
+        We will email a confirmation once deletion is complete and retain only what is
+        legally required (e.g. invoice records for tax purposes).
       </p>
 
       <h2>Revoking a single connection</h2>
       <p>
-        If you just want to disconnect a single social account (e.g. remove
-        Instagram access but keep LinkedIn), you can — dashboard UI is coming,
-        and in the meantime the same email path works. Mention which
-        platform(s) to revoke.
+        If you just want to disconnect a single social account (e.g. remove Instagram
+        access but keep LinkedIn), you can — dashboard UI is coming, and in the meantime
+        the same email path works. Mention which platform(s) to revoke.
       </p>
 
       <h2>Platform-specific notes</h2>
       <p>
-        Revoking a connection inside letmepost.dev also deletes our copy of the
-        tokens. Some platforms (e.g. Meta, LinkedIn) let you revoke third-party
-        app access from their own settings as well. Doing that in both places is
-        the safest path.
+        Revoking a connection inside letmepost.dev also deletes our copy of the tokens.
+        Some platforms (e.g. Meta, LinkedIn) let you revoke third-party app access from
+        their own settings as well. Doing that in both places is the safest path.
       </p>
 
       <h2>Contact</h2>
-      <p>
-        <a href="mailto:support@letmepost.dev">support@letmepost.dev</a>. We
-        read every message.
-      </p>
-  </div>
-
-  <hr class="double" />
-
-  <Closeout codeLine="000 LMP DATA-DELETION · 2026-05-23" />
-  <Tape bottom />
+      <p><a href="mailto:support@letmepost.dev">support@letmepost.dev</a>. We read every message.</p>
+    </div>
+  </section>
 </BaseLayout>
-

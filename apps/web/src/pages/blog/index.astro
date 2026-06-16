@@ -1,6 +1,12 @@
 ---
 import { getCollection } from "astro:content";
-import BlogLayout from "../../layouts/BlogLayout.astro";
+import BaseLayout from "../../layouts/BaseLayout.astro";
+
+/**
+ * Blog index — Clarity direction. Featured most-recent post on top,
+ * then a dated list of the rest. Posts come from the Notion-backed
+ * "blog" content collection.
+ */
 
 const allPosts = await getCollection("blog", ({ data }) => {
   return import.meta.env.PROD ? data.draft !== true : true;
@@ -9,6 +15,9 @@ const allPosts = await getCollection("blog", ({ data }) => {
 const posts = allPosts.sort(
   (a, b) => b.data.pubDate.valueOf() - a.data.pubDate.valueOf(),
 );
+
+const featured = posts[0];
+const rest = posts.slice(1);
 
 function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-US", {
@@ -24,241 +33,98 @@ function readingMin(post: (typeof posts)[number]): number {
   const words = body.split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.round(words / 200));
 }
-
-const categoryLabels: Record<string, string> = {
-  engineering: "Engineering",
-  philosophy: "Philosophy",
-  "release-notes": "Release notes",
-};
-
-const activeCategories = Array.from(
-  new Set(posts.map((p) => p.data.category)),
-);
 ---
 
-<BlogLayout
+<BaseLayout
   title="Engineering blog: social media API deep-dives"
-  description="Engineering deep-dives, platform postmortems, and field notes from building letmepost.dev — the open-source social media publishing API."
+  description="Engineering notes from the platform-review queue. Version sunsets, async media rejections, idempotency, and the failure modes nobody else writes down."
 >
-  <div class="bp-page">
-    <header class="bp-head">
-      <span class="bp-badge">Writing</span>
-      <h1 class="bp-h1">From the team.</h1>
-      <p class="bp-sub">Guides, tutorials, postmortems, and field notes.</p>
+  <header class="wrap page-head">
+    <p class="eyebrow">Blog</p>
+    <h1 class="cl-h1" style="max-width: 20ch;">
+      Engineering notes from the <span class="acc">platform-review queue</span>.
+    </h1>
+    <p class="sub" style="max-width: 58ch;">
+      The failure modes nobody else writes down: version sunsets, async media
+      rejections, double-posting loops, and how a developer-grade publishing API
+      handles them.
+    </p>
+  </header>
 
-      {activeCategories.length > 1 && (
-        <div class="bp-filters">
-          <button type="button" class="bp-chip bp-chip-on">All</button>
-          {activeCategories.map((cat) => (
-            <button type="button" class="bp-chip">
-              {categoryLabels[cat] ?? cat}
-            </button>
-          ))}
+  {posts.length === 0 && (
+    <section class="wrap sec">
+      <p class="lead">No posts yet. <a class="acc" href="/rss.xml">Subscribe via RSS</a>.</p>
+    </section>
+  )}
+
+  {featured && (
+    <section class="wrap" style="padding-bottom: 8px;">
+      <a class="feat" href={`/blog/${featured.id}`}>
+        <div
+          class="ph"
+          data-has-image={featured.data.heroImage ? "1" : "0"}
+          style={featured.data.heroImage ? `background-image: url(${featured.data.heroImage});` : ""}
+        >
+          {!featured.data.heroImage && <span>[ {featured.data.category} ]</span>}
         </div>
-      )}
-    </header>
+        <div class="ft">
+          <div class="meta">{fmtDate(featured.data.pubDate)} · {featured.data.author} · {readingMin(featured)} min read</div>
+          <h2>{featured.data.title}</h2>
+          <p>{featured.data.description}</p>
+        </div>
+      </a>
+    </section>
+  )}
 
-    {posts.length === 0 && (
-      <div class="bp-empty">
-        No posts yet. <a href="/rss.xml">Subscribe via RSS</a>.
+  {rest.length > 0 && (
+    <section class="wrap sec tight" style="padding-top: 24px;">
+      <ul class="post-list">
+        {rest.map((post) => (
+          <li>
+            <a href={`/blog/${post.id}`}>
+              <span class="pl-date">{fmtDate(post.data.pubDate)}</span>
+              <span>
+                <span class="pl-title">{post.data.title}</span>
+                <span class="pl-desc">{post.data.description}</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <section class="wrap">
+    <div class="final">
+      <h2>Stop reading about failure modes. Ship past them.</h2>
+      <p>Free during alpha. No credit card. Send your first post in ninety seconds.</p>
+      <div class="ctas">
+        <a class="btn pri lg" href="https://dashboard.letmepost.dev">Start free →</a>
+        <a class="btn ghost lg" href="https://docs.letmepost.dev">Read the docs ↗</a>
       </div>
-    )}
+    </div>
+  </section>
+</BaseLayout>
 
-    <ul class="bp-list">
-      {posts.map((post) => (
-        <li>
-          <a href={`/blog/${post.id}`} class="bp-row">
-            <div
-              class="bp-thumb"
-              style={post.data.heroImage
-                ? `background-image: url(${post.data.heroImage});`
-                : ""}
-              data-has-image={post.data.heroImage ? "1" : "0"}
-              aria-hidden="true"
-            />
-            <div class="bp-row-body">
-              <div class="bp-row-meta">
-                <span class="bp-author">by {post.data.author}</span>
-                <span class="bp-dot">·</span>
-                <span>{fmtDate(post.data.pubDate)}</span>
-                <span class="bp-dot">·</span>
-                <span>{readingMin(post)} min read</span>
-              </div>
-              <h2 class="bp-row-title">{post.data.title}</h2>
-              <p class="bp-row-desc">{post.data.description}</p>
-            </div>
-          </a>
-        </li>
-      ))}
-    </ul>
-  </div>
-</BlogLayout>
-
-<style is:global>
-  /* ── /blog index ───────────────────────────────────────── */
-
-  .bp-page {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 56px var(--bp-gutter) 96px;
-  }
-
-  /* Header block */
-  .bp-head { margin-bottom: 40px; }
-  .bp-badge {
-    display: inline-block;
-    font-family: var(--r-mono);
-    font-size: 10px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    font-weight: 700;
-    color: var(--r-accent);
-    background: var(--r-accent-soft);
-    padding: 4px 10px;
-    border-radius: 3px;
-    margin-bottom: 18px;
-  }
-  .bp-h1 {
-    font-family: var(--r-mono);
-    font-weight: 700;
-    font-size: clamp(34px, 5vw, 48px);
-    line-height: 1.1;
-    letter-spacing: -0.025em;
-    color: var(--r-ink);
-    margin: 0 0 12px;
-    text-wrap: balance;
-  }
-  .bp-sub {
-    font-family: var(--bp-serif);
-    font-size: 18px;
-    line-height: 1.5;
-    color: var(--r-dim);
-    margin: 0;
-  }
-
-  /* Category filter chips (visual only for now) */
-  .bp-filters {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 24px;
-  }
-  .bp-chip {
-    font-family: var(--r-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--r-dim);
-    background: transparent;
-    border: 1px solid var(--r-line);
-    padding: 6px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: border-color 0.15s, color 0.15s;
-  }
-  .bp-chip:hover { border-color: var(--r-ink); color: var(--r-ink); }
-  .bp-chip-on {
-    background: var(--r-ink);
-    color: var(--r-bg);
-    border-color: var(--r-ink);
-  }
-
-  /* List */
-  .bp-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-  .bp-row {
-    display: grid;
-    grid-template-columns: 220px 1fr;
-    gap: 24px;
-    padding: 18px;
-    border: 1px solid var(--r-line);
-    border-radius: 6px;
-    background: var(--r-paper);
-    text-decoration: none;
-    color: inherit;
-    align-items: stretch;
-    transition: border-color 0.15s, transform 0.12s;
-  }
-  .bp-row:hover {
-    border-color: var(--r-accent);
-    transform: translateY(-1px);
-  }
-  .bp-thumb {
-    width: 220px;
-    align-self: stretch;
-    background-color: var(--r-accent-soft);
-    background-size: cover;
-    background-position: center;
-    border-radius: 4px;
-    flex-shrink: 0;
-    min-height: 140px;
-  }
-  .bp-thumb[data-has-image="0"] {
-    background-image:
-      radial-gradient(circle at 30% 20%, var(--r-accent-soft), transparent 60%),
-      linear-gradient(135deg, var(--r-paper-deep), var(--r-paper));
-  }
-  .bp-row-body {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .bp-row-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: var(--r-mono);
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    color: var(--r-very);
-    flex-wrap: wrap;
-  }
-  .bp-author { color: var(--r-dim); }
-  .bp-dot { color: var(--r-line); }
-  .bp-row-title {
-    font-family: var(--r-mono);
-    font-weight: 700;
-    font-size: 16px;
-    line-height: 1.3;
-    letter-spacing: -0.01em;
-    color: var(--r-ink);
-    margin: 2px 0 0;
-    text-wrap: balance;
-  }
-  .bp-row:hover .bp-row-title { color: var(--r-accent); }
-  .bp-row-desc {
-    font-family: var(--bp-serif);
-    font-size: 15px;
-    line-height: 1.55;
-    color: var(--r-dim);
-    margin: 0;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-
-  .bp-empty {
-    text-align: center;
-    padding: 80px 0;
-    color: var(--r-dim);
-    font-family: var(--r-mono);
-    font-size: 13px;
-  }
-  .bp-empty a { color: var(--r-accent); }
-
-  @media (max-width: 640px) {
-    .bp-page { padding: 32px 18px 64px; }
-    .bp-row { grid-template-columns: 110px 1fr; gap: 14px; padding: 14px; }
-    .bp-thumb { width: 110px; min-height: 84px; }
-    .bp-row-title { font-size: 15px; }
-    .bp-row-desc { font-size: 14px; }
+<style>
+  .feat { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 0; border: 1px solid var(--line); border-radius: 18px; overflow: hidden; margin-top: 40px; text-decoration: none; color: inherit; transition: border-color 140ms; }
+  .feat:hover { border-color: var(--acc); }
+  .feat .ph { background: repeating-linear-gradient(135deg, var(--panel-2) 0 14px, var(--bg) 14px 28px); background-size: cover; background-position: center; border-right: 1px solid var(--line); display: flex; align-items: center; justify-content: center; min-height: 280px; }
+  .feat .ph[data-has-image="1"] { background-repeat: no-repeat; }
+  .feat .ph span { font-family: var(--mono); font-size: 12px; color: var(--faint); letter-spacing: 0.04em; text-transform: uppercase; }
+  .feat .ft { padding: 40px 40px; display: flex; flex-direction: column; justify-content: center; }
+  .feat h2 { font-family: var(--disp); font-weight: 600; font-size: 30px; line-height: 1.12; letter-spacing: -0.02em; margin: 0 0 14px; }
+  .feat p { font-size: 16px; color: var(--mut); margin: 0 0 18px; line-height: 1.55; }
+  .feat .meta { font-family: var(--mono); font-size: 12px; color: var(--faint); margin-bottom: 16px; }
+  .post-list { list-style: none; padding: 0; margin: 40px 0 0; border-top: 1px solid var(--line); }
+  .post-list li a { display: grid; grid-template-columns: 130px 1fr; gap: 28px; padding: 28px 0; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; align-items: baseline; }
+  .post-list li a:hover .pl-title { color: var(--acc); }
+  .pl-date { font-family: var(--mono); font-size: 12px; color: var(--faint); padding-top: 4px; }
+  .pl-title { display: block; font-family: var(--disp); font-weight: 600; font-size: 22px; letter-spacing: -0.01em; margin: 0 0 6px; line-height: 1.2; }
+  .pl-desc { display: block; font-size: 15px; color: var(--mut); margin: 0; line-height: 1.55; max-width: 64ch; }
+  @media (max-width: 860px) {
+    .feat { grid-template-columns: 1fr; }
+    .feat .ph { border-right: 0; border-bottom: 1px solid var(--line); min-height: 180px; }
+    .post-list li a { grid-template-columns: 1fr; gap: 6px; }
   }
 </style>

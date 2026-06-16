@@ -1,45 +1,41 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Tape from "../components/Tape.astro";
-import Closeout from "../components/Closeout.astro";
 ---
 
 <BaseLayout
   title="Contact: one inbox, real replies in 24h"
   description="letmepost.dev is a solo-dev shop. Messages land in a real inbox and get real replies, usually within 24 hours on weekdays."
 >
-  <Tape />
-
-  <header class="page-head" data-sticky-anchor>
-    <div class="crumb"><a href="/">letmepost</a> / contact</div>
-    <h1 class="page-h1">One inbox. One operator. Real replies.</h1>
-    <p class="lede">
-      No priority-routing tier, because there is only one person to
-      route to. Weekdays you'll usually hear back inside twenty-four
-      hours. Weekends are slower and we don't apologise for that.
+  <header class="wrap page-head">
+    <p class="crumb"><a href="/">letmepost</a> / contact</p>
+    <p class="eyebrow">Contact</p>
+    <h1 class="cl-h1" style="max-width: 16ch;">One inbox. One operator. Real replies.</h1>
+    <p class="sub" style="max-width: 58ch;">
+      No priority-routing tier, because there is only one person to route to. Weekdays
+      you'll usually hear back inside twenty-four hours. Weekends are slower and we
+      don't apologise for that.
     </p>
   </header>
 
-  <hr class="dash" />
-
-  <div class="prose">
+  <section class="wrap sec tight" style="padding-top: 28px;">
+    <div class="prose">
       <p>
-        letmepost.dev is operated by M/S Rose Creator (trading as letmepost.dev),
-        a sole proprietorship based in India. Solo-dev shop. Apache 2.0
-        source on GitHub — file an issue, send a PR, fork it.
+        letmepost.dev is operated by M/S Rose Creator (trading as letmepost.dev), a
+        sole proprietorship based in India. Solo-dev shop. Apache 2.0 source on GitHub:
+        file an issue, send a PR, fork it.
       </p>
 
       <h2>Email</h2>
       <p>
-        <a href="mailto:support@letmepost.dev">support@letmepost.dev</a> — for
-        anything: product questions, privacy, security, bug reports.
+        <a href="mailto:support@letmepost.dev">support@letmepost.dev</a> for anything:
+        product questions, privacy, security, bug reports.
       </p>
 
       <h2>Security disclosures</h2>
       <p>
         Found a vulnerability? Please email the address above with
-        <code>[security]</code> in the subject line. Please don't file a public
-        GitHub issue for security reports.
+        <code>[security]</code> in the subject line. Please don't file a public GitHub
+        issue for security reports.
       </p>
 
       <h2>Open source</h2>
@@ -50,19 +46,14 @@ import Closeout from "../components/Closeout.astro";
           target="_blank"
           data-analytics-event="external.github_clicked"
           data-analytics-props='{"from_page":"contact","location":"contact-body"}'
-        >github.com/rosekamallove/letmepost.dev</a
-        > — file issues, send PRs, read the roadmap.
+        >github.com/rosekamallove/letmepost.dev</a> — file issues, send PRs, read the roadmap.
       </p>
 
       <h2>Business address</h2>
-      <p style="color: var(--r-dim);">
-        Registered address is disclosed on request for billing / platform
-        verification purposes. Email us.
+      <p>
+        Registered address is disclosed on request for billing / platform verification
+        purposes. Email us.
       </p>
-  </div>
-
-  <hr class="double" />
-
-  <Closeout codeLine="000 LMP CONTACT · 2026-05-23" />
-  <Tape bottom />
+    </div>
+  </section>
 </BaseLayout>

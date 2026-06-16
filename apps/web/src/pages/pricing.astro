@@ -1,18 +1,65 @@
 ---
 import BaseLayout, { type JsonLdGraph } from "../layouts/BaseLayout.astro";
-import Tape from "../components/Tape.astro";
-import Closeout from "../components/Closeout.astro";
 import { faqPageSchema, pricingProductSchema } from "../lib/seo.ts";
 
 /**
- * Pricing — receipt direction. 3-tier RATE CARD (Free / Pro / Business)
- * + Business+ enterprise email-us card + billing FAQ + final CTA strip.
- *
- * Earlier passes carried a What's-Metered table, quota-wall, and a
- * self-host detail block — all rolled into the FAQ (quota behavior)
- * or removed entirely (self-host is documented at the dedicated docs
- * URL; nothing to add on the marketing pricing page).
+ * Pricing — Clarity direction. Flat per-org cards (Free / Pro / Business /
+ * Self-host), a "free at every tier" checklist, the metered-on-posts
+ * callout, the per-profile positioning band, the billing FAQ, and a final
+ * CTA. Copy + JSON-LD preserved from the receipt version.
  */
+
+const pricing = [
+  {
+    tier: "Free",
+    who: "Personal projects · single-platform automations",
+    price: "$0",
+    sub: "forever",
+    posts: "50 posts / mo",
+    cta: "Start free",
+    href: "https://dashboard.letmepost.dev",
+  },
+  {
+    tier: "Pro",
+    who: "Indie SaaS · agencies under 50 clients",
+    price: "$79",
+    sub: "/ mo",
+    posts: "5,000 posts / mo",
+    cta: "Start Pro",
+    href: "https://dashboard.letmepost.dev",
+    hi: true,
+  },
+  {
+    tier: "Business",
+    who: "Embedded social · uptime SLA · white-label OAuth",
+    price: "$299",
+    sub: "/ mo",
+    posts: "25,000 posts / mo",
+    cta: "Start Business",
+    href: "https://dashboard.letmepost.dev",
+  },
+  {
+    tier: "Self-host",
+    who: "Same image · BYO Postgres + Redis · Apache-2.0",
+    price: "$0",
+    sub: "Apache-2.0",
+    posts: "Unlimited",
+    cta: "Self-host docs",
+    href: "https://docs.letmepost.dev/self-host",
+  },
+];
+
+const freeAtEveryTier = [
+  "Unlimited connected profiles",
+  "Unlimited team members",
+  "All 8 platforms",
+  "Full API surface",
+  "Webhook endpoints & events",
+  "Idempotency keys",
+  "Preflight validation",
+  "Scheduling & cancel",
+  "Native MCP server + CLI",
+];
 
 const faqs = [
   {
@@ -21,7 +68,7 @@ const faqs = [
   },
   {
     q: "What happens if I go over my quota?",
-    a: "Hard cap, no overages. <b>0&nbsp;→&nbsp;79%</b> posts publish normally, no webhook noise. <b>80%</b> fires <code>quota.warning</code> + email to your billing contact. <b>100%</b> fires <code>quota.exceeded</code> + email, and new posts queue rather than publish. Bump to a higher tier and the queued posts publish immediately, or wait for the next billing period.",
+    a: "Hard cap, no overages. <b>0 to 79%</b> posts publish normally, no webhook noise. <b>80%</b> fires <code>quota.warning</code> + email to your billing contact. <b>100%</b> fires <code>quota.exceeded</code> + email, and new posts queue rather than publish. Bump to a higher tier and the queued posts publish immediately, or wait for the next billing period.",
   },
   {
     q: "Can I downgrade?",
@@ -33,7 +80,7 @@ const faqs = [
   },
   {
     q: "Is there a free trial of Pro?",
-    a: "No. The Free tier is the trial, it's the full API surface on a 50-post quota, indefinitely. If 50 posts a month is enough, the free tier is permanent.",
+    a: "No. The Free tier is the trial. It's the full API surface on a 50-post quota, indefinitely. If 50 posts a month is enough, the free tier is permanent.",
   },
   {
     q: "SSO / SCIM / DPA / custom SLA?",
@@ -57,108 +104,80 @@ const jsonLd: JsonLdGraph[] = [
 
 <BaseLayout
   title="Pricing: flat per-org, no per-profile tax"
-  description="Three tiers, one flat number per month. Free 50/mo, Pro $79 / 5,000, Business $299 / 25,000. Profiles, accounts, team members, webhooks, and API keys are all free. Hard caps, never overage surprises."
+  description="Three paid tiers plus self-host, one flat number per month. Free 50/mo, Pro $79 / 5,000, Business $299 / 25,000, self-host unlimited. Profiles, accounts, team members, webhooks, and API keys are all free. Hard caps, never overage surprises."
   jsonLd={jsonLd}
 >
-  <Tape />
-
-  <header class="page-head" data-sticky-anchor>
-    <div class="crumb"><a href="/">letmepost</a> / pricing</div>
-    <h1 class="page-h1">One flat number. No per-profile tax.</h1>
-    <p class="lede">
-      Three tiers, one metered thing: posts published. Profiles,
-      accounts, team members, webhook endpoints, and API keys are
-      all free. Quotas are hard caps with two-step warnings at 80%
-      and 100% — no surprise overage charges at 3am.
+  <header class="wrap page-head">
+    <p class="crumb"><a href="/">letmepost</a> / pricing</p>
+    <p class="eyebrow">Pricing</p>
+    <h1 class="cl-h1" style="max-width: 16ch;">One flat number. <span class="acc">No per-profile tax.</span></h1>
+    <p class="sub" style="max-width: 60ch;">
+      One metered thing: posts published. Profiles, connected accounts, team members,
+      webhooks and API keys are all free at every tier. Hard caps with webhooks at 80%
+      and 100%. No per-seat tax, no surprise overages at 3am.
     </p>
   </header>
 
-  <hr class="dash" />
-
-  {/* RATE CARD */}
-  <section class="section">
-    <h2 class="h-caps">RATE CARD</h2>
-    <div class="subtitle center">three tiers · billed monthly · cancel any time</div>
-
-    <div class="tiers">
-      <div class="tier">
-        <div class="name">Free</div>
-        <div class="who">Personal projects. Single-platform automations. Indefinite, not a trial.</div>
-        <div class="price">$0<small>/mo</small></div>
-        <div class="quota">QUOTA · <b>50 posts/mo</b></div>
-        <ul>
-          <li>All 8 platforms</li>
-          <li>Full API surface</li>
-          <li>MCP server + CLI</li>
-          <li>Webhooks (4 events)</li>
-          <li>7-day publish logs</li>
-          <li>Community Discord</li>
-        </ul>
-        <a href="https://dashboard.letmepost.dev" class="btn">Start free</a>
-      </div>
-
-      <div class="tier hi">
-        <div class="ribbon">Recommended</div>
-        <div class="name">Pro</div>
-        <div class="who">Indie SaaS. Agencies with under 50 clients. Real production traffic.</div>
-        <div class="price">$79<small>/mo</small></div>
-        <div class="quota">QUOTA · <b>5,000 posts/mo</b></div>
-        <ul>
-          <li>All 8 platforms</li>
-          <li>Full API surface</li>
-          <li>MCP server + CLI</li>
-          <li>All 8 webhook events</li>
-          <li>30-day publish logs</li>
-          <li>Email · 24h response</li>
-          <li>Webhook replay</li>
-        </ul>
-        <a href="https://dashboard.letmepost.dev" class="btn pri">Start Pro</a>
-      </div>
-
-      <div class="tier">
-        <div class="name">Business</div>
-        <div class="who">Embedded social features in SaaS. Larger agencies. White-label.</div>
-        <div class="price">$299<small>/mo</small></div>
-        <div class="quota">QUOTA · <b>25,000 posts/mo</b></div>
-        <ul>
-          <li>Everything in Pro</li>
-          <li>White-label OAuth</li>
-          <li>99.9% uptime SLA</li>
-          <li>180-day publish logs</li>
-          <li>Priority Slack + email</li>
-          <li>4h response</li>
-          <li>Custom rate limits</li>
-        </ul>
-        <a href="https://dashboard.letmepost.dev" class="btn">Start Business</a>
-      </div>
+  <section class="wrap sec tight" style="padding-top: 40px;">
+    <div class="pricing">
+      {
+        pricing.map((p) => (
+          <div class={`price${p.hi ? " hi" : ""}`}>
+            <div class="t">{p.tier}{p.hi && <span class="badge">Popular</span>}</div>
+            <div class="who">{p.who}</div>
+            <div class="p">{p.price} <small>{p.sub}</small></div>
+            <div class="po">{p.posts}</div>
+            <a class={`btn ${p.hi ? "pri" : "ghost"} price-cta`} href={p.href}>{p.cta}</a>
+          </div>
+        ))
+      }
     </div>
-
-    {/* Enterprise / above-Business CTA card — replaces the previous
-        "Beyond Business" prose paragraph. Same information, framed as
-        a clear one-line CTA instead of a sentence buried under the
-        tier grid. */}
-    <a href="mailto:rose@letmepost.dev" class="enterprise-card">
-      <div class="l">
-        <div class="label">Business+</div>
-        <div class="body">
-          Volume · SSO · SCIM · custom SLA · white-labelling · DPA.
-        </div>
-      </div>
-      <div class="r">EMAIL US →</div>
-    </a>
+    <p class="trust" style="margin-top: 18px;">
+      Prices in USD, billed monthly · cancel anytime · <b>Business+</b>
+      (volume / SSO / SCIM / DPA / custom SLA) is enquiry-driven.
+    </p>
   </section>
 
-  <hr class="dash" />
+  <section class="wrap sec">
+    <p class="kicker">Free at every tier</p>
+    <h2 class="cl-h2">You pay for volume. Everything else is included.</h2>
+    <div class="free-list">
+      {freeAtEveryTier.map((f) => <div class="f">{f}</div>)}
+    </div>
 
-  {/* FAQ */}
-  <section class="section">
-    <h2 class="h-mixed">Fine print, billing.</h2>
-    <p class="subtitle left">the questions a CFO would ask</p>
+    <div class="meter">
+      <h3>The only thing we meter is posts published.</h3>
+      <p>
+        A post counts once, the moment it's accepted for publishing. Validation calls
+        don't count. When you hit your cap the next post queues rather than publishing,
+        and you get a webhook. Quota warnings fire at 80% and 100%. No metered overage
+        charges, ever.
+      </p>
+      <div class="m-row">
+        <span class="mi">quota.warning · 80%</span>
+        <span class="mi">quota.exceeded · 100%</span>
+        <span class="mi">post queues, never silently drops</span>
+      </div>
+    </div>
+  </section>
 
+  <section class="wrap sec divider">
+    <p class="kicker">Why this shape</p>
+    <h2 class="cl-h2">Per-profile pricing is the thing we're replacing.</h2>
+    <p class="lead">
+      Buffer charges per channel. Ayrshare charges per profile. Sprout charges per seat.
+      That's the model developers hate, so we rejected it, not deferred it. Flat per-org,
+      metered on the one thing that actually costs us money to deliver: a published post.
+    </p>
+  </section>
+
+  <section class="wrap sec tight">
+    <p class="kicker">Fine print, billing</p>
+    <h2 class="cl-h2">The questions a CFO would ask.</h2>
     <div class="faq">
       {
         faqs.map((f) => (
-          <div class="item-q">
+          <div class="q-item">
             <p class="q">{f.q}</p>
             <p class="a" set:html={f.a} />
           </div>
@@ -167,207 +186,32 @@ const jsonLd: JsonLdGraph[] = [
     </div>
   </section>
 
-  <hr class="double" />
-
-  {/* CTA strip */}
-  <div class="cta-strip">
-    <h2>The free tier is the trial.</h2>
-    <p>50 posts/mo, full API surface, no credit card. Indefinite.</p>
-    <div class="ctas">
-      <a
-        href="https://dashboard.letmepost.dev"
-        class="btn pri"
-        data-analytics-event="cta.clicked"
-        data-analytics-props='{"location":"pricing-final","target":"dashboard","page":"pricing","label":"Send my first post"}'
-      >SEND MY FIRST POST →</a>
-      <a href="mailto:rose@letmepost.dev" class="btn">EMAIL US</a>
+  <section class="wrap">
+    <div class="final">
+      <h2>The free tier is the trial.</h2>
+      <p>Fifty posts a month, full API surface, no credit card. Indefinite. Move to Pro the day your automation outgrows it.</p>
+      <div class="ctas">
+        <a
+          class="btn pri lg"
+          href="https://dashboard.letmepost.dev"
+          data-analytics-event="cta.clicked"
+          data-analytics-props='{"location":"pricing-final","target":"dashboard","page":"pricing","label":"Send my first post"}'
+        >Send my first post →</a>
+        <a class="btn ghost lg" href="mailto:rose@letmepost.dev">Email us</a>
+      </div>
     </div>
-  </div>
-
-  <Closeout codeLine="000 LMP 0002 · 2026-05-23 · 14:21Z" />
-  <Tape bottom />
-
-  {/* Right rail — billing notes */}
-  <aside class="marg" aria-label="Billing notes" slot="rightRail">
-    <div class="note">
-      <span class="tag">Free side</span>
-      Profiles, accounts, team members, webhooks, and API keys are <b>all free</b>. Only successful publishes meter against your monthly cap.
-    </div>
-    <div class="note">
-      <span class="tag">Hard caps</span>
-      When you hit your monthly limit, we send a webhook + email at <b>80%</b> and <b>100%</b>. No surprise overages. No silent billing.
-    </div>
-    <div class="note">
-      <span class="tag">Currency</span>
-      USD. Tax / VAT added at checkout per your jurisdiction.
-    </div>
-    <div class="note">
-      <span class="tag">Alpha credit</span>
-      Sign up before <b>2026-07-22</b> and the first 60 days after billing turns on are free. No commitment.
-    </div>
-    <div class="note">
-      <span class="tag">Why hard caps</span>
-      Overage billing has bitten too many small teams at 3am. We made the wall loud and the bill predictable.
-    </div>
-  </aside>
+  </section>
 </BaseLayout>
 
-<style is:global>
-  /* ── Pricing-only ─────────────────────────────────────────
-     The 4-up tier grid and supporting blocks. Kept page-scoped
-     because every other page either uses tariff (landing) or
-     no pricing tables at all. */
-
-  .tiers {
-    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0;
-    margin: 14px 0 18px;
-    border: 1px solid var(--r-line);
-  }
-  .tier {
-    padding: 22px 20px 24px;
-    border-right: 1px dashed var(--r-very);
-    display: flex; flex-direction: column;
-    background: var(--r-paper);
-    position: relative;
-  }
-  .tier:last-child { border-right: 0; }
-  .tier.hi { background: var(--r-accent-soft); }
-  .tier .ribbon {
-    position: absolute; top: 8px; right: 8px;
-    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--r-paper); background: var(--r-accent);
-    padding: 3px 8px; line-height: 1;
-  }
-  .tier .name {
-    font-size: 10px; letter-spacing: 0.18em;
-    text-transform: uppercase; color: var(--r-very);
-    margin-bottom: 2px; font-weight: 700;
-  }
-  .tier .who {
-    font-size: 11px; color: var(--r-dim); margin-bottom: 16px;
-    min-height: 44px; line-height: 1.4;
-  }
-  .tier .price {
-    font-size: 32px; font-weight: 700; letter-spacing: -0.02em;
-    font-variant-numeric: tabular-nums; line-height: 1; margin-bottom: 4px;
-    color: var(--r-ink);
-  }
-  .tier .price small {
-    font-size: 12px; color: var(--r-dim); font-weight: 400;
-    margin-left: 4px; letter-spacing: 0;
-  }
-  .tier .quota {
-    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--r-very); padding: 10px 0 12px;
-    border-bottom: 1px dotted var(--r-very);
-    margin-bottom: 12px;
-    white-space: nowrap;
-  }
-  .tier .quota b {
-    color: var(--r-ink); font-weight: 700; font-size: 12px;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: 0.04em;
-  }
-  .tier ul {
-    list-style: none; padding: 0; margin: 0 0 18px;
-    font-size: 11.5px; color: var(--r-dim);
-    flex: 1; line-height: 1.5;
-  }
-  .tier ul li {
-    padding: 5px 0;
-    display: grid; grid-template-columns: 14px 1fr; gap: 4px;
-  }
-  .tier ul li::before { content: '+'; color: var(--r-accent); font-weight: 700; }
-  .tier .btn {
-    font-family: var(--r-mono); font-size: 11px; font-weight: 700;
-    letter-spacing: 0.06em;
-    padding: 10px 14px;
-    border: 2px solid var(--r-ink);
-    background: var(--r-paper); color: var(--r-ink);
-    text-decoration: none; text-align: center;
-    cursor: pointer; display: block;
-  }
-  .tier .btn:hover { background: var(--r-ink); color: var(--r-paper); }
-  .tier .btn.pri { background: var(--r-ink); color: var(--r-paper); }
-  .tier .btn.pri:hover { background: var(--r-accent); border-color: var(--r-accent); }
-  [data-theme="dark"] .tier .btn.pri:hover { color: #0e0e0a; }
-
-  /* Business+ enterprise card — single horizontal row beneath the tier
-     grid. Sits in for what used to be a prose paragraph that pointed
-     readers at the "let's talk" path. */
-  .enterprise-card {
-    display: grid; grid-template-columns: 1fr auto;
-    gap: 16px; align-items: center;
-    margin: 18px 0 0;
-    padding: 16px 22px;
-    border: 1px solid var(--r-line);
-    background: var(--r-paper);
-    text-decoration: none; color: var(--r-fg);
-    transition: border-color 100ms, background 100ms;
-  }
-  .enterprise-card:hover {
-    border-color: var(--r-accent);
-    background: var(--r-accent-soft);
-  }
-  .enterprise-card .l .label {
-    font-size: 9px; letter-spacing: 0.22em;
-    text-transform: uppercase; color: var(--r-very);
-    margin-bottom: 4px; font-weight: 700;
-  }
-  .enterprise-card .l .body {
-    font-size: 13px; color: var(--r-dim); line-height: 1.5;
-  }
-  .enterprise-card:hover .l .body { color: var(--r-fg); }
-  .enterprise-card .r {
-    font-size: 11px; font-weight: 700;
-    letter-spacing: 0.12em; text-transform: uppercase;
-    color: var(--r-accent); white-space: nowrap;
-  }
-  @media (max-width: 540px) {
-    .enterprise-card { grid-template-columns: 1fr; gap: 8px; }
-  }
-
-  /* Founding-member banner */
-  .founding {
-    border: 2px dashed var(--r-accent);
-    padding: 16px 20px;
-    margin: 14px 0;
-    background: var(--r-accent-soft);
-    display: grid; grid-template-columns: 1fr auto; gap: 16px;
-    align-items: center;
-  }
-  .founding .l h3 {
-    font-family: var(--r-mono); font-size: 14px; font-weight: 700;
-    margin: 0 0 4px; letter-spacing: 0.04em; text-transform: uppercase;
-  }
-  .founding .l h3 b { color: var(--r-accent); }
-  .founding .l p { margin: 0; font-size: 12px; color: var(--r-dim); }
-  .founding .r {
-    font-size: 26px; font-weight: 700; color: var(--r-accent);
-    font-variant-numeric: tabular-nums; line-height: 1;
-    text-align: right; white-space: nowrap;
-  }
-  .founding .r small {
-    font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--r-very); display: block; margin-top: 4px; font-weight: 400;
-  }
-
-  /* Footer CTA strip */
-  .cta-strip {
-    margin-top: 24px; padding: 28px 24px;
-    border: 2px solid var(--r-ink);
-    text-align: center; background: var(--r-paper);
-  }
-  .cta-strip h2 {
-    margin: 0 0 6px; font-family: var(--r-mono); font-weight: 700;
-    font-size: 18px; letter-spacing: -0.005em; color: var(--r-ink);
-  }
-  .cta-strip p { margin: 0 0 16px; color: var(--r-dim); font-size: 13px; }
-  .cta-strip .ctas { justify-content: center; }
-
-  @media (max-width: 820px) {
-    .tiers { grid-template-columns: 1fr; }
-    .tier { border-right: 0; border-bottom: 1px dashed var(--r-very); }
-    .tier:last-child { border-bottom: 0; }
-  }
+<style>
+  .free-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 28px; margin-top: 32px; }
+  .free-list .f { display: flex; align-items: baseline; gap: 10px; font-size: 15px; color: var(--ink); }
+  .free-list .f::before { content: "✓"; color: var(--acc); font-weight: 700; }
+  .meter { margin-top: 40px; border: 1px solid var(--line); border-radius: 16px; padding: 30px 34px; background: var(--acc-soft); }
+  .meter h3 { font-family: var(--disp); font-weight: 600; font-size: 22px; margin: 0 0 10px; }
+  .meter p { margin: 0; color: var(--mut); font-size: 16px; max-width: 70ch; line-height: 1.6; }
+  .meter .m-row { display: flex; gap: 26px; margin-top: 18px; flex-wrap: wrap; }
+  .meter .m-row .mi { font-family: var(--mono); font-size: 12.5px; color: var(--acc); }
+  @media (max-width: 860px) { .free-list { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) { .free-list { grid-template-columns: 1fr; } }
 </style>

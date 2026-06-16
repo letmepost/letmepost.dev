@@ -24,13 +24,15 @@ export const PLATFORM_STATES = ["live", "trial", "pending"] as const;
  * without a code change (see `apps/api/src/platforms/_shared/platform-state.ts`).
  */
 export const PLATFORM_STATE: Record<Platform, PlatformState> = {
+  // Live end-to-end today.
   bluesky: "live",
   pinterest: "live",
   twitter: "live",
-  linkedin: "live",
-  facebook: "live",
-  instagram: "live",
-  threads: "live",
+  // In platform review — publisher built + tested, awaiting approval.
+  linkedin: "pending",
+  facebook: "pending",
+  instagram: "pending",
+  threads: "pending",
   tiktok: "pending",
 };
 

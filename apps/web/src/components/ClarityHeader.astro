@@ -1,0 +1,78 @@
+---
+/**
+ * Clarity top navigation — sticky, blurred bar that replaces the receipt
+ * left nav-rail across every BaseLayout page.
+ *
+ * - Active link is derived from the current pathname.
+ * - The theme button reuses BaseLayout's existing 2-state `toggleTheme`
+ *   handler (bound via the `[data-theme-btn]` hook); sun/moon swap is
+ *   driven by `[data-theme]` in clarity.css.
+ * - The burger toggles `#cl-mobile`; the toggle handler lives in
+ *   BaseLayout's shared chrome script so it rebinds across view transitions.
+ */
+import ClarityBrand from "./ClarityBrand.astro";
+
+const pathname = Astro.url.pathname;
+const isCurrent = (prefix: string) =>
+  prefix === "/"
+    ? pathname === "/"
+    : pathname === prefix || pathname.startsWith(prefix + "/");
+
+const NAV = [
+  { label: "Docs", href: "https://docs.letmepost.dev", external: true },
+  { label: "Pricing", href: "/pricing", match: "/pricing" },
+  { label: "Platforms", href: "/platforms", match: "/platforms" },
+  { label: "APIs", href: "/api/publishing", match: "/api" },
+  { label: "Blog", href: "/blog", match: "/blog" },
+  { label: "For agents", href: "/agents", match: "/agents" },
+];
+
+const DASHBOARD = "https://dashboard.letmepost.dev";
+---
+
+<nav class="cl-nav">
+  <div class="inner">
+    <ClarityBrand size={24} />
+
+    <div class="cl-navlinks">
+      {
+        NAV.map((l) =>
+          l.external ? (
+            <a href={l.href}>{l.label}</a>
+          ) : (
+            <a href={l.href} class={isCurrent(l.match!) ? "current" : undefined}>
+              {l.label}
+            </a>
+          ),
+        )
+      }
+    </div>
+
+    <div class="cl-navactions">
+      <a
+        class="btn pri"
+        href={DASHBOARD}
+        data-analytics-event="cta.clicked"
+        data-analytics-props='{"location":"nav","target":"dashboard","label":"Start for free"}'
+      >Start for free</a>
+
+      <button
+        class="cl-burger"
+        data-burger
+        type="button"
+        aria-label="Menu"
+        aria-expanded="false"
+        aria-controls="cl-mobile"
+      >
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 5h14M2 9h14M2 13h14"></path></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="cl-mobile" id="cl-mobile">
+  <div class="m-inner">
+    {NAV.map((l) => <a href={l.href}>{l.label}</a>)}
+    <a class="btn pri m-cta" href={DASHBOARD}>Start for free →</a>
+  </div>
+</div>

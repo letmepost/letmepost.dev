@@ -1,0 +1,102 @@
+---
+/**
+ * "Fig. 1 — Fan-out topology" hero schematic: one SOURCE (POST /v1/posts)
+ * fanning out through animated curved wires to every connected platform.
+ * Platforms come from PLATFORMS (canonical), live ones sorted first. No
+ * status chips, no background grid — just the topology. The flow pulse
+ * respects prefers-reduced-motion.
+ */
+import PlatformIcon from "./PlatformIcon.astro";
+import { PLATFORMS } from "../data/platforms.ts";
+
+const order: Record<string, number> = { live: 0, trial: 0, pending: 1, planned: 2 };
+const seen = new Set<string>();
+const platforms = PLATFORMS.filter((p) =>
+  seen.has(p.slug) ? false : (seen.add(p.slug), true),
+).sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3));
+
+// SVG connector geometry. Rows are a fixed height so the curve endpoints
+// line up with each platform row's vertical center.
+const ROW_H = 56;
+const W = 96;
+const H = platforms.length * ROW_H;
+const cy = H / 2;
+const wires = platforms.map((_, i) => {
+  const y = i * ROW_H + ROW_H / 2;
+  return `M0 ${cy} C ${W * 0.55} ${cy} ${W * 0.45} ${y} ${W} ${y}`;
+});
+---
+
+<figure class="topo" aria-label="Fan-out topology: one POST to /v1/posts fans out to every connected platform">
+  <div class="topo-body" style={`--row-h:${ROW_H}px`}>
+    <div class="topo-source">
+      <span class="lbl">Source</span>
+      <span class="m">POST</span>
+      <span class="path">/v1/posts</span>
+    </div>
+
+    <svg class="topo-wires" viewBox={`0 0 ${W} ${H}`} width={W} height={H} preserveAspectRatio="none" aria-hidden="true">
+      {wires.map((d) => <path class="wire" d={d} />)}
+      {wires.map((d, i) => (
+        <path class="flow" d={d} pathLength="100" style={`animation-delay:${(i * 0.16).toFixed(2)}s`} />
+      ))}
+    </svg>
+
+    <div class="topo-rows">
+      {
+        platforms.map((p) => (
+          <div class="topo-row">
+            <span class="g"><PlatformIcon platform={p.slug} size={18} /></span>
+            <span class="nm">{p.name}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</figure>
+
+<style>
+  .topo { margin: 0; }
+
+  .topo-body { display: grid; grid-template-columns: 132px 96px 1fr; gap: 0; align-items: center; }
+
+  .topo-source {
+    align-self: center;
+    display: flex; flex-direction: column; gap: 3px; text-align: center;
+    border: 2px solid var(--ink); border-radius: 12px; padding: 18px 14px;
+    background: transparent;
+  }
+  .topo-source .lbl { font-family: var(--mono); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); }
+  .topo-source .m { font-family: var(--mono); font-weight: 600; font-size: 18px; color: var(--acc); line-height: 1.1; }
+  .topo-source .path { font-family: var(--mono); font-size: 15px; color: var(--ink); }
+
+  .topo-wires { display: block; height: 100%; overflow: visible; }
+  .topo-wires .wire { fill: none; stroke: var(--line); stroke-width: 1.5; }
+  .topo-wires .flow {
+    fill: none; stroke: var(--acc); stroke-width: 1.5; stroke-linecap: round;
+    stroke-dasharray: 1.5 98.5; opacity: 0.35;
+    animation: topo-flow 1.5s linear infinite;
+  }
+  @keyframes topo-flow {
+    from { stroke-dashoffset: 100; }
+    to   { stroke-dashoffset: 0; }
+  }
+
+  .topo-rows { display: flex; flex-direction: column; }
+  .topo-row { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: center; height: var(--row-h, 56px); }
+  .topo-row .g { display: flex; align-items: center; justify-content: center; color: var(--ink); }
+  .topo-row .nm { font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--ink); white-space: nowrap; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .topo-wires .flow { animation: none; opacity: 0; }
+  }
+
+  @media (max-width: 560px) {
+    .topo { padding: 18px 16px; }
+    .topo-body { grid-template-columns: 1fr; }
+    .topo-source { align-self: stretch; margin-bottom: 18px; }
+    .topo-wires { display: none; }
+    .topo-rows { border-top: 1px solid var(--line); }
+    .topo-row { border-bottom: 1px solid var(--line); }
+  }
+</style>

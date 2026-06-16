@@ -1,7 +1,5 @@
 ---
 import BaseLayout, { type JsonLdGraph } from "../layouts/BaseLayout.astro";
-import Tape from "../components/Tape.astro";
-import Closeout from "../components/Closeout.astro";
 import { ROSE_PERSON_SCHEMA } from "../lib/seo.ts";
 
 const jsonLd: JsonLdGraph[] = [ROSE_PERSON_SCHEMA];
@@ -12,153 +10,73 @@ const jsonLd: JsonLdGraph[] = [ROSE_PERSON_SCHEMA];
   description="letmepost.dev is built by Rose Kamal Love (ex-GrooveHQ, Kroto). Apache 2.0, solo-dev shop, transparent about what works and what doesn't."
   jsonLd={jsonLd}
 >
-  <Tape />
-
-  <header class="page-head" data-sticky-anchor>
-    <div class="crumb"><a href="/">letmepost</a> / about</div>
-    <h1 class="page-h1">One operator. One inbox. <span class="acc">Open source</span>.</h1>
-    <p class="lede">
-      letmepost.dev is a solo-dev shop building the social media
-      publishing API the existing ones aren't. No funding round, no
-      growth team, no per-profile billing tax.
+  <header class="wrap page-head">
+    <p class="crumb"><a href="/">letmepost</a> / about</p>
+    <p class="eyebrow">About</p>
+    <h1 class="cl-h1" style="max-width: 16ch;">One operator. One inbox. <span class="acc">Open source.</span></h1>
+    <p class="sub" style="max-width: 58ch;">
+      letmepost.dev is a solo-dev shop building the social media publishing API the
+      existing ones aren't. No funding round, no growth team, no per-profile billing tax.
     </p>
   </header>
 
-  <hr class="dash" />
-
-  <section class="section">
-    <h2 class="h-caps">WHO</h2>
-
-    <div class="about-block">
-      <h3>Rose Kamal Love</h3>
+  <section class="wrap sec tight">
+    <p class="kicker">Who</p>
+    <h2 class="cl-h2">Rose Kamal Love.</h2>
+    <div class="prose">
       <p>
-        Founder. Solo. Previously engineering at <b>GrooveHQ</b> and
-        <b>Kroto</b>. I've shipped customer-facing software for ten years
-        and built two products that grew through developer trust, not
-        ad spend. letmepost.dev is the third.
+        Founder. Solo. Previously engineering at <b>GrooveHQ</b> and <b>Kroto</b>.
+        I've shipped customer-facing software for ten years and built two products that
+        grew through developer trust, not ad spend. letmepost.dev is the third.
       </p>
       <p>
-        Find me on
-        <a href="https://github.com/rosekamallove">GitHub</a>,
-        <a href="https://x.com/rosekamallove">X</a>,
-        and <a href="https://bsky.app/profile/rosekamallove.dev">Bluesky</a>.
-        Email <a href="mailto:rose@letmepost.dev">rose@letmepost.dev</a>
-        reaches me directly, usually inside 24h on weekdays.
+        Find me on <a href="https://github.com/rosekamallove">GitHub</a>,
+        <a href="https://x.com/rosekamallove">X</a>, and
+        <a href="https://bsky.app/profile/rosekamallove.dev">Bluesky</a>. Email
+        <a href="mailto:rose@letmepost.dev">rose@letmepost.dev</a> reaches me directly,
+        usually inside 24h on weekdays.
       </p>
     </div>
   </section>
 
-  <hr class="dash" />
-
-  <section class="section">
-    <h2 class="h-caps">WHY THIS</h2>
-
-    <div class="about-block">
+  <section class="wrap sec divider">
+    <p class="kicker">Why this</p>
+    <h2 class="cl-h2">Loud failure, per-org billing, pinned versions.</h2>
+    <div class="prose">
       <p>
-        Every existing social media API has the same shape: per-profile
-        billing that punishes scale, silent failure modes that punish
-        debugging, and a six-month half-life on platform integrations
-        because nobody pins API versions.
+        Every existing social media API has the same shape: per-profile billing that
+        punishes scale, silent failure modes that punish debugging, and a six-month
+        half-life on platform integrations because nobody pins API versions.
       </p>
       <p>
-        letmepost.dev is the version where failure is loud, billing is
-        per-org, version pinning is the contract, and the entire stack
-        is Apache 2.0. The hosted SaaS runs the exact image you can
-        self-host. No open-core trick.
+        letmepost.dev is the version where failure is loud, billing is per-org, version
+        pinning is the contract, and the entire stack is Apache 2.0. The hosted SaaS
+        runs the exact image you can self-host. No open-core trick.
       </p>
     </div>
   </section>
 
-  <hr class="dash" />
-
-  <section class="section">
-    <h2 class="h-caps">HOW WE WORK</h2>
-
-    <div class="about-block">
+  <section class="wrap sec divider">
+    <p class="kicker">How we work</p>
+    <h2 class="cl-h2">Build in public, honest status.</h2>
+    <div class="prose">
       <ul>
-        <li>
-          <b>Build in public.</b> Roadmap, status, and platform-review
-          state live on the marketing pages. The <a href="/status">status page</a> is the
-          same metrics dashboard we look at.
-        </li>
-        <li>
-          <b>Honest status.</b> Bluesky, X, and Pinterest are
-          live. Four Meta platforms + LinkedIn are in review. TikTok is
-          planned. We never mark a platform "available" before it is.
-        </li>
-        <li>
-          <b>No sales call required.</b> Free tier, public pricing,
-          Stripe Checkout. Email us if Business+ doesn't cover what you
-          need — but you don't have to.
-        </li>
-        <li>
-          <b>Open source from day one.</b>
-          <a href="https://github.com/letmepost/letmepost.dev">github.com/letmepost</a>.
-          Apache 2.0. Self-host the same image that runs the hosted SaaS.
-        </li>
+        <li><b>Build in public.</b> Roadmap, status, and platform-review state live on the marketing pages. The <a href="/status">status page</a> is the same metrics dashboard we look at.</li>
+        <li><b>Honest status.</b> Bluesky, X, and Pinterest are live end-to-end. Instagram, Facebook, Threads, and LinkedIn are in platform review; TikTok is in App Review. We never mark a platform "available" before it is.</li>
+        <li><b>No sales call required.</b> Free tier, public pricing, Stripe Checkout. Email us if Business+ doesn't cover what you need, but you don't have to.</li>
+        <li><b>Open source from day one.</b> <a href="https://github.com/letmepost/letmepost.dev">github.com/letmepost</a>. Apache 2.0. Self-host the same image that runs the hosted SaaS.</li>
       </ul>
     </div>
   </section>
 
-  <hr class="double" />
-
-  <Closeout
-    thanks="* * * THANK YOU FOR READING * * *"
-    codeLine="000 LMP ABOUT · 2026-05-26"
-    links={[
-      { href: "/", label: "home" },
-      { href: "/pricing", label: "pricing" },
-      { href: "/blog", label: "writing" },
-      { href: "mailto:rose@letmepost.dev", label: "email" },
-    ]}
-  />
-  <Tape bottom />
-
-  <aside class="marg" aria-label="Notes" slot="rightRail">
-    <div class="note">
-      <span class="tag">Solo</span>
-      One operator, one inbox. No outsourced support, no AI replies on serious questions.
+  <section class="wrap">
+    <div class="final">
+      <h2>Build on it, or read the source.</h2>
+      <p>Open an issue, send a PR, or just send your first post. We build in the open.</p>
+      <div class="ctas">
+        <a class="btn pri lg" href="https://dashboard.letmepost.dev">Start free →</a>
+        <a class="btn ghost lg" href="https://github.com/letmepost/letmepost.dev">View source ↗</a>
+      </div>
     </div>
-    <div class="note">
-      <span class="tag">Licence</span>
-      Apache 2.0. Self-host is a first-class path, not a footnote.
-    </div>
-    <div class="note">
-      <span class="tag">Funding</span>
-      Bootstrapped. No outside funding. Revenue from the Pro / Business tiers funds development.
-    </div>
-    <div class="note">
-      <span class="tag">Press</span>
-      Quotes welcome. Email <a href="mailto:rose@letmepost.dev">rose@letmepost.dev</a>.
-    </div>
-  </aside>
+  </section>
 </BaseLayout>
-
-<style is:global>
-  .about-block {
-    font-size: 13px;
-    line-height: 1.7;
-    color: var(--r-fg);
-  }
-  .about-block h3 {
-    font-family: var(--r-mono);
-    font-weight: 700;
-    font-size: 16px;
-    margin: 0 0 8px;
-    color: var(--r-ink);
-  }
-  .about-block p { margin: 0 0 12px; color: var(--r-dim); }
-  .about-block b { color: var(--r-ink); font-weight: 700; }
-  .about-block a { color: var(--r-accent); }
-  .about-block ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  .about-block ul li {
-    padding: 10px 0;
-    border-bottom: 1px dotted var(--r-very);
-    color: var(--r-dim);
-  }
-  .about-block ul li:last-child { border-bottom: 0; }
-</style>

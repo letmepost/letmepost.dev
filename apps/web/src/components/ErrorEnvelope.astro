@@ -1,0 +1,61 @@
+---
+/**
+ * "Anatomy of a failure" — a representative preflight rejection (HTTP 422)
+ * shown as a field table on the code surface. Every non-2xx carries a
+ * stable code, the rule that fired, the pinned platform version, a
+ * remediation hint, and docs links. Clarity styling.
+ */
+const fields: { k: string; v: string; cls?: string }[] = [
+  { k: "code", v: "preflight_failed", cls: "b" },
+  { k: "rule", v: "bluesky.text.max_graphemes", cls: "acc b" },
+  { k: "platform", v: "bluesky" },
+  { k: "platform_version", v: "atproto-2026-04" },
+  { k: "message", v: "Text is 312 graphemes; Bluesky allows at most 300." },
+  { k: "remediation", v: "Trim the text to 300 graphemes or fewer." },
+  { k: "doc_url", v: "docs.letmepost.dev/errors/preflight_failed", cls: "acc" },
+  { k: "rule_url", v: "docs.letmepost.dev/preflight/bluesky-text-max_graphemes", cls: "acc" },
+  { k: "request_id", v: "req_01HXY7Z8K9MNB1P2QR3STVW" },
+  { k: "trace_id", v: "01jb7q9c4e5f6g7h8i9k0lm1np" },
+];
+---
+
+<section class="wrap sec divider">
+  <p class="kicker">Anatomy of a failure</p>
+  <h2 class="cl-h2">Structured every time. No empty 500s.</h2>
+  <p class="lead">
+    When a request would break a platform's rules, letmepost rejects it locally with the
+    exact rule that fired, the pinned platform version, and how to fix it.
+  </p>
+
+  <div class="envelope">
+    <div class="env-bar">
+      <span>HTTP/1.1 422 Unprocessable Entity</span>
+      <span>application/json</span>
+    </div>
+    <div class="env-body">
+      {
+        fields.map((f) => (
+          <div class="env-field">
+            <span class="k">{f.k}</span>
+            <span class={`v ${f.cls ?? ""}`}>{f.v}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .envelope { margin-top: 36px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--code-bg); }
+  .env-bar { display: flex; align-items: center; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid color-mix(in srgb, var(--code-fg) 14%, transparent); font-family: var(--mono); font-size: 12px; color: var(--code-c); }
+  .env-body { padding: 18px; font-family: var(--mono); font-size: 13px; }
+  .env-field { display: grid; grid-template-columns: 170px 1fr; gap: 16px; padding: 4px 0; line-height: 1.6; }
+  .env-field .k { color: var(--code-c); }
+  .env-field .v { color: var(--code-fg); word-break: break-word; }
+  .env-field .v.b { font-weight: 600; }
+  .env-field .v.acc { color: var(--code-k); }
+  @media (max-width: 560px) {
+    .env-field { grid-template-columns: 1fr; gap: 0; }
+    .env-field .k { color: var(--faint); }
+  }
+</style>

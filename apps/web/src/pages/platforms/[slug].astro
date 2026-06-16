@@ -2,44 +2,32 @@
 import BaseLayout, { type JsonLdGraph } from "../../layouts/BaseLayout.astro";
 import { faqPageSchema } from "../../lib/seo.ts";
 import { Icon } from "astro-icon/components";
-import Tape from "../../components/Tape.astro";
-import Closeout from "../../components/Closeout.astro";
+import PlatformIcon from "../../components/PlatformIcon.astro";
 import { PLATFORMS, type Platform } from "../../data/platforms.ts";
 import { PLATFORM_CONTENT } from "../../data/platform-content.ts";
 import { highlight } from "../../lib/highlight.ts";
 
 /**
- * Per-platform landing page. Receipt design from platform.html +
- * platform-bluesky.html. Content per platform comes from
- * data/platform-content.ts; canonical product status comes from
- * PLATFORMS (which mirrors @letmepost/schemas/platform-state).
+ * Per-platform landing page — Clarity design, full marketing copy.
+ * Content per platform comes from data/platform-content.ts (our copy);
+ * canonical status comes from PLATFORMS (mirrors PLATFORM_STATE).
  *
- * Page sections, in order:
- *   1. Centered hero (h1 + sub + lede + CTAs + mini-code)
- *   2. VS comparison ("direct" vs letmepost)
- *   3. Highlight block (status-aware callout)
- *   4. Playground (try-it card)
- *   5. Content-type pills
- *   6. How it works (3 steps)
- *   7. Feature grid (4 cards)
- *   8. Big code example
- *   9. Error-reference link
- *  10. FAQ
- *  11. One API · 8 platforms cross-sell
- *  12. Learn more 3-card row
- *  13. Final CTA
- *  14. Closeout
- *
- * These pages are intentionally long — they're the Google-Ads landing
- * surface. Marketing copy stays in platform-content.ts so the template
- * is a clean render of those fields.
+ * Sections: hero (h1 + lede + CTAs + mini-code) → VS comparison →
+ * highlight → playground → content types → how it works → features →
+ * code example → error reference → FAQ → cross-sell → notes → final CTA.
  */
 
+// platforms.ts lists TikTok twice — dedupe by slug.
+function dedupe(list: readonly Platform[]): Platform[] {
+  const seen = new Set<string>();
+  return list.filter((p) => (seen.has(p.slug) ? false : (seen.add(p.slug), true)));
+}
+
 export function getStaticPaths() {
-  return PLATFORMS.map((platform) => ({
-    params: { slug: platform.slug },
-    props: { platform },
-  }));
+  const seen = new Set<string>();
+  return PLATFORMS.filter((p) => (seen.has(p.slug) ? false : (seen.add(p.slug), true))).map(
+    (platform) => ({ params: { slug: platform.slug }, props: { platform } }),
+  );
 }
 
 interface Props {
@@ -48,24 +36,32 @@ interface Props {
 
 const { platform } = Astro.props;
 const content = PLATFORM_CONTENT[platform.slug];
+const firstWord = platform.name.split(" ")[0];
 
-const phosphor: Record<string, string> = {
-  bluesky: "ph:butterfly",
-  twitter: "ph:x-logo",
-  pinterest: "ph:pinterest-logo",
-  instagram: "ph:instagram-logo",
-  facebook: "ph:facebook-logo",
-  threads: "ph:threads-logo",
-  linkedin: "ph:linkedin-logo",
-  tiktok: "ph:tiktok-logo",
+const STATUS_LABEL: Record<string, string> = {
+  live: "Live",
+  pending: "In review",
+  trial: "Trial",
+  planned: "Planned",
+};
+const STATUS_PILL: Record<string, string> = {
+  live: "live",
+  pending: "in-review",
+  trial: "trial",
+  planned: "planned",
 };
 
-const statusBucket = (status: string): "live" | "in-review" | "planned" => {
-  if (status === "live" || status === "trial") return "live";
-  if (status === "pending") return "in-review";
-  return "planned";
-};
-const bucket = statusBucket(platform.status);
+const allPlatforms = dedupe(PLATFORMS).map((p) => ({
+  slug: p.slug,
+  name: p.name,
+  current: p.slug === platform.slug,
+}));
+
+const learnMore = [
+  { title: "Pricing", body: "Per-org flat rate", href: "/pricing" },
+  { title: `${platform.name} guide`, body: "Complete dev guide", href: `https://docs.letmepost.dev/platforms/${platform.slug}` },
+  { title: "API reference", body: "OpenAPI 3.1 spec", href: "https://docs.letmepost.dev/api-reference" },
+];
 
 const siteUrl = Astro.site!.toString().replace(/\/$/, "");
 
@@ -74,21 +70,10 @@ const breadcrumbJsonLd: JsonLdGraph = {
   "@type": "BreadcrumbList",
   itemListElement: [
     { "@type": "ListItem", position: 1, name: "Home", item: `${siteUrl}/` },
-    {
-      "@type": "ListItem",
-      position: 2,
-      name: "Platforms",
-      item: `${siteUrl}/platforms/`,
-    },
-    {
-      "@type": "ListItem",
-      position: 3,
-      name: platform.name,
-      item: `${siteUrl}/platforms/${platform.slug}/`,
-    },
+    { "@type": "ListItem", position: 2, name: "Platforms", item: `${siteUrl}/platforms/` },
+    { "@type": "ListItem", position: 3, name: platform.name, item: `${siteUrl}/platforms/${platform.slug}/` },
   ],
 };
-
 const softwareJsonLd: JsonLdGraph = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
@@ -96,38 +81,9 @@ const softwareJsonLd: JsonLdGraph = {
   description: platform.pitch,
   applicationCategory: "DeveloperApplication",
   operatingSystem: "Web",
-  offers: {
-    "@type": "Offer",
-    price: "0",
-    priceCurrency: "USD",
-    description: "Flat-rate per org",
-  },
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Flat-rate per org" },
   publisher: { "@id": `${siteUrl}/#organization` },
 };
-
-// All 8 platforms for the cross-sell grid at the bottom.
-const allPlatforms = PLATFORMS.map((p) => ({
-  slug: p.slug,
-  name: p.name,
-  icon: phosphor[p.slug] ?? "ph:circle",
-  current: p.slug === platform.slug,
-  bucket: statusBucket(p.status),
-}));
-
-// Default learn-more triplet — overridable in content if needed later.
-const learnMore = [
-  { title: "Pricing", body: "Per-org flat rate", href: "/pricing" },
-  {
-    title: `${platform.name} guide`,
-    body: "Complete dev guide",
-    href: `https://docs.letmepost.dev/platforms/${platform.slug}`,
-  },
-  {
-    title: "API reference",
-    body: "OpenAPI 3.1 spec",
-    href: "https://docs.letmepost.dev/api-reference",
-  },
-];
 ---
 
 <BaseLayout
@@ -136,150 +92,81 @@ const learnMore = [
   ogType="product"
   jsonLd={[breadcrumbJsonLd, softwareJsonLd, faqPageSchema(content.faqs)]}
 >
-  <Fragment slot="navColophon">
-    <div class="colophon" set:html={content.colophon} />
-  </Fragment>
-
-  <Tape />
-
   {/* Analytics marker for Analytics.astro's platform_page.viewed event */}
-  <span
-    data-platform-status={bucket === "live" ? "live" : "coming-soon"}
-    hidden
-  ></span>
+  <span data-platform-status={platform.status === "live" || platform.status === "trial" ? "live" : "coming-soon"} hidden></span>
 
-  <div class="crumb" style="padding: 28px 0 0;">
-    <a href="/">letmepost</a> / <a href="/platforms">platforms</a> / {platform.name}
-  </div>
-
-  {/* HERO — value-first headline with the platform's own icon
-      inlined between "Ship your" and the platform name, then the
-      accent-colored emphasis line below. Left-aligned to match the
-      rest of the site's page heads. */}
-  <header class="plat-h" data-sticky-anchor>
-    <h1>
+  <header class="wrap page-head">
+    <p class="crumb"><a href="/platforms">Platforms</a> / {platform.name}</p>
+    <p class="eyebrow eyebrow-status">
+      <span class={`pill ${STATUS_PILL[platform.status] ?? "planned"}`}>
+        {STATUS_LABEL[platform.status] ?? "Planned"}
+      </span>
+      Platform integration
+    </p>
+    <h1 class="cl-h1" style="max-width: 22ch;">
       {content.heroH1.before}{" "}
-      <Icon
-        name={phosphor[platform.slug] ?? "ph:circle"}
-        width={38}
-        height={38}
-        class="h1-icon"
-      />{" "}
-      {content.heroH1.after}
+      <span class="h1-nobr"><PlatformIcon platform={platform.slug} size={36} class="h1-icon" /> {content.heroH1.after}</span>
       <br />
       <span class="acc">{content.heroH1.emphasize}</span>
     </h1>
-    <p class="lede" set:html={content.heroLede} />
-    <div class="ctas">
+    <p class="sub" set:html={content.heroLede} />
+    <div class="ctas" style="margin-top: 30px;">
       <a
+        class="btn pri lg"
         href="https://dashboard.letmepost.dev"
-        class="btn pri"
         data-analytics-event="cta.clicked"
-        data-analytics-props={JSON.stringify({
-          location: "hero",
-          target: "dashboard",
-          page: "platform-detail",
-          label: `Start free — ${platform.name}`,
-        })}
-      >START FREE →</a>
-      <a
-        href={`https://docs.letmepost.dev/platforms/${platform.slug}`}
-        class="btn"
-      >VIEW API DOCS</a>
+        data-analytics-props={JSON.stringify({ location: "hero", target: "dashboard", page: "platform-detail", platform: platform.slug })}
+      >Connect {firstWord} →</a>
+      <a class="btn ghost lg" href={`https://docs.letmepost.dev/platforms/${platform.slug}`}>View API docs</a>
     </div>
-    {content.reassurance && (
-      <div class="reassurance" set:html={content.reassurance} />
-    )}
+    {content.reassurance && <p class="trust" set:html={content.reassurance} />}
 
-    <div class="mini-code">
-      <div class="hd">
-        <span class="dots">
-          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-        </span>
-        <span>POST /v1/posts</span>
-        <span>·</span>
-      </div>
+    <div class="code" style="margin-top: 36px;">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file">POST /v1/posts</span></div>
       <pre set:html={highlight("json", content.miniCode)} />
     </div>
   </header>
 
-  <hr class="dash" />
-
   {/* VS COMPARISON */}
-  <section class="section" style="text-align: center;">
-    <div class="vs-head">{content.vsHead}</div>
-    <div class="compare" style="text-align: left;">
-      <div class="col">
+  <section class="wrap sec">
+    <p class="vs-head">{content.vsHead}</p>
+    <div class="compare">
+      <div class="col them">
         <h3>{platform.name} Direct</h3>
-        <ul>
-          {
-            content.vsDirect.map((p) => (
-              <li>
-                <span set:html={p.body} />
-              </li>
-            ))
-          }
-        </ul>
+        <ul>{content.vsDirect.map((p) => <li set:html={p.body} />)}</ul>
       </div>
-      <div class="col">
+      <div class="col us">
         <h3>letmepost API</h3>
-        <ul>
-          {
-            content.vsLetmepost.map((p) => (
-              <li>
-                <span set:html={p.body} />
-              </li>
-            ))
-          }
-        </ul>
+        <ul>{content.vsLetmepost.map((p) => <li set:html={p.body} />)}</ul>
       </div>
     </div>
-    {content.costBanner && (
-      <div class={`cost-banner ${content.costBanner.tone}`}>
-        <span set:html={content.costBanner.body} />
-      </div>
-    )}
+    {content.costBanner && <div class={`cost-banner ${content.costBanner.tone}`} set:html={content.costBanner.body} />}
   </section>
 
-  {/* HIGHLIGHT BLOCK */}
   {content.highlight && (
-    <>
-      <hr class="dash" />
-      <section class="section">
-        <div class={`highlight-block ${content.highlight.tone}`}>
-          <h3>{content.highlight.title}</h3>
-          <p set:html={content.highlight.body} />
-        </div>
-      </section>
-    </>
+    <section class="wrap sec" style="padding-top: 0;">
+      <div class={`highlight-block ${content.highlight.tone}`}>
+        <h3>{content.highlight.title}</h3>
+        <p set:html={content.highlight.body} />
+      </div>
+    </section>
   )}
 
-  <hr class="dash" />
-
   {/* PLAYGROUND */}
-  <section class="section">
-    <h2 class="h-caps">PLAYGROUND</h2>
-    <div class="subtitle center">connect, configure, post</div>
+  <section class="wrap sec divider">
+    <p class="kicker">Playground</p>
+    <h2 class="cl-h2">Connect, configure, post.</h2>
     <div class="playground">
       <div class="pg-hd">
-        {
-          content.playground.steps.map((step, i) => (
-            <span class={`step ${i === 0 ? "" : "dim"}`}>▸ {step}</span>
-          ))
-        }
+        {content.playground.steps.map((s, i) => <span class={`step ${i === 0 ? "on" : ""}`}>▸ {s}</span>)}
       </div>
       <div class="pg-body">
         <p set:html={content.playground.body} />
         <a
-          href={content.playground.cta.href}
           class="btn pri"
+          href={content.playground.cta.href}
           data-analytics-event="cta.clicked"
-          data-analytics-props={JSON.stringify({
-            location: "playground",
-            target: "dashboard-connect",
-            page: "platform-detail",
-            platform: platform.slug,
-          })}
+          data-analytics-props={JSON.stringify({ location: "playground", target: "dashboard-connect", page: "platform-detail", platform: platform.slug })}
         >{content.playground.cta.label}</a>
         <div class="pg-result">
           <span class="check">✓</span>
@@ -290,575 +177,144 @@ const learnMore = [
     </div>
   </section>
 
-  <hr class="dash" />
-
   {/* CONTENT TYPES */}
-  <section class="section">
-    <h2 class="h-caps">CONTENT TYPES</h2>
-    <div class="subtitle center">every {platform.name.toLowerCase()} surface, one shape</div>
-    <div class="content-types">
-      {
-        content.contentTypes.map((ct) => (
-          <div class="pill">
-            <Icon name={`ph:${ct.icon}`} width={14} height={14} />
-            <b>{ct.label}</b>
-            {ct.note && (
-              <span style="color: var(--r-very); font-size: 11px;">· {ct.note}</span>
-            )}
-          </div>
-        ))
-      }
+  <section class="wrap sec divider">
+    <p class="kicker">Content types</p>
+    <h2 class="cl-h2">Every {firstWord} surface, one shape.</h2>
+    <div class="ctypes">
+      {content.contentTypes.map((ct) => (
+        <div class="ctype">
+          <Icon name={`ph:${ct.icon}`} width={15} height={15} />
+          <b>{ct.label}</b>
+          {ct.note && <span class="note">· {ct.note}</span>}
+        </div>
+      ))}
     </div>
   </section>
-
-  <hr class="dash" />
 
   {/* HOW IT WORKS */}
-  <section class="section">
-    <h2 class="h-caps">HOW IT WORKS</h2>
-    <div class="subtitle center">three steps · under two minutes</div>
+  <section class="wrap sec divider">
+    <p class="kicker">How it works</p>
+    <h2 class="cl-h2">Three steps, under two minutes.</h2>
     <div class="steps">
-      {
-        content.steps.map((s) => (
-          <div class="step">
-            <div>
-              <h4>{s.title}</h4>
-              <p set:html={s.body} />
-            </div>
+      {content.steps.map((s) => (
+        <div class="step">
+          <div>
+            <h4>{s.title}</h4>
+            <p set:html={s.body} />
           </div>
-        ))
-      }
+        </div>
+      ))}
     </div>
   </section>
 
-  <hr class="dash" />
-
-  {/* FEATURES GRID */}
-  <section class="section">
-    <h2 class="h-caps">FEATURES</h2>
-    <div class="subtitle center">what we built so you don't</div>
-    <div class="features-grid">
-      {
-        content.features.map((f) => (
-          <div class="feat">
-            <div class="ico">
-              <Icon name={`ph:${f.icon}`} width={14} height={14} />
-            </div>
-            <h4>{f.title}</h4>
-            <p set:html={f.body} />
-          </div>
-        ))
-      }
+  {/* FEATURES */}
+  <section class="wrap sec divider">
+    <p class="kicker">Features</p>
+    <h2 class="cl-h2">What we built so you don't.</h2>
+    <div class="cards c2">
+      {content.features.map((f) => (
+        <div class="card">
+          <div class="ic"><Icon name={`ph:${f.icon}`} width={18} height={18} /></div>
+          <h3>{f.title}</h3>
+          <p set:html={f.body} />
+        </div>
+      ))}
     </div>
   </section>
-
-  <hr class="dash" />
 
   {/* CODE EXAMPLE */}
-  <section class="section">
-    <h2 class="h-caps">CODE EXAMPLE</h2>
-    <div class="subtitle center">{content.codeExample.caption}</div>
-    <div class="code-big">
-      <div class="hd">
-        <span class="dots">
-          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
-          {content.codeExample.file}
-        </span>
-        <span>·</span>
-      </div>
+  <section class="wrap sec divider">
+    <p class="kicker">Code example</p>
+    <h2 class="cl-h2">{content.codeExample.caption}</h2>
+    <div class="code">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file">{content.codeExample.file}</span></div>
       <pre set:html={highlight("ts", content.codeExample.code)} />
     </div>
   </section>
 
-  {/* ERROR REFERENCE LINK */}
   {content.errorRef && (
-    <>
-      <hr class="dash" />
-      <section class="section">
-        <div class="err-ref-link">
-          <div>
-            <h4>{content.errorRef.title}</h4>
-            <p>{content.errorRef.body}</p>
-          </div>
-          <a href={content.errorRef.href}>VIEW ERROR REFERENCE →</a>
+    <section class="wrap sec" style="padding-top: 0;">
+      <div class="err-ref">
+        <div>
+          <h4>{content.errorRef.title}</h4>
+          <p>{content.errorRef.body}</p>
         </div>
-      </section>
-    </>
+        <a href={content.errorRef.href}>View error reference →</a>
+      </div>
+    </section>
   )}
 
-  <hr class="dash" />
-
   {/* FAQ */}
-  <section class="section">
-    <h2 class="h-caps">COMMON QUESTIONS</h2>
-    <div class="subtitle center">{content.faqSubtitle}</div>
+  <section class="wrap sec divider">
+    <p class="kicker">Common questions</p>
+    <h2 class="cl-h2">{content.faqSubtitle}</h2>
     <div class="faq">
-      {
-        content.faqs.map((f) => (
-          <div class="item-q">
-            <p class="q">{f.q}</p>
-            <p class="a" set:html={f.a} />
-          </div>
-        ))
-      }
+      {content.faqs.map((f) => (
+        <div class="q-item">
+          <p class="q">{f.q}</p>
+          <p class="a" set:html={f.a} />
+        </div>
+      ))}
     </div>
   </section>
 
-  <hr class="dash" />
-
-  {/* ONE API · 8 PLATFORMS */}
-  <section class="section">
-    <h2 class="h-caps">ONE API · {allPlatforms.length} PLATFORMS</h2>
-    <div class="subtitle center">{platform.name.toLowerCase()} is just one of them</div>
+  {/* ONE API · N PLATFORMS */}
+  <section class="wrap sec divider">
+    <p class="kicker">One API · {allPlatforms.length} platforms</p>
+    <h2 class="cl-h2">{firstWord} is just one of them.</h2>
     <div class="all-plats">
-      {
-        allPlatforms.map((p) => (
-          <a href={`/platforms/${p.slug}`} class={p.current ? "current" : ""}>
-            <Icon name={p.icon} width={16} height={16} />
-            {p.name}
-          </a>
-        ))
-      }
+      {allPlatforms.map((p) => (
+        <a href={`/platforms/${p.slug}`} class={p.current ? "current" : undefined}>
+          <PlatformIcon platform={p.slug} size={16} />
+          {p.name}
+        </a>
+      ))}
     </div>
   </section>
-
-  <hr class="dash" />
 
   {/* LEARN MORE */}
-  <section class="section">
-    <h2 class="h-caps">LEARN MORE</h2>
-    <div class="learn-more">
-      {
-        learnMore.map((l) => (
-          <a href={l.href}>
-            <h4>{l.title}</h4>
-            <p>{l.body}</p>
-          </a>
-        ))
-      }
+  <section class="wrap sec" style="padding-top: 0;">
+    <p class="kicker">Learn more</p>
+    <div class="cards c3">
+      {learnMore.map((l) => (
+        <a class="card" href={l.href}>
+          <h3>{l.title}</h3>
+          <div class="meta">{l.body}</div>
+        </a>
+      ))}
     </div>
   </section>
 
-  <hr class="double" />
+  {content.marg && content.marg.length > 0 && (
+    <section class="wrap sec divider">
+      <p class="kicker">Good to know</p>
+      <h2 class="cl-h2">Notes from the integration.</h2>
+      <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 32px;">
+        {content.marg.map((n) => (
+          <div class="callout">
+            <span class="callout-tag">{n.tag}</span>
+            <p set:html={n.body} />
+          </div>
+        ))}
+      </div>
+    </section>
+  )}
 
   {/* FINAL CTA */}
-  <section class="section" style="text-align: center;">
-    <h2 class="h-caps">{content.finalCtaH2}</h2>
-    <p class="lede" style="margin: 8px auto 18px; text-align: center;" set:html={content.finalCtaLede} />
-    <div class="ctas" style="justify-content: center;">
-      <a
-        href="https://dashboard.letmepost.dev"
-        class="btn pri"
-        data-analytics-event="cta.clicked"
-        data-analytics-props={JSON.stringify({
-          location: "platform-final",
-          target: "dashboard",
-          page: "platform-detail",
-          platform: platform.slug,
-        })}
-      >{content.finalCtaPrimaryLabel}</a>
-      <a href={content.finalCtaSecondaryHref} class="btn">{content.finalCtaSecondaryLabel}</a>
+  <section class="wrap">
+    <div class="final">
+      <h2>{content.finalCtaH2}</h2>
+      <p set:html={content.finalCtaLede} />
+      <div class="ctas">
+        <a
+          class="btn pri lg"
+          href="https://dashboard.letmepost.dev"
+          data-analytics-event="cta.clicked"
+          data-analytics-props={JSON.stringify({ location: "platform-final", target: "dashboard", page: "platform-detail", platform: platform.slug })}
+        >{content.finalCtaPrimaryLabel}</a>
+        <a class="btn ghost lg" href={content.finalCtaSecondaryHref}>{content.finalCtaSecondaryLabel}</a>
+      </div>
     </div>
   </section>
-
-  <Closeout
-    thanks={content.closeoutThanks}
-    codeLine={content.closeoutCodeLine}
-    links={[
-      { href: "/platforms", label: "all platforms" },
-      {
-        href: `https://docs.letmepost.dev/platforms/${platform.slug}`,
-        label: "platform docs ↗",
-      },
-      { href: "https://github.com/letmepost/letmepost.dev", label: "source" },
-    ]}
-  />
-  <Tape bottom />
-
-  <aside class="marg" aria-label="Notes" slot="rightRail">
-    {
-      content.marg.map((n) => (
-        <div class="note">
-          <span class="tag">{n.tag}</span>
-          <span set:html={n.body} />
-        </div>
-      ))
-    }
-  </aside>
 </BaseLayout>
-
-<style is:global>
-  /* ── /platforms/[slug] — shared platform-page styles ─── */
-
-  /* Hero — left-aligned to match every other page-head on the site.
-     Big h1 leads with "Ship your <icon> <platform> integration" on
-     the first line and an accent-colored value claim on the second. */
-  .plat-h {
-    padding: 36px 0 18px;
-    text-align: left;
-  }
-  .plat-h h1 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 38px; line-height: 1.1; letter-spacing: -0.025em;
-    margin: 0 0 18px; text-wrap: balance;
-    color: var(--r-ink);
-  }
-  .plat-h h1 .acc { color: var(--r-accent); }
-  /* Inline platform icon between the "Ship your" copy and the platform
-     name. Nudged slightly above the baseline so it lines up with the
-     cap-height of the surrounding mono type. */
-  .plat-h h1 .h1-icon {
-    display: inline-block;
-    vertical-align: -0.18em;
-    margin: 0 4px 0 2px;
-    color: var(--r-ink);
-  }
-  .plat-h .lede {
-    font-size: 14.5px; color: var(--r-dim); line-height: 1.6;
-    max-width: 580px; margin: 0 0 22px;
-  }
-  .plat-h .lede b { color: var(--r-ink); }
-  .plat-h .lede a { color: var(--r-accent); }
-  .plat-h .ctas { justify-content: flex-start; }
-  .plat-h .reassurance {
-    color: var(--r-very); margin-top: 12px;
-    font-size: var(--r-fs-xs); letter-spacing: 0.1em;
-    text-transform: uppercase;
-    text-align: left;
-  }
-  .plat-h .reassurance a { color: var(--r-accent); }
-
-  /* Mini code preview */
-  .mini-code {
-    margin: 22px auto 0;
-    max-width: 580px;
-    background: var(--r-code-bg);
-    color: var(--r-code-fg);
-    border: 1px solid var(--r-code-line);
-    font-size: 12.5px;
-    text-align: left;
-  }
-  .mini-code .hd {
-    padding: 8px 14px;
-    display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 1px solid var(--r-code-line);
-    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--r-code-dim);
-  }
-  .mini-code .hd .dots { display: inline-flex; gap: 6px; }
-  .mini-code .hd .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-  .mini-code .hd .dot.r { background: #ff5f57; }
-  .mini-code .hd .dot.y { background: #febc2e; }
-  .mini-code .hd .dot.g { background: #28c840; }
-  .mini-code pre {
-    padding: 14px 16px;
-    line-height: 1.65;
-    overflow-x: auto;
-  }
-
-  /* VS comparison */
-  .vs-head {
-    text-align: center; font-size: 11px; letter-spacing: 0.22em;
-    text-transform: uppercase; color: var(--r-accent);
-    font-weight: 700;
-    padding: 6px 14px; border: 1px dashed var(--r-accent); background: var(--r-accent-soft);
-    display: inline-block; margin-bottom: 18px;
-  }
-  .compare {
-    display: grid; grid-template-columns: 1fr 1fr;
-    border: 1px solid var(--r-line);
-    margin: 8px 0;
-  }
-  .compare .col {
-    padding: 22px 24px;
-    background: var(--r-paper);
-  }
-  .compare .col:first-child {
-    border-right: 1px dashed var(--r-very);
-    background: var(--r-paper-deep);
-  }
-  .compare .col h3 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 14px; margin: 0 0 14px;
-    letter-spacing: 0.04em;
-    color: var(--r-ink);
-  }
-  .compare .col:first-child h3 { color: var(--r-dim); }
-  .compare .col:last-child h3 { color: var(--r-accent); }
-  .compare ul { list-style: none; padding: 0; margin: 0; }
-  .compare ul li {
-    padding: 6px 0;
-    font-size: 12.5px; line-height: 1.5;
-    display: grid; grid-template-columns: 18px 1fr; gap: 6px;
-    color: var(--r-dim);
-  }
-  .compare .col:first-child ul li::before { content: '✗'; color: #c14a4a; font-weight: 700; }
-  .compare .col:last-child ul li::before { content: '✓'; color: var(--r-accent); font-weight: 700; }
-  .compare .col li b { color: var(--r-ink); }
-  .compare .col li code { background: var(--r-paper); padding: 0 4px; font-size: 0.92em; }
-  .compare .col:first-child li code { background: var(--r-paper); }
-
-  /* Cost banner — tone-aware */
-  .cost-banner {
-    padding: 14px 18px;
-    margin: 14px 0;
-    border-left: 4px solid;
-    font-size: 13px; line-height: 1.5;
-    text-align: left;
-  }
-  .cost-banner.good {
-    background: var(--r-accent-soft);
-    border-left-color: var(--r-accent);
-    color: var(--r-fg);
-  }
-  .cost-banner.bad {
-    background: rgba(193, 74, 74, 0.10);
-    border-left-color: #c14a4a;
-    color: var(--r-fg);
-  }
-  .cost-banner b { color: var(--r-ink); font-weight: 700; }
-
-  /* Highlight block */
-  .highlight-block {
-    margin: 14px 0;
-    padding: 18px 22px;
-    border: 1px solid;
-  }
-  .highlight-block.good {
-    background: var(--r-accent-soft);
-    border-color: var(--r-accent);
-  }
-  .highlight-block.warn {
-    background: rgba(193, 74, 74, 0.08);
-    border-color: rgba(193, 74, 74, 0.4);
-  }
-  .highlight-block h3 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase;
-    margin: 0 0 8px;
-  }
-  .highlight-block.good h3 { color: var(--r-accent); }
-  .highlight-block.warn h3 { color: #c14a4a; }
-  .highlight-block p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--r-fg); }
-  .highlight-block p b { color: var(--r-ink); font-weight: 700; }
-  .highlight-block p code { background: var(--r-paper-deep); padding: 0 4px; }
-
-  /* Playground / try-it */
-  .playground {
-    margin: 14px 0;
-    border: 1px solid var(--r-line);
-    background: var(--r-paper);
-  }
-  .playground .pg-hd {
-    display: flex; padding: 10px 16px;
-    border-bottom: 1px dashed var(--r-very);
-    font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--r-very); gap: 16px;
-  }
-  .playground .pg-hd .step { color: var(--r-accent); font-weight: 700; }
-  .playground .pg-hd .step.dim { color: var(--r-very); font-weight: 400; }
-  .playground .pg-body {
-    padding: 28px 24px;
-    text-align: center;
-  }
-  .playground .pg-body p {
-    margin: 0 0 18px; font-size: 13px; color: var(--r-dim);
-  }
-  .playground .pg-body p b { color: var(--r-ink); }
-  .playground .pg-body p code { background: var(--r-paper-deep); padding: 0 4px; }
-  .playground .pg-result {
-    margin-top: 16px;
-    display: inline-flex; align-items: center; gap: 10px;
-    padding: 10px 14px;
-    background: var(--r-accent-soft); border: 1px dashed var(--r-accent);
-    font-size: 12px;
-  }
-  .playground .pg-result .check {
-    width: 18px; height: 18px; border-radius: 50%;
-    background: var(--r-accent); color: var(--r-paper);
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700;
-  }
-  .playground .pg-result b { color: var(--r-ink); }
-  .playground .pg-result .cf {
-    font-size: 9px; color: var(--r-very); letter-spacing: 0.1em; text-transform: uppercase;
-    margin-left: 8px;
-  }
-
-  /* Content types — pill row */
-  .content-types {
-    display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0;
-  }
-  .content-types .pill {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 8px 12px;
-    border: 1px solid var(--r-line);
-    background: var(--r-paper);
-    font-size: 12px;
-    color: var(--r-fg);
-  }
-  .content-types .pill svg { color: var(--r-accent); }
-  .content-types .pill b { font-weight: 700; color: var(--r-ink); }
-
-  /* How it works */
-  .steps { counter-reset: step; margin: 8px 0; }
-  .steps .step {
-    counter-increment: step;
-    padding: 12px 0;
-    display: grid; grid-template-columns: 36px 1fr;
-    gap: 14px;
-    border-bottom: 1px dotted var(--r-very);
-  }
-  .steps .step:last-child { border-bottom: 0; }
-  .steps .step::before {
-    content: counter(step, decimal-leading-zero) '.';
-    font-family: var(--r-mono); font-weight: 700; color: var(--r-accent);
-    font-size: 13px; letter-spacing: 0.04em;
-  }
-  .steps .step h4 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 14px; margin: 0 0 4px;
-    color: var(--r-ink);
-  }
-  .steps .step p {
-    margin: 0; font-size: 12.5px; color: var(--r-dim); line-height: 1.55;
-  }
-  .steps .step p b { color: var(--r-ink); }
-  .steps .step p code { background: var(--r-accent-soft); padding: 0 4px; }
-
-  /* Feature grid */
-  .features-grid {
-    display: grid; grid-template-columns: 1fr 1fr;
-    gap: 0;
-    border: 1px solid var(--r-line);
-    margin: 14px 0;
-  }
-  .features-grid .feat {
-    padding: 18px 20px;
-    background: var(--r-paper);
-    border-right: 1px dashed var(--r-very);
-    border-bottom: 1px dashed var(--r-very);
-  }
-  .features-grid .feat:nth-child(2n) { border-right: 0; }
-  .features-grid .feat:nth-last-child(-n+2) { border-bottom: 0; }
-  .features-grid .feat .ico {
-    width: 28px; height: 28px;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: var(--r-accent-soft); color: var(--r-accent);
-    margin-bottom: 10px;
-  }
-  .features-grid .feat h4 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 14px; margin: 0 0 6px;
-    color: var(--r-ink);
-  }
-  .features-grid .feat p {
-    margin: 0; font-size: 12.5px; color: var(--r-dim); line-height: 1.55;
-  }
-  .features-grid .feat p code {
-    background: var(--r-accent-soft); padding: 0 4px;
-  }
-
-  /* Big code example */
-  .code-big {
-    margin: 14px 0;
-    background: var(--r-code-bg);
-    color: var(--r-code-fg);
-    border: 1px solid var(--r-code-line);
-    font-size: 12.5px;
-  }
-  .code-big .hd {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 16px;
-    border-bottom: 1px solid var(--r-code-line);
-    font-size: 11px; letter-spacing: 0.1em;
-    color: var(--r-code-dim);
-  }
-  .code-big .hd .dots { display: inline-flex; gap: 6px; align-items: center; }
-  .code-big .hd .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-  .code-big .hd .dot.r { background: #ff5f57; }
-  .code-big .hd .dot.y { background: #febc2e; }
-  .code-big .hd .dot.g { background: #28c840; }
-  .code-big pre { padding: 18px 22px; line-height: 1.7; overflow-x: auto; }
-
-  /* Error reference link card */
-  .err-ref-link {
-    margin: 14px 0;
-    padding: 16px 18px;
-    border: 1px solid var(--r-line); background: var(--r-paper);
-    display: grid; grid-template-columns: 1fr auto;
-    gap: 16px; align-items: center;
-  }
-  .err-ref-link h4 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 14px; margin: 0 0 4px;
-    color: var(--r-ink);
-  }
-  .err-ref-link p { margin: 0; font-size: 12px; color: var(--r-dim); }
-  .err-ref-link a {
-    font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--r-accent); white-space: nowrap;
-    text-decoration: none;
-  }
-  .err-ref-link a:hover { text-decoration: underline; text-decoration-style: dotted; }
-
-  /* All 8 platforms cross-sell grid */
-  .all-plats {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 0;
-    border: 1px solid var(--r-line);
-    margin: 14px 0;
-  }
-  .all-plats a {
-    padding: 10px 14px;
-    display: grid; grid-template-columns: 20px 1fr;
-    gap: 10px; align-items: center;
-    text-decoration: none; color: var(--r-fg);
-    border-right: 1px dashed var(--r-very);
-    border-bottom: 1px dashed var(--r-very);
-    font-size: 12px;
-    background: var(--r-paper);
-    transition: background 100ms;
-  }
-  .all-plats a:nth-child(2n) { border-right: 0; }
-  .all-plats a:nth-last-child(-n+2) { border-bottom: 0; }
-  .all-plats a:hover { background: var(--r-accent-soft); color: var(--r-accent); }
-  .all-plats a.current { background: var(--r-accent-soft); font-weight: 700; color: var(--r-ink); }
-  .all-plats a.current::after { content: ' ←'; color: var(--r-accent); }
-
-  /* Learn-more 3-card row */
-  .learn-more {
-    display: grid; grid-template-columns: 1fr 1fr 1fr;
-    gap: 12px; margin: 14px 0;
-  }
-  .learn-more a {
-    padding: 16px 18px;
-    border: 1px solid var(--r-line); background: var(--r-paper);
-    text-decoration: none; color: var(--r-fg);
-    transition: border-color 100ms;
-  }
-  .learn-more a:hover { border-color: var(--r-accent); }
-  .learn-more a h4 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 13px; margin: 0 0 4px;
-    color: var(--r-ink);
-  }
-  .learn-more a h4::after { content: ' →'; color: var(--r-accent); }
-  .learn-more a p {
-    margin: 0; font-size: 11px; color: var(--r-very);
-    letter-spacing: 0.06em;
-  }
-
-  @media (max-width: 700px) {
-    .plat-h h1 { font-size: 28px; }
-    .plat-h .h-sub { font-size: 18px; }
-    .compare { grid-template-columns: 1fr; }
-    .compare .col:first-child { border-right: 0; border-bottom: 1px dashed var(--r-very); }
-    .features-grid { grid-template-columns: 1fr; }
-    .features-grid .feat { border-right: 0; }
-    .features-grid .feat:nth-last-child(2) { border-bottom: 1px dashed var(--r-very); }
-    .learn-more { grid-template-columns: 1fr; }
-    .all-plats { grid-template-columns: 1fr; }
-    .all-plats a { border-right: 0; }
-    .err-ref-link { grid-template-columns: 1fr; }
-  }
-</style>

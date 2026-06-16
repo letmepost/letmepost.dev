@@ -1,11 +1,22 @@
 ---
 import { getCollection } from "astro:content";
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { Icon } from "astro-icon/components";
-import Tape from "../components/Tape.astro";
-import Closeout from "../components/Closeout.astro";
-import { PLATFORMS } from "../data/platforms.ts";
+import FanoutDiagram from "../components/FanoutDiagram.astro";
+import PaidInFullLedger from "../components/PaidInFullLedger.astro";
+import ErrorEnvelope from "../components/ErrorEnvelope.astro";
 import { highlight } from "../lib/highlight.ts";
+
+/**
+ * Landing page — "Clarity" direction. Two-column hero (copy + Fig.1
+ * fan-out topology), the one call, why-it's-different pillars, the
+ * paid-in-full ledger, anatomy of a failure, for-agents MCP, pricing
+ * preview, FAQ, latest writing, final CTA.
+ *
+ * Voice rules: no em dashes; honest status only. Live end-to-end today:
+ * X, Bluesky, Pinterest. Everything else (LinkedIn, Instagram, Facebook,
+ * Threads, TikTok) is in platform review. Status renders from PLATFORMS
+ * inside FanoutDiagram, never hardcoded there.
+ */
 
 const recentPosts = (
   await getCollection("blog", ({ data }) => {
@@ -16,40 +27,47 @@ const recentPosts = (
   .slice(0, 3);
 
 function fmtPostDate(d: Date): string {
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 }
 
-/**
- * Landing page — receipt direction. Pixel-mirrors design/letmepost.html.
- * Brand head with stampbox, code-block tabs (curl/ts/py), itemized
- * `WHAT YOU GET`, platform status, error envelope, MCP teaser, tariff
- * sheet, fine-print FAQ, and a final centered CTA.
- *
- * Voice rules: no em dashes; no banned adjectives; honest status only
- * (Bluesky/X/Pinterest live, four Meta+LinkedIn in review, TikTok planned).
- */
+const pillars = [
+  {
+    n: "01",
+    h: "We absorbed the platform reviews",
+    p: "Meta App Review and LinkedIn's Marketing Developer Platform take weeks each. letmepost is the reviewed app of record. Connect through our OAuth and publish through our approved apps. X, Bluesky, and Pinterest are live today; the rest are in platform review.",
+    tg: "OAuth · reviewed app of record",
+  },
+  {
+    n: "02",
+    h: "It fails loudly, never silently",
+    p: "Eighty preflight rules run locally before any platform sees the request. Every error names the exact rule, the pinned platform version, and how to fix it, with a docs link. No empty 500s.",
+    tg: "80 rules · 11 stable error codes",
+  },
+  {
+    n: "03",
+    h: "Always safe to retry",
+    p: "Every write accepts an Idempotency-Key. Retries return the cached response for 24 hours, so a flaky network never turns into a double post.",
+    tg: "idempotent writes",
+  },
+  {
+    n: "04",
+    h: "Open source, priced per org",
+    p: "Apache-2.0 from the first commit. The hosted image is the exact one you can self-host. Flat price per organization. Never per profile, never per seat.",
+    tg: "self-host free forever",
+  },
+];
 
-// Phosphor names mirror PlatformIcon's mapping, kept inline so the
-// landing's tight column doesn't pull in the wrapper component.
-const phosphor: Record<string, string> = {
-  bluesky: "ph:butterfly",
-  twitter: "ph:x-logo",
-  pinterest: "ph:pinterest-logo",
-  instagram: "ph:instagram-logo",
-  facebook: "ph:facebook-logo",
-  threads: "ph:threads-logo",
-  linkedin: "ph:linkedin-logo",
-  tiktok: "ph:tiktok-logo",
-};
+const pricing = [
+  { tier: "Free", who: "Personal automations & side projects", price: "$0", sub: "forever", posts: "50 posts / mo", cta: "Start free", href: "https://dashboard.letmepost.dev" },
+  { tier: "Pro", who: "Indie SaaS · small agencies", price: "$79", sub: "/ mo", posts: "5,000 posts / mo", cta: "Start Pro", href: "https://dashboard.letmepost.dev", hi: true },
+  { tier: "Business", who: "Embedded social · SLA · white-label OAuth", price: "$299", sub: "/ mo", posts: "25,000 posts / mo", cta: "Start Business", href: "https://dashboard.letmepost.dev" },
+  { tier: "Self-host", who: "Your infra · BYO Postgres + Redis", price: "$0", sub: "Apache-2.0", posts: "Unlimited", cta: "Self-host docs", href: "https://docs.letmepost.dev/self-host" },
+];
 
 const faqs = [
   {
     q: "What actually works today?",
-    a: "Bluesky, X, and Pinterest are live end-to-end. You can connect an account, send a post, attach images or video, and get a webhook back. Instagram, Facebook, Threads, and LinkedIn are in platform review and flip on the day approval clears.",
+    a: "Bluesky, X, and Pinterest are live end-to-end. Connect an account, send a post, attach images or video, and get a webhook back. Instagram, Facebook, Threads, and LinkedIn are in platform review and flip on the day approval clears; TikTok is in App Review.",
   },
   {
     q: "Why another social media API?",
@@ -69,7 +87,7 @@ const faqs = [
   },
   {
     q: "Can my AI agent drive this?",
-    a: 'Yes. Native MCP server at <code>api.letmepost.dev/mcp</code> and a stdio binary on npm. See the agents landing for the full tool surface.',
+    a: 'Yes. Native MCP server at <code class="inl">api.letmepost.dev/mcp</code> and a stdio binary on npm. See the <a href="/agents">agents landing</a> for the full tool surface.',
   },
 ];
 
@@ -131,93 +149,87 @@ result = lmp.posts.create(
 
 for r in result.targets:
     print(r.platform, r.status, r.url or r.error.code)`;
+
+const mcpConfig = `{
+  "mcpServers": {
+    "letmepost": {
+      "command": "npx",
+      "args":    ["@letmepost/mcp@latest"],
+      "env":     { "LMP_API_KEY": "lmp_live_…" }
+    }
+  }
+}`;
 ---
 
 <BaseLayout
   title="Open-source social media publishing API"
-  description="One POST, eight platforms. Meta App Review absorbed, LinkedIn's 2024-25 sunsets pinned, 80 preflight rules built in. Apache 2.0, native MCP server, real free tier."
+  description="One POST, eight platforms. X, Bluesky, and Pinterest live today; the rest in review. 80 preflight rules, idempotency, structured errors, native MCP server. Apache 2.0, real free tier."
   jsonLd={[faqJsonLd]}
 >
-  <Tape />
+  {/* ═══ HERO ═══ */}
+  <header class="wrap hero" style="padding: 56px 0 24px;">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow">Open-source social publishing API</p>
+        <h1 class="cl-h1">
+          OSS social media API.
+          <br />
+          <span class="acc">Built for developers and AI agents.</span>
+        </h1>
+        <p class="sub">
+          Ship social features in <b>minutes, not months</b>. One <span class="mono">POST</span>
+          fans out to eight platforms with scheduling, webhooks, and idempotency built in.
+          It speaks native MCP for your agents, and it's <b>Apache 2.0</b>.
+        </p>
+        <div class="ctas" style="margin-top: 30px;">
+          <a
+            class="btn pri lg"
+            href="https://dashboard.letmepost.dev"
+            data-analytics-event="cta.clicked"
+            data-analytics-props='{"location":"hero","target":"dashboard","page":"home","label":"Send my first post"}'
+          >Send my first post →</a>
+          <a
+            class="btn ghost lg"
+            href="#request"
+            data-analytics-event="cta.clicked"
+            data-analytics-props='{"location":"hero-secondary","target":"code","page":"home","label":"See the code"}'
+          >See the code ↓</a>
+        </div>
+        <p class="trust">No credit card required.</p>
+      </div>
 
-  {/* HERO v2 — top utility links row, then the small stamp + solid
-      rule + H1. Old ledger ("LETMEPOST · v0 alpha · apache-2.0 ·
-      est. 2026") is replaced with quick links a reader actually
-      wants to click. */}
-  <nav class="ledger-row quick-links" aria-label="Top utility">
-    <a href="https://docs.letmepost.dev">Docs</a>
-    <span class="sep" aria-hidden="true">·</span>
-    <a href="/pricing">Pricing</a>
-    <span class="sep" aria-hidden="true">·</span>
-    <a href="/blog">Blog</a>
-    <span class="sep" aria-hidden="true">·</span>
-    <a
-      href="https://github.com/letmepost/letmepost.dev"
-      target="_blank"
-      rel="noopener"
-    >GitHub ↗</a>
-  </nav>
-
-  <div class="hero-stamp" aria-hidden="true">
-    <div class="stampbox stampbox-sm">
-      <div class="l1">PLATFORM REVIEW</div>
-      <div class="l2">PAID IN FULL</div>
-      <div class="l3">SO YOU DON'T HAVE TO</div>
+      <div class="hero-vis"><FanoutDiagram /></div>
     </div>
-  </div>
 
-  <hr class="solid" />
+    {/* Stat strip removed per request — restore by uncommenting.
+    <div class="cl-stats">
+      <div class="s"><div class="v acc">80</div><div class="k">preflight rules, run locally</div></div>
+      <div class="s"><div class="v">11</div><div class="k">stable error codes</div></div>
+      <div class="s"><div class="v">21</div><div class="k">MCP tools for agents</div></div>
+      <div class="s"><div class="v">Apache-2.0</div><div class="k">open source, day one</div></div>
+    </div>
+    */}
+  </header>
 
-  <section class="hero-main" data-sticky-anchor>
-    <h1 class="hero-h1">
-      OSS Social Media API.
-      <br />
-      <span class="acc">Built for developers and AI agents.</span>
-    </h1>
-
-    <p class="lede">
-      Ship social features in minutes, not months. One API to publish
-      across 8 platforms, with scheduling, webhooks, and idempotency
-      built in. Native MCP server. Apache 2.0.
+  {/* ═══ THE ONE CALL ═══ */}
+  <section class="wrap sec" id="request">
+    <p class="kicker">The one call</p>
+    <h2 class="cl-h2">One request in. A result per platform out.</h2>
+    <p class="lead">
+      No SDK gymnastics, no per-platform branching. Send the targets and the text, and
+      get back a structured outcome for every destination. Never a single ambiguous boolean.
     </p>
 
-    <div class="ctas">
-      <a
-        href="https://dashboard.letmepost.dev"
-        class="btn pri"
-        data-analytics-event="cta.clicked"
-        data-analytics-props='{"location":"hero","target":"dashboard","page":"home","label":"Send my first post"}'
-      >SEND MY FIRST POST →</a>
-      <a
-        href="#request"
-        class="btn"
-        data-analytics-event="cta.clicked"
-        data-analytics-props='{"location":"hero-secondary","target":"code","page":"home","label":"See the code"}'
-      >SEE THE CODE ↓</a>
-    </div>
-    <div class="reassurance">
-      No credit card · 50 posts/mo free, forever ·
-      <a href="https://docs.letmepost.dev/quickstart">90-second quickstart →</a>
-    </div>
-  </section>
-
-  <hr class="dash" />
-
-  {/* SHOW THE CODE */}
-  <section class="section" id="request">
-    <h2 class="h-caps">SHOW THE CODE</h2>
-    <div class="subtitle center">$ one terminal session</div>
-
     <div
-      class="code-block"
+      class="code"
       data-tabs
       data-files='{"curl":"publish.sh","ts":"publish.ts","py":"publish.py"}'
     >
-      <div class="head-bar">
-        <div class="tabs" role="tablist">
-          <button type="button" class="tab on" data-tab="curl" role="tab">curl</button>
-          <button type="button" class="tab" data-tab="ts" role="tab">typescript</button>
-          <button type="button" class="tab" data-tab="py" role="tab">python</button>
+      <div class="bar">
+        <div class="tabs">
+          <button type="button" class="tab on" data-tab="curl">curl</button>
+          <button type="button" class="tab" data-tab="ts">typescript</button>
+          <button type="button" class="tab" data-tab="py">python</button>
         </div>
         <span class="file">publish.sh</span>
       </div>
@@ -227,221 +239,80 @@ for r in result.targets:
     </div>
   </section>
 
-  <hr class="dash" />
-
-  {/* PLATFORMS — simple icon+name grid, each row clickable.
-      Replaces the heavier status-pill list that previously lived
-      after WHAT YOU GET; the per-platform pages carry the
-      live/in-review/planned signal now. */}
-  <section class="section">
-    <h2 class="h-caps">PLATFORMS</h2>
-    <div class="subtitle center">one POST, every connected account</div>
-
-    <div class="simple-platforms">
+  {/* ═══ WHY DIFFERENT ═══ */}
+  <section class="wrap sec divider">
+    <p class="kicker">Why it's different</p>
+    <h2 class="cl-h2">Built like infrastructure, not a wrapper.</h2>
+    <p class="lead">The boring guarantees that separate a real API from a weekend script.</p>
+    <div class="pillars">
       {
-        PLATFORMS.map((p) => (
-          <a href={`/platforms/${p.slug}`}>
-            <Icon name={phosphor[p.slug] ?? "ph:circle"} width={16} height={16} />
-            <span>{p.name}</span>
-          </a>
+        pillars.map((p) => (
+          <div class="pillar">
+            <div class="n">{p.n}</div>
+            <h3>{p.h}</h3>
+            <p>{p.p}</p>
+            <div class="tg">{p.tg}</div>
+          </div>
         ))
       }
     </div>
   </section>
 
-  <hr class="dash" />
+  {/* ═══ PAID-IN-FULL LEDGER ═══ */}
+  <PaidInFullLedger />
 
-  {/* WHAT YOU GET */}
-  <section class="section">
-    <h2 class="h-caps">PAID-IN-FULL LEDGER</h2>
-    <div class="subtitle center">work we did once, so you don't have to</div>
+  {/* ═══ ANATOMY OF A FAILURE ═══ */}
+  <ErrorEnvelope />
 
-    <div class="items">
-      <div class="item">
-        <span class="qty">1×</span>
-        <span class="desc">
-          Multi-target publish endpoint
-          <span class="sub">POST /v1/posts, fans out to every connected account in one call</span>
-        </span>
-        <span class="val">~ 4 wk</span>
-      </div>
-      <div class="item">
-        <span class="qty">3×</span>
-        <span class="desc">
-          Meta App Review absorbed
-          <span class="sub">Instagram + Facebook + Threads, one shared review, our app of record. Three rejections, four re-shot demo videos. Once.</span>
-        </span>
-        <span class="val">~11 wk</span>
-      </div>
-      <div class="item">
-        <span class="qty">1×</span>
-        <span class="desc">
-          LinkedIn Marketing Developer Platform review
-          <span class="sub">submitted, version-pinned, sunset-monitored</span>
-        </span>
-        <span class="val">~12 wk</span>
-      </div>
-      <div class="item">
-        <span class="qty">80×</span>
-        <span class="desc">
-          Preflight rules
-          <span class="sub">char-count, media-format, audit-state, URN patterns. One docs page each.</span>
-        </span>
-        <span class="val">~ 6 wk</span>
-      </div>
-      <div class="item">
-        <span class="qty">7×</span>
-        <span class="desc">
-          Platform versions pinned for you
-          <span class="sub">we own the LinkedIn-sunsets-every-six-weeks problem</span>
-        </span>
-        <span class="val">∞</span>
-      </div>
-    </div>
-
-    <div class="total">
-      <span>TIME RECLAIMED</span>
-      <span class="v">≈ 6 months</span>
-    </div>
-  </section>
-
-  <hr class="dash" />
-
-  {/* ANATOMY OF A FAILURE */}
-  <section class="section">
-    <h2 class="h-caps">ANATOMY OF A FAILURE</h2>
-    <div class="subtitle center">structured every time, no empty 500s</div>
-
-    <div class="envelope">
-      <div class="head-bar">
-        <span>HTTP/1.1 422 Unprocessable Entity</span>
-        <span>application/json</span>
-      </div>
-      <div class="body">
-        <div class="field"><span class="k">code</span><span class="v b">preflight_failed</span></div>
-        <div class="field"><span class="k">rule</span><span class="v acc b">bluesky.text.max_graphemes</span></div>
-        <div class="field"><span class="k">platform</span><span class="v">bluesky</span></div>
-        <div class="field"><span class="k">platform_version</span><span class="v">atproto-2026-04</span></div>
-        <div class="field"><span class="k">message</span><span class="v">Text is 312 graphemes; Bluesky allows at most 300.</span></div>
-        <div class="field"><span class="k">remediation</span><span class="v">Trim the text to 300 graphemes or fewer.</span></div>
-        <div class="field"><span class="k">doc_url</span><span class="v acc">docs.letmepost.dev/errors/preflight_failed</span></div>
-        <div class="field"><span class="k">rule_url</span><span class="v acc">docs.letmepost.dev/preflight/bluesky-text-max_graphemes</span></div>
-        <div class="field"><span class="k">request_id</span><span class="v">req_01HXY7Z8K9MNB1P2QR3STVW</span></div>
-        <div class="field"><span class="k">trace_id</span><span class="v">01jb7q9c4e5f6g7h8i9k0lm1np</span></div>
-      </div>
-    </div>
-  </section>
-
-  <hr class="dash" />
-
-  {/* For agents — stacked layout: bigger heading, prose below, then
-      the full-width config block at the bottom. The previous 2-col
-      grid made the code feel tucked away beside the text instead of
-      being the punch the section actually leads to. */}
-  <section class="section mcp-section">
-    <h2>For agents, letmepost speaks <span class="acc">MCP</span>.</h2>
-    <p class="subtitle left">a hosted server + a stdio binary on npm</p>
-
-    <div class="mcp">
-      <div>
-        <p style="margin-top: 0;">A hosted MCP server at <code>api.letmepost.dev/mcp</code> (Streamable HTTP, stateless) and a stdio binary on npm. Twenty-one tools, autogenerated from OpenAPI. Same auth as the HTTP API. Claude, Cursor, Claude Code, opencode, any MCP-aware client drives the full surface.</p>
-        <p><a href="/agents">Read the agents landing →</a></p>
-      </div>
-      <pre class="config" set:html={highlight("json", `{
-  "mcpServers": {
-    "letmepost": {
-      "command": "npx",
-      "args":    ["@letmepost/mcp@latest"],
-      "env":     { "LMP_API_KEY": "lmp_live_…" }
-    }
-  }
-}`)} />
-    </div>
-  </section>
-
-  <hr class="dash" />
-
-  {/* Tariff sheet */}
-  <section class="section">
-    <h2 class="h-mixed">Tariff sheet.</h2>
-    <p class="subtitle left">flat-rate · billed monthly</p>
-
-    <table class="tariff">
-      <thead>
-        <tr>
-          <th>Tier</th>
-          <th>Posts / mo</th>
-          <th class="r">Price</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="tier">Free<span class="who">Personal · single-platform automations</span></td>
-          <td>50</td>
-          <td class="r"><span class="price">$0</span></td>
-        </tr>
-        <tr class="hi">
-          <td class="tier">Pro <span class="stars">★</span><span class="who">Indie SaaS · agencies under 50 clients</span></td>
-          <td>5,000</td>
-          <td class="r"><span class="price">$79</span></td>
-        </tr>
-        <tr>
-          <td class="tier">Business<span class="who">Embedded social · uptime SLA · white-label OAuth</span></td>
-          <td>25,000</td>
-          <td class="r"><span class="price">$299</span></td>
-        </tr>
-        <tr>
-          <td class="tier">Self-host<span class="who">Same image · BYO Postgres + Redis · Apache 2.0</span></td>
-          <td>∞</td>
-          <td class="r"><span class="price">$0</span></td>
-        </tr>
-      </tbody>
-    </table>
-    <p class="lede" style="margin-top: 10px; text-align: right;">
-      <a href="/pricing">Full pricing →</a>
+  {/* ═══ FOR AGENTS ═══ */}
+  <section class="wrap sec tight">
+    <p class="kicker">For agents</p>
+    <h2 class="cl-h2">letmepost speaks <span class="acc">MCP</span> natively.</h2>
+    <p class="lead">
+      A hosted MCP server at <code class="inl">api.letmepost.dev/mcp</code> and a stdio
+      binary on npm. Twenty-one tools, autogenerated from OpenAPI. Claude, Cursor,
+      Claude Code, opencode, any MCP-aware client drives the full surface.
     </p>
+    <div class="code" style="margin-top: 28px;">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file">~/.config/mcp.json</span></div>
+      <pre set:html={highlight("json", mcpConfig)} />
+    </div>
+    <p class="trust" style="margin-top: 18px;"><a href="/agents">Read the agents landing →</a></p>
   </section>
 
-  {recentPosts.length > 0 && (
-    <>
-      <hr class="dash" />
+  {/* ═══ PRICING PREVIEW ═══ */}
+  <section class="wrap sec">
+    <p class="kicker">Open source · honest pricing</p>
+    <h2 class="cl-h2">Flat per org. Self-host free forever.</h2>
+    <p class="lead">
+      Profiles, connected accounts, team members, webhooks and API keys are all free.
+      The only metered thing is posts published, with hard caps and webhooks at 80% and
+      100%. Never a surprise bill.
+    </p>
+    <div class="pricing">
+      {
+        pricing.map((p) => (
+          <div class={`price${p.hi ? " hi" : ""}`}>
+            <div class="t">{p.tier}{p.hi && <span class="badge">Popular</span>}</div>
+            <div class="who">{p.who}</div>
+            <div class="p">{p.price} <small>{p.sub}</small></div>
+            <div class="po">{p.posts}</div>
+            <a class={`btn ${p.hi ? "pri" : "ghost"} price-cta`} href={p.href}>{p.cta}</a>
+          </div>
+        ))
+      }
+    </div>
+    <p class="trust" style="margin-top: 22px;"><a href="/pricing">Full pricing →</a></p>
+  </section>
 
-      {/* Latest writing — surfaces blog posts on the highest-authority
-          page so Outrank-published articles inherit link equity from
-          the home page. */}
-      <section class="section">
-        <h2 class="h-mixed">Latest writing.</h2>
-        <p class="subtitle left">engineering notes from the platform-review queue</p>
-
-        <ul class="recent-posts">
-          {recentPosts.map((post) => (
-            <li>
-              <a href={`/blog/${post.id}/`}>
-                <span class="rp-date">{fmtPostDate(post.data.pubDate)}</span>
-                <span class="rp-title">{post.data.title}</span>
-                <span class="rp-desc">{post.data.description}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-        <p class="recent-more">
-          <a href="/blog">All writing →</a>
-        </p>
-      </section>
-    </>
-  )}
-
-  <hr class="dash" />
-
-  {/* Fine print */}
-  <section class="section">
-    <h2 class="h-mixed">Fine print.</h2>
-    <p class="subtitle left">questions you'd ask in a code review</p>
-
+  {/* ═══ FAQ ═══ */}
+  <section class="wrap sec tight">
+    <p class="kicker">Fine print</p>
+    <h2 class="cl-h2">Questions you'd ask in a code review.</h2>
     <div class="faq">
       {
         faqs.map((f) => (
-          <div class="item-q">
+          <div class="q-item">
             <p class="q">{f.q}</p>
             <p class="a" set:html={f.a} />
           </div>
@@ -450,270 +321,59 @@ for r in result.targets:
     </div>
   </section>
 
-  <hr class="double" />
+  {recentPosts.length > 0 && (
+    <section class="wrap sec divider">
+      <p class="kicker">Latest writing</p>
+      <h2 class="cl-h2">Engineering notes from the platform-review queue.</h2>
+      <div class="cards c3" style="margin-top: 32px;">
+        {recentPosts.map((post) => (
+          <a class="card" href={`/blog/${post.id}/`}>
+            <h3>{post.data.title}</h3>
+            <p>{post.data.description}</p>
+            <div class="meta">{fmtPostDate(post.data.pubDate)}</div>
+          </a>
+        ))}
+      </div>
+      <p class="trust" style="margin-top: 22px;"><a href="/blog">All writing →</a></p>
+    </section>
+  )}
 
-  {/* FINAL CTA */}
-  <section class="section" style="text-align: center;">
-    <h2 class="h-caps" style="margin-bottom: 8px;">SEND THE FIRST POST.</h2>
-    <p class="lede" style="margin: 6px auto 18px; text-align: center;">
-      Ninety seconds from sign-up to a Bluesky post in production.<br />
-      Star the repo, file an issue when something's weird — we build in the open.
-    </p>
-    <div class="ctas" style="justify-content: center;">
-      <a
-        href="https://dashboard.letmepost.dev"
-        class="btn pri"
-        data-analytics-event="cta.clicked"
-        data-analytics-props='{"location":"home-final","target":"dashboard","page":"home","label":"Send my first post"}'
-      >SEND MY FIRST POST →</a>
-      <a
-        href="https://docs.letmepost.dev"
-        class="btn"
-        data-analytics-event="docs.link_clicked"
-        data-analytics-props='{"from_page":"home","location":"home-final","to_section":"root"}'
-      >READ THE DOCS ↗</a>
+  {/* ═══ FINAL CTA ═══ */}
+  <section class="wrap">
+    <div class="final">
+      <h2>Send your first post in 90 seconds.</h2>
+      <p>
+        Ninety seconds from sign-up to a Bluesky post in production. Star the repo, file
+        an issue when something's weird. We build in the open.
+      </p>
+      <div class="ctas">
+        <a
+          class="btn pri lg"
+          href="https://dashboard.letmepost.dev"
+          data-analytics-event="cta.clicked"
+          data-analytics-props='{"location":"home-final","target":"dashboard","page":"home","label":"Send my first post"}'
+        >Send my first post →</a>
+        <a
+          class="btn ghost lg"
+          href="https://docs.letmepost.dev"
+          data-analytics-event="docs.link_clicked"
+          data-analytics-props='{"from_page":"home","location":"home-final","to_section":"root"}'
+        >Read the docs ↗</a>
+      </div>
     </div>
   </section>
-
-  <Closeout
-    codeLine="000 LMP 0001 · 2026-05-23 · 14:21Z"
-    links={[
-      { href: "https://docs.letmepost.dev", label: "docs" },
-      { href: "https://github.com/letmepost/letmepost.dev", label: "github" },
-      { href: "https://status.letmepost.dev", label: "status" },
-      { href: "/privacy", label: "privacy" },
-      { href: "/terms", label: "terms" },
-    ]}
-  />
-
-  <Tape bottom />
-
-  {/* Right rail — technical annotations */}
-  <aside class="marg" aria-label="Technical notes" slot="rightRail">
-    <div class="note">
-      <span class="tag">Method</span>
-      Every <b>POST</b> runs through 80 preflight rules locally before the platform sees the request. The rule that fires is named on the failure envelope.
-    </div>
-    <div class="note">
-      <span class="tag">Idempotency</span>
-      Every write accepts <b>Idempotency-Key</b>. Retries return the cached response for 24h. Conflicting bodies surface as <code>idempotency_conflict</code> (HTTP 409).
-    </div>
-    <div class="note">
-      <span class="tag">Webhooks</span>
-      HMAC-SHA256 signed.<br />
-      <b>post.queued</b>, post.published, post.failed, post.rejected, <b>token.expiring</b>, token.revoked, version.deprecated, quota.warning.
-    </div>
-    <div class="note">
-      <span class="tag">Errors</span>
-      Eleven stable codes, each with its own docs page. Plus the rule id that fired, the pinned platform version, and a remediation hint.
-    </div>
-    <div class="note">
-      <span class="tag">Self-host</span>
-      <code>docker compose up</code> against your own Postgres + Redis. BYO platform credentials. Same image as hosted.
-    </div>
-    <div class="note">
-      <span class="tag">Contact</span>
-      File an issue on the repo or email <b>rose@letmepost.dev</b>. There's no priority-routing tier because there's only one person to route to.
-    </div>
-  </aside>
 </BaseLayout>
 
-<style is:global>
-  /* Latest writing strip — surfaces blog posts on the home page */
-  .recent-posts {
-    list-style: none;
-    padding: 0;
-    margin: 14px 0 14px;
-    display: grid;
-    gap: 0;
-    border-top: 1px dotted var(--r-very);
+<style>
+  .hero-grid { display: grid; grid-template-columns: 1.02fr 0.98fr; gap: 52px; align-items: center; }
+  .hero-copy .cl-h1 { font-size: 54px; margin-bottom: 22px; max-width: 16ch; }
+  .hero-copy .sub { max-width: 48ch; }
+  @media (max-width: 980px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+    .hero-copy .cl-h1 { font-size: 44px; }
+    .hero-copy .cl-h1, .hero-copy .sub { max-width: none; }
   }
-  .recent-posts li a {
-    display: grid;
-    grid-template-columns: 90px 1fr;
-    gap: 16px;
-    padding: 14px 0;
-    border-bottom: 1px dotted var(--r-very);
-    text-decoration: none;
-    color: inherit;
-  }
-  .recent-posts li a:hover .rp-title { color: var(--r-accent); }
-  .recent-posts .rp-date {
-    font-family: var(--r-mono);
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    color: var(--r-very);
-    padding-top: 3px;
-  }
-  .recent-posts .rp-title {
-    font-family: var(--r-mono);
-    font-weight: 700;
-    font-size: 14px;
-    line-height: 1.3;
-    color: var(--r-ink);
-    grid-column: 2;
-    margin-bottom: 3px;
-  }
-  .recent-posts .rp-desc {
-    grid-column: 2;
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--r-dim);
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-  }
-  .recent-more {
-    margin: 8px 0 0;
-    font-family: var(--r-mono);
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .recent-more a { color: var(--r-accent); text-decoration: none; }
-  .recent-more a:hover { text-decoration: underline; }
-
-  /* ── /index landing-only overrides ────────────────────────
-     Quieter hero pattern: tiny ledger row at top, big H1 leading
-     left-aligned, with the PAID-IN-FULL stamp demoted to a small
-     rotated mark on the right of the headline. The previous big
-     centered stamp pulled the eye away from the H1; this layout
-     puts the headline first and uses the stamp as a tertiary
-     accent instead of a focal element. */
-
-  .ledger-row {
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: var(--r-very);
-    text-align: center;
-    padding-top: 36px;
-  }
-  /* Top utility nav — styled like the "90-second quickstart →" inline
-     link in the hero reassurance row: uppercase, accent-colored, with
-     a dotted-underline on hover. Same visual vocabulary as the rest
-     of the hero's small CTAs. */
-  .ledger-row.quick-links {
-    display: flex; gap: 14px; justify-content: center; align-items: center;
-    flex-wrap: wrap;
-  }
-  .ledger-row.quick-links a {
-    color: var(--r-accent);
-    text-decoration: none;
-    transition: color 120ms;
-    font-size: var(--r-fs-xs);
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-  }
-  .ledger-row.quick-links a:hover {
-    color: var(--r-accent-hover, var(--r-ink));
-    text-decoration: underline;
-    text-decoration-style: dotted;
-    text-underline-offset: 3px;
-  }
-  .ledger-row.quick-links .sep { color: var(--r-line); }
-
-  /* Simple platforms grid — icon + name, 3 columns on desktop,
-     2 on tablet, 1 on mobile. No status pills, no taglines; the
-     per-platform page carries that detail. */
-  .simple-platforms {
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 6px 24px; margin: 14px 0 4px;
-  }
-  .simple-platforms a {
-    display: inline-flex; align-items: center; gap: 10px;
-    text-decoration: none; color: var(--r-fg);
-    padding: 7px 0; font-size: 13px;
-    transition: color 100ms;
-  }
-  .simple-platforms a:hover { color: var(--r-accent); }
-  .simple-platforms a svg {
-    flex-shrink: 0; color: var(--r-ink);
-    transition: color 100ms;
-  }
-  .simple-platforms a:hover svg { color: var(--r-accent); }
-  @media (max-width: 600px) {
-    .simple-platforms { grid-template-columns: repeat(2, 1fr); }
-  }
-  @media (max-width: 400px) {
-    .simple-platforms { grid-template-columns: 1fr; }
-  }
-
-  /* Hero body — H1 leads the page, full-width inside the strip. */
-  .hero-main { padding-top: 28px; padding-bottom: 8px; }
-  .hero-main h1.hero-h1 {
-    font-size: 44px;
-    line-height: 1.05;
-    letter-spacing: -0.03em;
-    margin: 0 0 18px;
-  }
-  .hero-main .lede { font-size: 14.5px; }
-
-  /* Stamp sits above the headline as a small centered accent —
-     visible, but small enough that the H1 below carries the page. */
-  .hero-stamp {
-    display: flex;
-    justify-content: center;
-    padding-top: 22px;
-    padding-bottom: 4px;
-  }
-
-  /* Small stamp — keeps the stampbox border + rotation feel but
-     dimensioned so it never out-shouts the H1. Width tuned so the
-     two H1 lines + stamp don't reflow on the 700px strip. */
-  .stampbox-sm {
-    width: 184px;
-    margin: 0;
-    padding: 10px 12px 9px;
-    border: 1.5px solid var(--r-ink);
-    transform: rotate(-3deg);
-    text-align: center;
-    color: var(--r-ink);
-  }
-  .stampbox-sm .l1 {
-    font-size: 9px; letter-spacing: 0.28em; line-height: 1;
-  }
-  .stampbox-sm .l2 {
-    font-size: 19px; letter-spacing: 0.04em; font-weight: 700;
-    line-height: 1; margin: 5px 0;
-  }
-  .stampbox-sm .l3 {
-    font-size: 8px; letter-spacing: 0.18em; line-height: 1;
-  }
-
-  /* Bigger gap between sections on the landing — the page is dense
-     by nature (code, items, status list, envelope, FAQ all stacked),
-     so we give each section more breathing room than the default. */
-  main.strip > section.section { padding-top: 44px; }
-  main.strip > hr.dash { margin: 40px 0; }
-
-  /* For-agents section — stacked single column. Bigger h2 so the
-     code block underneath reads as the section's punch, not the
-     orphan column it was when this section was two-up. */
-  .mcp-section h2 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 26px; line-height: 1.15; letter-spacing: -0.015em;
-    margin: 0 0 6px; color: var(--r-ink);
-  }
-  .mcp-section h2 .acc { color: var(--r-accent); }
-  .mcp-section .mcp {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-  .mcp-section .mcp .config { width: 100%; }
-
-  @media (max-width: 700px) {
-    .mcp-section h2 { font-size: 22px; }
-  }
-
-  @media (max-width: 700px) {
-    .hero-main { padding-top: 20px; }
-    .hero-main h1.hero-h1 { font-size: 30px; }
-    .hero-stamp { padding-top: 18px; }
-    .stampbox-sm { width: 170px; }
-    main.strip > section.section { padding-top: 32px; }
-    main.strip > hr.dash { margin: 28px 0; }
+  @media (max-width: 560px) {
+    .hero-copy .cl-h1 { font-size: 34px; }
   }
 </style>
-
