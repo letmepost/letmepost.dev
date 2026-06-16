@@ -169,7 +169,7 @@ function MeterTile({
         ? "bg-amber-500"
         : "bg-primary";
   return (
-    <div className="ring-1 ring-foreground/10 p-3 space-y-2">
+    <div className="rounded-md ring-1 ring-foreground/10 p-3 space-y-2">
       <div className="flex items-center justify-between text-xs">
         <span className="flex items-center gap-1.5 text-muted-foreground">
           {icon}

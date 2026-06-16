@@ -329,7 +329,7 @@ export default function ApiKeysPage() {
           </DialogHeader>
           {plaintext ? (
             <div className="space-y-3">
-              <div className="break-all bg-muted px-3 py-2 font-mono text-xs">
+              <div className="break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
                 {plaintext.key}
               </div>
               <Button variant="outline" onClick={copyKey}>

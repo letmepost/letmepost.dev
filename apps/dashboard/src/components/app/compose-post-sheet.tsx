@@ -125,6 +125,9 @@ export function ComposePostSheet({
     },
     onSuccess: (m) => {
       setMedia((prev) => [...prev, m]);
+      // The upload is persisted server-side, so the Media page list is now
+      // stale — refresh it.
+      qc.invalidateQueries({ queryKey: ["media"] });
     },
     onError: (err: unknown) => {
       toast.error(
@@ -325,13 +328,13 @@ export function ComposePostSheet({
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="what's on your mind…"
-              className="min-h-32 w-full resize-y bg-muted/30 p-3 text-sm outline-none focus:bg-muted/40 transition-colors ring-1 ring-foreground/10 focus:ring-foreground/20"
+              className="min-h-32 w-full resize-y bg-muted/30 p-3 text-sm outline-none focus:bg-muted/40 transition-colors rounded-md ring-1 ring-foreground/10 focus:ring-foreground/20"
             />
             <div className="flex flex-wrap gap-1.5">
               {media.map((m) => (
                 <div
                   key={m.id}
-                  className="size-12 ring-1 ring-foreground/10 overflow-hidden relative group bg-muted/30"
+                  className="size-12 rounded-md ring-1 ring-foreground/10 overflow-hidden relative group bg-muted/30"
                 >
                   {m.contentType.startsWith("image") ? (
                     /* eslint-disable-next-line @next/next/no-img-element */
@@ -484,7 +487,7 @@ function TabBtn({
       className={cn(
         "flex items-center justify-center gap-1.5 py-1.5 text-xs transition-colors",
         active
-          ? "bg-background ring-1 ring-foreground/10 font-semibold"
+          ? "bg-background rounded-md ring-1 ring-foreground/10 font-semibold"
           : "text-muted-foreground hover:text-foreground",
       )}
     >

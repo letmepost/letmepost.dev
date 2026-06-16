@@ -265,8 +265,8 @@ export function WebhookTestDialog({
               }}
               spellCheck={false}
               className={cn(
-                "w-full min-h-[200px] bg-muted px-3 py-2 font-mono text-xs",
-                "ring-1 ring-foreground/10 focus:ring-foreground/40 outline-none",
+                "w-full min-h-[200px] rounded-md bg-muted px-3 py-2 font-mono text-xs",
+                "rounded-md ring-1 ring-foreground/10 focus:ring-foreground/40 outline-none",
                 "transition-[box-shadow] resize-y",
                 jsonError && "ring-destructive focus:ring-destructive",
               )}
@@ -316,7 +316,7 @@ export function WebhookTestDialog({
                   <div className="text-xs text-muted-foreground">
                     Consumer response body
                   </div>
-                  <pre className="bg-muted px-3 py-2 text-xs overflow-x-auto whitespace-pre-wrap break-all font-mono max-h-32">
+                  <pre className="rounded-md bg-muted px-3 py-2 text-xs overflow-x-auto whitespace-pre-wrap break-all font-mono max-h-32">
                     {result.responseBody}
                   </pre>
                 </div>
