@@ -105,7 +105,8 @@ const softwareJsonLd: JsonLdGraph = {
     </p>
     <h1 class="cl-h1" style="max-width: 22ch;">
       {content.heroH1.before}{" "}
-      <span class="h1-nobr"><PlatformIcon platform={platform.slug} size={36} class="h1-icon" /> {content.heroH1.after}</span>
+      <PlatformIcon platform={platform.slug} size={36} class="h1-icon" />{" "}
+      {content.heroH1.after}
       <br />
       <span class="acc">{content.heroH1.emphasize}</span>
     </h1>

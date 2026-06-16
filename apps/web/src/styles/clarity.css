@@ -56,7 +56,7 @@
 
   --disp: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --body: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --mono: "IBM Plex Mono", ui-monospace, "Menlo", "Consolas", monospace;
 
   --maxw: 1080px;
   --navw: 1208px;
@@ -352,8 +352,6 @@ a.card:hover { border-color: var(--acc); transform: translateY(-2px); }
    which would otherwise force the glyph onto its own line. */
 .cl-h1 .h1-icon { display: inline-block; vertical-align: -0.12em; margin: 0 0.14em; color: var(--acc); }
 .cl-h1 .under { text-decoration: underline; text-decoration-color: var(--acc); text-decoration-thickness: 4px; text-underline-offset: 8px; }
-/* keep a hero glyph glued to its neighbouring word (no orphan line) */
-.h1-nobr { white-space: nowrap; }
 /* status line: pill + label, vertically centered */
 .eyebrow-status { display: flex; align-items: center; gap: 10px; }
 /* accent display subhead under an H1 (API hero) */
@@ -541,6 +539,8 @@ p.cl-h3.acc { margin: -10px 0 16px; }
   h1.cl-h1 { font-size: 36px; }
   .sub { font-size: 18px; }
   .final { margin-inline: 0; }
+  /* declutter the top bar on small phones — the CTA lives in the burger drawer */
+  .cl-navactions .btn.pri { display: none; }
   .cl-foot .cols { grid-template-columns: 1fr; }
   .cl-foot .legal { flex-direction: column; gap: 12px; align-items: flex-start; }
 }

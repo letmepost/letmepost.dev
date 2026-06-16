@@ -204,6 +204,12 @@ const mainStyle = stripWidth ? `--maxw: ${stripWidth}px;` : undefined;
         // Mobile nav burger → toggles #cl-mobile.
         const burger = document.querySelector<HTMLElement>("[data-burger]");
         const mobile = document.getElementById("cl-mobile");
+        function closeMobile() {
+          document.getElementById("cl-mobile")?.classList.remove("open");
+          document
+            .querySelector<HTMLElement>("[data-burger]")
+            ?.setAttribute("aria-expanded", "false");
+        }
         if (burger && mobile && !burger.dataset.lmpBound) {
           burger.dataset.lmpBound = "1";
           burger.addEventListener("click", () => {
@@ -211,11 +217,19 @@ const mainStyle = stripWidth ? `--maxw: ${stripWidth}px;` : undefined;
             burger.setAttribute("aria-expanded", String(open));
           });
           mobile.querySelectorAll("a").forEach((a) => {
-            a.addEventListener("click", () => {
-              mobile.classList.remove("open");
-              burger.setAttribute("aria-expanded", "false");
-            });
+            a.addEventListener("click", closeMobile);
           });
+        }
+        // Force the drawer shut if the viewport grows past the burger
+        // breakpoint, so it never lingers open as duplicate desktop nav.
+        const lmpWin = window as unknown as { __lmpNavMq?: boolean };
+        if (!lmpWin.__lmpNavMq) {
+          lmpWin.__lmpNavMq = true;
+          window
+            .matchMedia("(min-width: 861px)")
+            .addEventListener("change", (e) => {
+              if (e.matches) closeMobile();
+            });
         }
       }
 
