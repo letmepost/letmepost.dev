@@ -289,7 +289,7 @@ export function ComposePostSheet({
                       type="button"
                       onClick={() => toggleAccount(a.id)}
                       className={cn(
-                        "flex items-center gap-2 p-2 ring-1 transition-all text-left text-xs",
+                        "flex items-center gap-2 rounded-md p-2 ring-1 transition-all text-left text-xs",
                         selected
                           ? "ring-primary bg-primary/5"
                           : "ring-foreground/10 hover:ring-foreground/30",
