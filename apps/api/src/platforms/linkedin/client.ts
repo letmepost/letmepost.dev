@@ -14,15 +14,15 @@ const PLATFORM = "linkedin";
  *    plan.md problem #2 ("LinkedIn sunset 5 versions in 6 months") is the
  *    competitor failure mode this addresses directly.
  *
- * Default version = `202504` — the most recent stable Versioned API
- * release as of April 2026. Pin via `LINKEDIN_API_VERSION` env to bump.
+ * Default version = `202605` — the most recent stable Versioned API
+ * release as of June 2026. Pin via `LINKEDIN_API_VERSION` env to bump.
  */
 export const LINKEDIN_API_BASE = "https://api.linkedin.com";
 export const LINKEDIN_OAUTH_AUTHORIZE_URL =
   "https://www.linkedin.com/oauth/v2/authorization";
 export const LINKEDIN_OAUTH_TOKEN_URL =
   "https://www.linkedin.com/oauth/v2/accessToken";
-export const LINKEDIN_DEFAULT_VERSION = "202504";
+export const LINKEDIN_DEFAULT_VERSION = "202605";
 
 export interface LinkedInTokenResponse {
   access_token: string;

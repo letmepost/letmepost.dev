@@ -20,7 +20,7 @@ export const platform = pgEnum("platform", [
 
 /**
  * One row per platform. `currentVersion` is the version string we pin — e.g. LinkedIn's
- * `LinkedIn-Version: 20250401`. Bluesky has no versioning; store "n/a".
+ * `LinkedIn-Version: 202605`. Bluesky has no versioning; store "n/a".
  */
 export const platformVersions = pgTable("platform_versions", {
   id: idColumn(),
