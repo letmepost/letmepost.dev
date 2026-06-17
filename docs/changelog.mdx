@@ -15,6 +15,15 @@ The canonical record lives in the git history; this page summarises the mileston
 - **Scheduled Bluesky replies are rejected** with `validation_failed` (rule `scheduledAt.no_bluesky_reply`). The queued row carries only text + media, so a scheduled reply would publish un-threaded; publish synchronously by dropping `scheduledAt`. Same stance the scheduled path already takes for `firstComment`.
 - `@letmepost/sdk` exposes the new fields on the Bluesky `TargetOptions` variant; the publish response already carries `uri`/`cid` for chaining. Full reference at [/platforms/bluesky](/platforms/bluesky).
 
+### Added — media on scheduled posts
+
+- **Scheduled posts now carry media.** Media refs persist on `posts.mediaRefs` and the worker reads them back at fire time, so a `scheduledAt` post can include images or video. Previously media on a scheduled post was rejected outright.
+- **Breaking (error rule).** The old `scheduledAt.text_only` rejection is gone. First-comment is still unsupported on scheduled posts, now under the narrower rule `scheduledAt.no_first_comment`. If you matched on `scheduledAt.text_only`, switch to the new rule.
+
+### Added — API-key auth on `/v1/webhook-endpoints`
+
+- **Manage webhook endpoints programmatically.** The `/v1/webhook-endpoints` CRUD routes now accept an API key (Bearer), not just a dashboard session, so you can register and rotate delivery endpoints from your own code like the rest of v1.
+
 ## 2026-05
 
 ### Added — TikTok (in App Review)
