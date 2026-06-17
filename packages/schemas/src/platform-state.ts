@@ -28,8 +28,8 @@ export const PLATFORM_STATE: Record<Platform, PlatformState> = {
   bluesky: "live",
   pinterest: "live",
   twitter: "live",
+  linkedin: "live",
   // In platform review — publisher built + tested, awaiting approval.
-  linkedin: "pending",
   facebook: "pending",
   instagram: "pending",
   threads: "pending",
