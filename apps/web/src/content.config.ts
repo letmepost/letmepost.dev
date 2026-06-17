@@ -28,6 +28,7 @@ const blog = defineCollection({
   loader: notionBlogLoader({
     token: import.meta.env.NOTION_TOKEN ?? "",
     databaseId: import.meta.env.NOTION_BLOG_DATABASE_ID ?? "",
+    skip: import.meta.env.DEV && import.meta.env.SKIP_NOTION_BLOG === "1",
   }),
   schema: z.object({
     title: z.string().min(1).max(120),

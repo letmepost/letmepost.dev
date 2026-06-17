@@ -17,7 +17,11 @@ import type { Loader } from "astro/loaders";
 type NotionBlogLoaderOptions = {
   databaseId: string;
   token: string;
+  skip?: boolean;
 };
+
+// Bump to rebuild cached entries when the markdown post-processing changes.
+const PROCESSOR_VERSION = "1";
 
 type RichText = { plain_text: string };
 type NotionCover =
@@ -28,6 +32,7 @@ type NotionPage = {
   id: string;
   properties: Record<string, unknown>;
   cover: NotionCover;
+  lastEdited: string;
 };
 
 function plainText(prop: unknown): string | undefined {
@@ -136,7 +141,7 @@ function demoteHeadings(markdown: string): string {
 export function notionBlogLoader(opts: NotionBlogLoaderOptions): Loader {
   return {
     name: "notion-blog",
-    load: async ({ store, parseData, generateDigest, renderMarkdown, logger }) => {
+    load: async ({ store, meta, parseData, generateDigest, renderMarkdown, logger }) => {
       if (!opts.token || !opts.databaseId) {
         // Warn rather than throw — `astro check` and `astro sync` run
         // this loader to generate types and must succeed without env.
@@ -146,6 +151,12 @@ export function notionBlogLoader(opts: NotionBlogLoaderOptions): Loader {
           "NOTION_TOKEN / NOTION_BLOG_DATABASE_ID are not set — blog will be empty. Set them in the Vercel project env to populate it.",
         );
         store.clear();
+        return;
+      }
+      if (opts.skip) {
+        logger.info(
+          "SKIP_NOTION_BLOG set. Reusing the last synced blog content, skipping Notion.",
+        );
         return;
       }
       const notion = new Client({ auth: opts.token });
@@ -185,14 +196,15 @@ export function notionBlogLoader(opts: NotionBlogLoaderOptions): Loader {
               id: r.id,
               properties: r.properties,
               cover: r.cover as NotionCover,
+              lastEdited: r.last_edited_time,
             });
           }
         }
         cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
       } while (cursor);
 
-      logger.info(`Fetched ${pages.length} pages from Notion. Rendering…`);
-      store.clear();
+      logger.info(`Fetched ${pages.length} pages from Notion. Reconciling…`);
+      const seen = new Set<string>();
 
       for (const page of pages) {
         const props = page.properties;
@@ -209,6 +221,13 @@ export function notionBlogLoader(opts: NotionBlogLoaderOptions): Loader {
           logger.warn(
             `Skipping ${slug}: missing title, description, or publish date`,
           );
+          continue;
+        }
+
+        seen.add(slug);
+        const cacheKey = `${PROCESSOR_VERSION}:${page.lastEdited}`;
+        if (meta.get(slug) === cacheKey && store.get(slug)) {
+          logger.info(`  ${slug}: unchanged, reused from cache`);
           continue;
         }
 
@@ -253,6 +272,15 @@ export function notionBlogLoader(opts: NotionBlogLoaderOptions): Loader {
           rendered,
           digest: generateDigest(body),
         });
+        meta.set(slug, cacheKey);
+      }
+
+      for (const key of store.keys()) {
+        if (!seen.has(key)) {
+          store.delete(key);
+          meta.delete(key);
+          logger.info(`  ${key}: removed (no longer in Notion)`);
+        }
       }
       logger.info(`Loaded ${store.keys().length} Notion blog entries.`);
     },
