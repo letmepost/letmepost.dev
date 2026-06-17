@@ -239,6 +239,8 @@ export function notionBlogLoader(opts: NotionBlogLoaderOptions): Loader {
         const body = addImageAlts(demoted, title);
         if (!body.trim()) {
           logger.warn(`Skipping ${slug}: empty body`);
+          store.delete(slug);
+          meta.delete(slug);
           continue;
         }
 
