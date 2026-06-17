@@ -1,63 +1,47 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Tape from "../components/Tape.astro";
-import Closeout from "../components/Closeout.astro";
 ---
 
 <BaseLayout
   title="Status: real uptime, real incidents, no dashboards"
   description="letmepost.dev API, OAuth, webhooks, and per-platform upstream health. The same numbers we look at."
 >
-  <Tape />
-
-  <header class="page-head" data-sticky-anchor>
-    <div class="crumb"><a href="/">letmepost</a> / status</div>
-    <h1 class="page-h1">The same numbers we look at.</h1>
-    <p class="lede">
-      Status is whatever the metrics say. No green-coloured pixels
-      papering over a degraded fan-out. When an upstream platform's
-      OAuth flakes, this page calls it.
+  <header class="wrap page-head">
+    <p class="crumb"><a href="/">letmepost</a> / status</p>
+    <p class="eyebrow">Status</p>
+    <h1 class="cl-h1" style="max-width: 16ch;">The same numbers we look at.</h1>
+    <p class="sub" style="max-width: 58ch;">
+      Status is whatever the metrics say. No green-coloured pixels papering over a
+      degraded fan-out. When an upstream platform's OAuth flakes, this page calls it.
     </p>
   </header>
 
-  <hr class="dash" />
-
-  <div
-    style="display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-top: 2px solid var(--r-ink); border-bottom: 2px solid var(--r-ink); margin: 16px 0 28px;"
-  >
-    <span
-      class="pulse"
-      style="width: 10px; height: 10px; flex-shrink: 0;"
-      aria-hidden="true"></span>
-    <div>
-      <div style="font-weight: 700; color: var(--r-ink);">All systems operational</div>
-      <div style="color: var(--r-dim); font-size: 12px; margin-top: 2px;">
-        Pre-launch. Real uptime + incident history surface here once the API takes production traffic.
-      </div>
+  <section class="wrap sec tight" style="padding-top: 28px;">
+    <div class="callout">
+      <span class="callout-tag">Operational</span>
+      <p>
+        <b>All systems operational.</b> Pre-launch. Real uptime and incident history
+        surface here once the API takes production traffic.
+      </p>
     </div>
-  </div>
 
-  <div class="prose">
-    <h2>Monitored surfaces</h2>
-    <ul>
-      <li>API gateway (<code>api.letmepost.dev</code>)</li>
-      <li>OAuth connect flows per platform</li>
-      <li>Webhook delivery pipeline</li>
-      <li>Background publishing workers</li>
-      <li>Per-platform upstream health (Bluesky, LinkedIn, X, Meta, …)</li>
-    </ul>
+    <div class="prose" style="margin-top: 32px;">
+      <h2>Monitored surfaces</h2>
+      <ul>
+        <li>API gateway (<code>api.letmepost.dev</code>)</li>
+        <li>OAuth connect flows per platform</li>
+        <li>Webhook delivery pipeline</li>
+        <li>Background publishing workers</li>
+        <li>Per-platform upstream health (Bluesky, LinkedIn, X, Meta, …)</li>
+      </ul>
 
-    <h2>Subscribing</h2>
-    <p>
-      Once the status endpoints are wired, you'll be able to subscribe via RSS, email, or a webhook.
-      Until then,
-      <a href="https://github.com/rosekamallove/letmepost.dev" rel="noopener" target="_blank">the GitHub repo</a>
-      is the source of truth.
-    </p>
-  </div>
-
-  <hr class="double" />
-
-  <Closeout codeLine="000 LMP STATUS · 2026-05-23" />
-  <Tape bottom />
+      <h2>Subscribing</h2>
+      <p>
+        Once the status endpoints are wired, you'll be able to subscribe via RSS, email,
+        or a webhook. Until then,
+        <a href="https://github.com/rosekamallove/letmepost.dev" rel="noopener" target="_blank">the GitHub repo</a>
+        is the source of truth.
+      </p>
+    </div>
+  </section>
 </BaseLayout>

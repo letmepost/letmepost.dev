@@ -1,0 +1,82 @@
+---
+/**
+ * "Paid-in-full ledger" — the integration work letmepost did once so the
+ * caller never has to, itemized with rough time costs and a reclaimed-time
+ * total. Clarity styling; copy carried over from the receipt landing.
+ */
+const rows: { qty: string; title: string; sub: string; val: string }[] = [
+  {
+    qty: "1×",
+    title: "Multi-target publish endpoint",
+    sub: "POST /v1/posts, fans out to every connected account in one call",
+    val: "~4 wk",
+  },
+  {
+    qty: "3×",
+    title: "Meta App Review absorbed",
+    sub: "Instagram + Facebook + Threads, one shared review, our app of record. Three rejections, four re-shot demo videos. Once.",
+    val: "~11 wk",
+  },
+  {
+    qty: "1×",
+    title: "LinkedIn Marketing Developer Platform review",
+    sub: "submitted, version-pinned, sunset-monitored",
+    val: "~12 wk",
+  },
+  {
+    qty: "80×",
+    title: "Preflight rules",
+    sub: "char-count, media-format, audit-state, URN patterns. One docs page each.",
+    val: "~6 wk",
+  },
+  {
+    qty: "7×",
+    title: "Platform versions pinned for you",
+    sub: "we own the LinkedIn-sunsets-every-six-weeks problem",
+    val: "∞",
+  },
+];
+---
+
+<section class="wrap sec divider">
+  <p class="kicker">Paid-in-full ledger</p>
+  <h2 class="cl-h2">Work we did once, so you don't have to.</h2>
+  <p class="lead">The integration tax other APIs pass to you, settled up front. Here's the bill we already paid.</p>
+
+  <div class="ledger">
+    {
+      rows.map((r) => (
+        <div class="ledger-row">
+          <span class="qty">{r.qty}</span>
+          <span class="desc">
+            <b>{r.title}</b>
+            <span class="sub">{r.sub}</span>
+          </span>
+          <span class="val">{r.val}</span>
+        </div>
+      ))
+    }
+    <div class="ledger-total">
+      <span class="lbl">Time reclaimed</span>
+      <span class="v">≈ 6 months</span>
+    </div>
+  </div>
+</section>
+
+<style>
+  .ledger { margin-top: 40px; border-top: 1px solid var(--line); }
+  .ledger-row { display: grid; grid-template-columns: 56px 1fr auto; gap: 20px; align-items: baseline; padding: 22px 0; border-bottom: 1px solid var(--line); }
+  .ledger-row .qty { font-family: var(--mono); font-size: 14px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .ledger-row .desc { display: flex; flex-direction: column; gap: 5px; }
+  .ledger-row .desc b { font-family: var(--disp); font-weight: 600; font-size: 18px; color: var(--ink); letter-spacing: -0.01em; }
+  .ledger-row .desc .sub { font-size: 14.5px; color: var(--mut); line-height: 1.55; max-width: 64ch; }
+  .ledger-row .val { font-family: var(--mono); font-weight: 600; font-size: 15px; color: var(--acc); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .ledger-total { display: grid; grid-template-columns: 1fr auto; align-items: center; padding-top: 24px; margin-top: 4px; border-top: 2px solid var(--ink); }
+  [data-theme="dark"] .ledger-total { border-top-color: var(--line); }
+  .ledger-total .lbl { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); }
+  .ledger-total .v { font-family: var(--disp); font-weight: 600; font-size: 30px; letter-spacing: -0.02em; color: var(--acc); }
+  @media (max-width: 560px) {
+    .ledger-row { grid-template-columns: 44px 1fr; row-gap: 8px; }
+    .ledger-row .val { grid-column: 2; }
+  }
+</style>

@@ -139,7 +139,7 @@ export function PostsTable({ posts }: { posts: PostListItem[] }) {
   });
 
   return (
-    <div className="ring-1 ring-foreground/10 bg-card">
+    <div className="rounded-md ring-1 ring-foreground/10 bg-card">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (

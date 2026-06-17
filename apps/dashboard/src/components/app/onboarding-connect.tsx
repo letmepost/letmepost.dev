@@ -224,7 +224,7 @@ export function OnboardingConnect({
               transition: { duration: 0.18, ease: EASE_OUT },
             }}
             transition={{ duration: 0.28, ease: EASE_OUT }}
-            className="space-y-4 ring-1 ring-foreground/10 bg-card p-4"
+            className="space-y-4 rounded-md ring-1 ring-foreground/10 bg-card p-4"
           >
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold">
@@ -319,7 +319,7 @@ export function OnboardingConnect({
                       : undefined
                   }
                   className={cn(
-                    "group relative flex flex-col items-center ring-1 ring-foreground/10 bg-card transition-[box-shadow,opacity] duration-200",
+                    "group relative flex flex-col items-center rounded-md ring-1 ring-foreground/10 bg-card transition-[box-shadow,opacity] duration-200",
                     size === "large" ? "gap-3 px-4 py-8" : "gap-2 px-3 py-5",
                     !busy && !pending && "hover:ring-foreground/40 hover:bg-muted/40",
                     active && "ring-primary",

@@ -337,7 +337,7 @@ export default function WebhooksPage() {
           </DialogHeader>
           {secretReveal ? (
             <div className="space-y-3">
-              <div className="break-all bg-muted px-3 py-2 font-mono text-xs">
+              <div className="break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
                 {secretReveal.signingSecret}
               </div>
               <Button variant="outline" onClick={copySecret}>

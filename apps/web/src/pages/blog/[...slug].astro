@@ -1,9 +1,7 @@
 ---
 import { getCollection, render } from "astro:content";
 import type { CollectionEntry } from "astro:content";
-import BlogLayout, {
-  type JsonLdGraph,
-} from "../../layouts/BlogLayout.astro";
+import BaseLayout, { type JsonLdGraph } from "../../layouts/BaseLayout.astro";
 import { breadcrumbSchema, ROSE_PERSON_SCHEMA } from "../../lib/seo.ts";
 
 const siteUrl = Astro.site!.toString().replace(/\/$/, "");
@@ -26,9 +24,8 @@ interface Props {
 const { post, allPosts } = Astro.props;
 const { Content, headings } = await render(post);
 
-// TOC: only h2/h3, skip stray "Table of Contents" (defensive — the
-// loader already strips it, but the markdown renderer can resurface
-// headings from text we missed).
+// Static TOC from h2/h3 (the loader strips stray "Table of Contents",
+// but guard defensively).
 const tocHeadings = headings.filter(
   (h) =>
     (h.depth === 2 || h.depth === 3) &&
@@ -46,11 +43,7 @@ const prevPost =
     : null;
 
 function fmtDate(d: Date): string {
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 function fmtISO(d: Date): string {
   return d.toISOString();
@@ -62,6 +55,8 @@ function readingMin(p: CollectionEntry<"blog">): number {
   return Math.max(1, Math.round(words / 200));
 }
 
+const tags = post.data.tags.length > 0 ? post.data.tags : [post.data.category];
+
 const jsonLd: JsonLdGraph[] = [
   {
     "@context": "https://schema.org",
@@ -69,9 +64,7 @@ const jsonLd: JsonLdGraph[] = [
     headline: post.data.title,
     description: post.data.description,
     datePublished: fmtISO(post.data.pubDate),
-    ...(post.data.updatedDate
-      ? { dateModified: fmtISO(post.data.updatedDate) }
-      : {}),
+    ...(post.data.updatedDate ? { dateModified: fmtISO(post.data.updatedDate) } : {}),
     author: { "@id": ROSE_PERSON_SCHEMA["@id"] },
     publisher: { "@id": `${siteUrl}/#organization` },
     ...(post.data.heroImage ? { image: post.data.heroImage } : {}),
@@ -86,436 +79,169 @@ const jsonLd: JsonLdGraph[] = [
 ];
 ---
 
-<BlogLayout
+<BaseLayout
   title={post.data.title}
   description={post.data.description}
   ogImage={post.data.heroImage}
   ogType="article"
   jsonLd={jsonLd}
 >
-  <div class="bp-post-wrap">
-    <div class="bp-post-grid">
-      <article class="bp-post">
-        <header class="bp-post-head">
-          <a href="/blog" class="bp-back">← All writing</a>
-          <div class="bp-post-meta">
-            <span>{fmtDate(post.data.pubDate)}</span>
-            <span class="bp-dot">·</span>
-            <span>{readingMin(post)} min read</span>
-            <span class="bp-dot">·</span>
-            <span>by {post.data.author}</span>
-          </div>
-          <h1 class="bp-post-h">{post.data.title}</h1>
-          <p class="bp-post-lede">{post.data.description}</p>
-        </header>
+  <div class="post-shell">
+    {/* Left rail — sticky product CTA with the value prop. */}
+    <aside class="post-cta">
+      <div class="cta-card">
+        <p class="cta-k">letmepost</p>
+        <p class="cta-h">Post to every network with one API call.</p>
+        <p class="cta-p">
+          The open-source social publishing API. One <span class="mono">POST</span> fans
+          out to eight platforms, with preflight validation, idempotency, and structured
+          errors built in.
+        </p>
+        <a
+          class="btn pri cta-btn"
+          href="https://dashboard.letmepost.dev"
+          data-analytics-event="cta.clicked"
+          data-analytics-props='{"location":"blog-rail","target":"dashboard","page":"blog-post","label":"Start for free"}'
+        >Start for free →</a>
+        <a class="cta-docs" href="https://docs.letmepost.dev">Read the docs ↗</a>
+      </div>
+    </aside>
 
-        {post.data.heroImage && (
-          <figure class="bp-post-hero">
-            <img src={post.data.heroImage} alt={post.data.title} loading="eager" fetchpriority="high" />
-          </figure>
-        )}
+    {/* Center — article. */}
+    <article class="post-main">
+      <p class="crumb"><a href="/blog">Blog</a> / {tags[0]}</p>
+      <div class="art-tags">
+        {tags.map((t) => <span class="a-tag">{t}</span>)}
+      </div>
+      <h1 class="art-h1">{post.data.title}</h1>
+      <p class="art-lede">{post.data.description}</p>
+      <div class="art-meta">
+        <span class="who">{post.data.author}</span><span>·</span>
+        <span>{fmtDate(post.data.pubDate)}</span><span>·</span>
+        <span>{readingMin(post)} min read</span>
+      </div>
 
-        <div class="bp-post-body">
-          <Content />
-        </div>
-
-        <footer class="bp-post-foot">
-          <div class="bp-post-share">
-            <span>Tagged:</span>
-            {post.data.tags.length > 0
-              ? post.data.tags.map((t) => <span class="bp-tag">{t}</span>)
-              : <span class="bp-tag">{post.data.category}</span>}
-          </div>
-        </footer>
-
-        {(prevPost || nextPost) && (
-          <nav class="bp-post-nav">
-            {prevPost ? (
-              <a href={`/blog/${prevPost.id}`} class="bp-nav-card bp-nav-prev">
-                <span class="bp-nav-label">← Previous</span>
-                <span class="bp-nav-title">{prevPost.data.title}</span>
-              </a>
-            ) : <span />}
-            {nextPost ? (
-              <a href={`/blog/${nextPost.id}`} class="bp-nav-card bp-nav-next">
-                <span class="bp-nav-label">Next →</span>
-                <span class="bp-nav-title">{nextPost.data.title}</span>
-              </a>
-            ) : <span />}
-          </nav>
-        )}
-      </article>
-
-      {tocHeadings.length > 0 && (
-        <aside class="bp-toc" aria-label="Table of contents">
-          <div class="bp-toc-inner">
-            <div class="bp-toc-h">On this page</div>
-            <ul>
-              {tocHeadings.map((h) => (
-                <li class={`bp-toc-d${h.depth}`}>
-                  <a href={`#${h.slug}`}>{h.text}</a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </aside>
+      {post.data.heroImage && (
+        <figure class="art-cover">
+          <img src={post.data.heroImage} alt={post.data.title} loading="eager" fetchpriority="high" />
+        </figure>
       )}
-    </div>
+
+      <div class="prose">
+        <Content />
+      </div>
+
+      <div class="art-cta">
+        <h3>Publish everywhere from one POST.</h3>
+        <p>Free during alpha. Connect an account and send your first post in ninety seconds.</p>
+        <a class="btn pri" href="https://dashboard.letmepost.dev">Start for free →</a>
+      </div>
+
+      {(prevPost || nextPost) && (
+        <nav class="art-nav">
+          {prevPost ? (
+            <a href={`/blog/${prevPost.id}`} class="art-nav-card">
+              <span class="lbl">← Previous</span>
+              <span class="ttl">{prevPost.data.title}</span>
+            </a>
+          ) : <span />}
+          {nextPost ? (
+            <a href={`/blog/${nextPost.id}`} class="art-nav-card right">
+              <span class="lbl">Next →</span>
+              <span class="ttl">{nextPost.data.title}</span>
+            </a>
+          ) : <span />}
+        </nav>
+      )}
+
+      <nav class="art-foot">
+        <a class="trust" href="/blog">← All writing</a>
+      </nav>
+    </article>
+
+    {/* Right rail — static table of contents. */}
+    {tocHeadings.length > 0 && (
+      <aside class="post-toc">
+        <div class="toc-inner">
+          <p class="toc-h">On this page</p>
+          <ul>
+            {tocHeadings.map((h) => (
+              <li class={`toc-d${h.depth}`}><a href={`#${h.slug}`}>{h.text}</a></li>
+            ))}
+          </ul>
+        </div>
+      </aside>
+    )}
   </div>
-</BlogLayout>
+</BaseLayout>
 
 <style is:global>
-  /* ── /blog post detail ──────────────────────────────────── */
-
-  /* Article column is 720px + 220px TOC + 56px gap = 996px. Center the
-     whole reading column together so the article isn't pulled left and
-     the TOC isn't pinned to the page edge. */
-  .bp-post-wrap {
-    max-width: 1020px;
-    margin: 0 auto;
-    padding: 40px var(--bp-gutter) 0;
-  }
-  .bp-post-grid {
+  /* ── /blog/[slug] — 3-column reading layout ─────────────── */
+  .post-shell {
     display: grid;
-    grid-template-columns: 720px 220px;
-    gap: 56px;
+    grid-template-columns: 240px minmax(0, 680px) 220px;
+    gap: 48px;
     justify-content: center;
+    padding: 56px 32px 0;
   }
 
-  .bp-post { min-width: 0; }
+  /* Left rail CTA */
+  .post-cta .cta-card {
+    position: sticky; top: 96px;
+    border: 1px solid var(--line); border-radius: 16px;
+    padding: 24px 22px; background: var(--panel);
+  }
+  .cta-card .cta-k { font-family: var(--mono); font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--acc); margin: 0 0 10px; }
+  .cta-card .cta-h { font-family: var(--disp); font-weight: 600; font-size: 19px; line-height: 1.22; letter-spacing: -0.01em; color: var(--ink); margin: 0 0 10px; }
+  .cta-card .cta-p { font-size: 13.5px; color: var(--mut); line-height: 1.55; margin: 0 0 18px; }
+  .cta-card .cta-btn { display: flex; justify-content: center; width: 100%; }
+  .cta-card .cta-docs { display: inline-block; margin-top: 12px; font-family: var(--mono); font-size: 12px; color: var(--mut); text-decoration: none; }
+  .cta-card .cta-docs:hover { color: var(--acc); }
 
-  .bp-post-head { margin-bottom: 32px; }
-  .bp-back {
-    display: inline-block;
-    font-family: var(--r-mono);
-    font-size: 11px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--r-dim);
-    text-decoration: none;
-    margin-bottom: 28px;
-    transition: color 0.15s;
-  }
-  .bp-back:hover { color: var(--r-accent); }
+  /* Center article */
+  .post-main { min-width: 0; }
+  .post-main .art-tags { display: flex; gap: 8px; margin-bottom: 20px; }
+  .post-main .a-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--acc); background: var(--acc-soft); padding: 3px 9px; border-radius: 999px; }
+  .post-main .art-h1 { font-family: var(--disp); font-weight: 600; font-size: 42px; line-height: 1.08; letter-spacing: -0.025em; margin: 0 0 18px; text-wrap: balance; }
+  .post-main .art-lede { font-size: 20px; line-height: 1.5; color: var(--mut); margin: 0 0 4px; max-width: 60ch; }
+  .post-main .art-meta { display: flex; align-items: center; gap: 14px; font-family: var(--mono); font-size: 12.5px; color: var(--faint); padding: 18px 0 28px; border-bottom: 1px solid var(--line); margin-top: 14px; }
+  .post-main .art-meta .who { color: var(--ink); }
+  .post-main .art-cover { margin: 36px 0; }
+  .post-main .art-cover img { width: 100%; height: auto; display: block; border-radius: 14px; border: 1px solid var(--line); }
 
-  .bp-post-meta {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-family: var(--r-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--r-very);
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
+  .post-main .prose { max-width: none; font-size: 18px; }
+  .post-main .prose blockquote { font-family: var(--disp); font-weight: 500; font-size: 22px; line-height: 1.35; letter-spacing: -0.01em; color: var(--ink); font-style: normal; }
 
-  .bp-post-h {
-    font-family: var(--r-mono);
-    font-weight: 700;
-    font-size: clamp(28px, 4.6vw, 44px);
-    line-height: 1.15;
-    letter-spacing: -0.02em;
-    color: var(--r-ink);
-    margin: 0 0 18px;
-    text-wrap: balance;
-  }
-  .bp-post-lede {
-    font-family: var(--bp-serif);
-    font-size: 20px;
-    line-height: 1.5;
-    color: var(--r-dim);
-    margin: 0;
-    text-wrap: balance;
-  }
+  .post-main .art-cta { margin-top: 48px; padding: 32px 34px; border: 1px solid var(--line); border-radius: 16px; background: var(--acc-soft); }
+  .post-main .art-cta h3 { font-family: var(--disp); font-weight: 600; font-size: 22px; margin: 0 0 8px; }
+  .post-main .art-cta p { margin: 0 0 18px; color: var(--mut); font-size: 16px; }
 
-  .bp-post-hero {
-    margin: 36px 0;
-  }
-  .bp-post-hero img {
-    width: 100%;
-    height: auto;
-    display: block;
-    border: 1px solid var(--r-line);
-  }
+  .post-main .art-nav { margin-top: 48px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .post-main .art-nav-card { display: flex; flex-direction: column; gap: 6px; padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; text-decoration: none; color: inherit; transition: border-color 140ms; }
+  .post-main .art-nav-card:hover { border-color: var(--acc); }
+  .post-main .art-nav-card.right { text-align: right; }
+  .post-main .art-nav-card .lbl { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint); }
+  .post-main .art-nav-card .ttl { font-family: var(--disp); font-weight: 600; font-size: 16px; line-height: 1.25; color: var(--ink); }
 
-  /* Article body — serif for readability */
-  .bp-post-body {
-    font-family: var(--bp-serif);
-    font-size: 18px;
-    line-height: 1.7;
-    color: var(--r-fg);
-  }
-  .bp-post-body > * + * { margin-top: 1.1em; }
+  .post-main .art-foot { margin: 48px 0 0; padding-top: 28px; border-top: 1px solid var(--line); }
 
-  /* Headings stay mono to match the brand */
-  .bp-post-body h1,
-  .bp-post-body h2,
-  .bp-post-body h3,
-  .bp-post-body h4 {
-    font-family: var(--r-mono);
-    font-weight: 700;
-    color: var(--r-ink);
-    letter-spacing: -0.01em;
-    scroll-margin-top: 24px;
-    text-wrap: balance;
-  }
-  .bp-post-body h1 {
-    font-size: 28px;
-    line-height: 1.2;
-    margin: 2em 0 0.5em;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--r-line);
-  }
-  .bp-post-body h2 {
-    font-size: 22px;
-    line-height: 1.25;
-    margin: 1.8em 0 0.4em;
-  }
-  .bp-post-body h3 {
-    font-size: 17px;
-    line-height: 1.3;
-    margin: 1.5em 0 0.4em;
-    letter-spacing: 0;
-  }
-  .bp-post-body h4 {
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    margin: 1.4em 0 0.4em;
-    color: var(--r-dim);
-  }
+  /* Right rail TOC */
+  .post-toc .toc-inner { position: sticky; top: 96px; }
+  .post-toc .toc-h { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .post-toc ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 9px; }
+  .post-toc a { display: block; font-size: 13px; line-height: 1.4; color: var(--mut); text-decoration: none; border-left: 2px solid transparent; padding-left: 12px; margin-left: -12px; transition: color 120ms, border-color 120ms; }
+  .post-toc a:hover { color: var(--acc); border-left-color: var(--acc); }
+  .post-toc li.toc-d3 a { padding-left: 26px; font-size: 12.5px; }
 
-  .bp-post-body a {
-    color: var(--r-accent);
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 3px;
+  @media (max-width: 1180px) {
+    .post-shell { grid-template-columns: minmax(0, 720px); }
+    .post-cta, .post-toc { display: none; }
   }
-  .bp-post-body a:hover { text-decoration-thickness: 2px; }
-
-  .bp-post-body strong { color: var(--r-ink); font-weight: 600; }
-  .bp-post-body em { font-style: italic; }
-
-  .bp-post-body blockquote {
-    border-left: 3px solid var(--r-accent);
-    padding: 4px 0 4px 20px;
-    margin: 1.4em 0;
-    color: var(--r-dim);
-    font-style: italic;
-  }
-  .bp-post-body blockquote p { margin: 0; }
-  .bp-post-body blockquote p + p { margin-top: 0.8em; }
-
-  .bp-post-body ul, .bp-post-body ol { padding-left: 1.4em; }
-  .bp-post-body li { margin: 0.4em 0; }
-  .bp-post-body li::marker { color: var(--r-accent); }
-
-  .bp-post-body code:not(pre code) {
-    font-family: var(--r-mono);
-    font-size: 0.85em;
-    background: var(--r-accent-soft);
-    color: var(--r-ink);
-    padding: 2px 6px;
-  }
-
-  .bp-post-body pre {
-    font-family: var(--r-mono);
-    font-size: 13px;
-    line-height: 1.6;
-    background: var(--r-code-bg);
-    color: var(--r-code-fg);
-    padding: 18px 20px;
-    border: 1px solid var(--r-code-line);
-    overflow-x: auto;
-    margin: 1.4em 0;
-  }
-  .bp-post-body pre code {
-    background: transparent;
-    padding: 0;
-    font-size: inherit;
-    color: inherit;
-  }
-
-  .bp-post-body img {
-    max-width: 100%;
-    height: auto;
-    margin: 1.4em 0;
-    display: block;
-    border: 1px solid var(--r-line);
-  }
-  .bp-post-body figure { margin: 1.4em 0; }
-  .bp-post-body figcaption {
-    font-family: var(--r-mono);
-    font-size: 11px;
-    color: var(--r-very);
-    margin-top: 8px;
-    text-align: center;
-  }
-
-  .bp-post-body table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: var(--bp-serif);
-    font-size: 15px;
-    margin: 1.4em 0;
-    border: 1px solid var(--r-line);
-  }
-  .bp-post-body table th,
-  .bp-post-body table td {
-    padding: 10px 14px;
-    text-align: left;
-    border-bottom: 1px solid var(--r-line);
-    vertical-align: top;
-    line-height: 1.5;
-  }
-  .bp-post-body table tr:last-child td { border-bottom: 0; }
-  .bp-post-body table th {
-    font-family: var(--r-mono);
-    font-weight: 700;
-    color: var(--r-ink);
-    background: var(--r-paper);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .bp-post-body hr {
-    border: 0;
-    border-top: 1px dashed var(--r-very);
-    margin: 2.4em 0;
-  }
-
-  /* Post footer */
-  .bp-post-foot {
-    margin-top: 48px;
-    padding-top: 24px;
-    border-top: 1px solid var(--r-line);
-  }
-  .bp-post-share {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-    font-family: var(--r-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--r-very);
-  }
-  .bp-tag {
-    padding: 3px 9px;
-    background: var(--r-accent-soft);
-    color: var(--r-accent);
-    font-weight: 700;
-  }
-
-  /* Prev / next */
-  .bp-post-nav {
-    margin-top: 48px;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-  .bp-nav-card {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 16px 18px;
-    border: 1px solid var(--r-line);
-    text-decoration: none;
-    color: inherit;
-    transition: border-color 0.15s;
-  }
-  .bp-nav-card:hover { border-color: var(--r-accent); }
-  .bp-nav-prev { text-align: left; }
-  .bp-nav-next { text-align: right; }
-  .bp-nav-label {
-    font-family: var(--r-mono);
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--r-very);
-  }
-  .bp-nav-title {
-    font-family: var(--r-mono);
-    font-weight: 700;
-    font-size: 14px;
-    line-height: 1.3;
-    color: var(--r-ink);
-  }
-
-  /* Right-rail TOC — sticky, generated from h2/h3 of the post.
-     The grid item must stretch to row height for sticky to have
-     scroll space within (otherwise position: sticky is a no-op
-     because the parent's height === content's height). */
-  .bp-toc {
-    position: relative;
-    align-self: stretch;
-  }
-  .bp-toc-inner {
-    position: sticky;
-    top: 32px;
-    padding-top: 4px;
-    max-height: calc(100vh - 64px);
-    overflow-y: auto;
-    scrollbar-width: thin;
-  }
-  .bp-toc-inner::-webkit-scrollbar { width: 4px; }
-  .bp-toc-inner::-webkit-scrollbar-thumb {
-    background: var(--r-line);
-    border-radius: 2px;
-  }
-  .bp-toc-h {
-    font-family: var(--r-mono);
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--r-very);
-    margin-bottom: 14px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--r-line);
-  }
-  .bp-toc ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .bp-toc li.bp-toc-d3 { padding-left: 14px; }
-  .bp-toc a {
-    font-family: var(--r-mono);
-    font-size: 11.5px;
-    line-height: 1.4;
-    color: var(--r-dim);
-    text-decoration: none;
-    display: block;
-    padding: 2px 0;
-    border-left: 2px solid transparent;
-    padding-left: 10px;
-    margin-left: -12px;
-    transition: color 0.15s, border-color 0.15s;
-  }
-  .bp-toc a:hover {
-    color: var(--r-accent);
-    border-left-color: var(--r-accent);
-  }
-
-  @media (max-width: 1020px) {
-    .bp-post-grid {
-      grid-template-columns: minmax(0, 720px);
-      justify-content: center;
-    }
-    .bp-toc { display: none; }
-  }
-  @media (max-width: 640px) {
-    .bp-post-wrap { padding: 24px 18px 0; }
-    .bp-post-body { font-size: 17px; line-height: 1.65; }
-    .bp-post-body pre { margin-left: -18px; margin-right: -18px; }
-    .bp-post-nav { grid-template-columns: 1fr; }
-    .bp-nav-next { text-align: left; }
+  @media (max-width: 760px) {
+    .post-shell { padding: 32px 20px 0; }
+    .post-main .art-h1 { font-size: 32px; }
+    .post-main .prose { font-size: 17px; }
+    .post-main .art-nav { grid-template-columns: 1fr; }
+    .post-main .art-nav-card.right { text-align: left; }
   }
 </style>

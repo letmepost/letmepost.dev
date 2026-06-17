@@ -38,7 +38,7 @@ export default function PostsListPage() {
   }
 
   return (
-    <div className="ring-1 ring-foreground/10 divide-y divide-foreground/5 bg-background">
+    <div className="rounded-md ring-1 ring-foreground/10 divide-y divide-foreground/5 bg-background">
       {all.map((p) => {
         const brand = PLATFORM_BRANDS.find((b) => b.id === p.platform);
         const Icon = brand?.Icon;

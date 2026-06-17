@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "@fontsource/commit-mono": "^5.2.5",
+    "@fontsource/hanken-grotesk": "^5.2.8",
+    "@fontsource/ibm-plex-mono": "^5.2.7",
     "@fontsource/instrument-serif": "^5.2.8",
+    "@fontsource/space-grotesk": "^5.2.10",
     "@letmepost/schemas": "workspace:*",
     "@phosphor-icons/react": "^2.1.10",
     "@sentry/nextjs": "^10.54.0",

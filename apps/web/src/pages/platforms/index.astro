@@ -1,256 +1,131 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import { Icon } from "astro-icon/components";
-import Tape from "../../components/Tape.astro";
-import Closeout from "../../components/Closeout.astro";
+import PlatformIcon from "../../components/PlatformIcon.astro";
 import { PLATFORMS } from "../../data/platforms.ts";
+import { highlight } from "../../lib/highlight.ts";
 
 /**
- * Platforms index — one long grid, no filtering. The status pill on
- * each card carries the live/in-review/planned signal; the page itself
- * doesn't need section headers or filter chips to make that point.
+ * Platforms index — Clarity direction. One grid of platform cards, each
+ * carrying its status pill, then the "shape never changes" code sample
+ * and a "more coming" note. Status reads from PLATFORMS (canonical
+ * PLATFORM_STATE): seven live today, TikTok in App Review.
  */
 
-const phosphor: Record<string, string> = {
-  bluesky: "ph:butterfly",
-  twitter: "ph:x-logo",
-  pinterest: "ph:pinterest-logo",
-  instagram: "ph:instagram-logo",
-  facebook: "ph:facebook-logo",
-  threads: "ph:threads-logo",
-  linkedin: "ph:linkedin-logo",
-  tiktok: "ph:tiktok-logo",
+const STATUS_LABEL: Record<string, string> = {
+  live: "Live",
+  pending: "In review",
+  trial: "Trial",
+  planned: "Planned",
 };
-
-const statusBucket = (status: string): "live" | "in-review" | "planned" => {
-  if (status === "live" || status === "trial") return "live";
-  if (status === "pending") return "in-review";
-  return "planned";
-};
-
-const statusLabel: Record<string, string> = {
+const STATUS_PILL: Record<string, string> = {
   live: "live",
-  "in-review": "in review",
+  pending: "in-review",
+  trial: "trial",
   planned: "planned",
 };
+const order: Record<string, number> = { live: 0, trial: 0, pending: 1, planned: 2 };
 
-// Sort live first, then in-review, then planned — same visual hierarchy
-// the old categorized version had, just collapsed into a single grid.
-const order = { live: 0, "in-review": 1, planned: 2 } as const;
-const platforms = [...PLATFORMS]
-  .map((p) => ({ ...p, bucket: statusBucket(p.status) }))
-  .sort((a, b) => order[a.bucket] - order[b.bucket]);
+// Dedupe by slug (platforms.ts lists TikTok twice), then sort live first.
+const seen = new Set<string>();
+const platforms = PLATFORMS.filter((p) => {
+  if (seen.has(p.slug)) return false;
+  seen.add(p.slug);
+  return true;
+}).sort((a, b) => (order[a.status] ?? 3) - (order[b.status] ?? 3));
 
-const counts = {
-  live: platforms.filter((p) => p.bucket === "live").length,
-  inReview: platforms.filter((p) => p.bucket === "in-review").length,
-  planned: platforms.filter((p) => p.bucket === "planned").length,
-};
-const total = PLATFORMS.length;
+const total = platforms.length;
+const liveCount = platforms.filter((p) => p.status === "live").length;
+
+const curlSample = `curl -X POST https://api.letmepost.dev/v1/posts \\
+  -H "Authorization: Bearer $LMP_KEY" \\
+  -d '{
+    "targets": [
+      { "platform": "bluesky" },
+      { "platform": "linkedin" },
+      { "platform": "instagram" },
+      { "platform": "pinterest" }
+    ],
+    "text": "Shipped multi-target publishing today.",
+    "media": [{ "mediaId": "med_01HXY…" }]
+  }'`;
 ---
 
 <BaseLayout
   title="Supported social media platforms"
-  description={`${total} social platforms in v1. Bluesky, X, and Pinterest are live. Instagram, Facebook, Threads, and LinkedIn are in platform review. TikTok lands in v2.`}
+  description={`${total} platforms behind one POST. Bluesky, X, and Pinterest are live end-to-end today; the rest are in review.`}
 >
-  {/* Override the nav-rail Live status + colophon with empty content
-      so /platforms shows only the primary nav + submenus — the page
-      itself is the platform inventory. */}
-  <Fragment slot="navStatus" />
-  <Fragment slot="navColophon" />
-
-  <Tape />
-
-  <header class="page-head" data-sticky-anchor>
-    <div class="crumb"><a href="/">letmepost</a> / platforms</div>
-    <h1 class="page-h1">
-      {total} platforms in v1. <span class="acc">Twenty plus next.</span>
-    </h1>
+  <header class="wrap page-head">
+    <p class="crumb"><a href="/">letmepost</a> / platforms</p>
+    <p class="eyebrow">Platforms</p>
+    <h1 class="cl-h1" style="max-width: 15ch;">Eight platforms. <span class="acc">One</span> endpoint.</h1>
+    <p class="sub" style="max-width: 58ch;">
+      The same <span class="mono">POST /v1/posts</span> body publishes everywhere.
+      {liveCount} platforms are live end-to-end today; the rest flip on the day their
+      review clears, with no code change on your side.
+    </p>
   </header>
 
-  <hr class="dash" />
+  <section class="wrap sec tight" style="padding-top: 36px;">
+    <div class="plat-grid">
+      {
+        platforms.map((p) => (
+          <a class="plat-card" href={`/platforms/${p.slug}`}>
+            <span class="pg"><PlatformIcon platform={p.slug} size={22} /></span>
+            <span>
+              <span class="pn">{p.name}</span>
+              <span class="pt">{p.tagline}</span>
+            </span>
+            <span class={`pill ${STATUS_PILL[p.status] ?? "planned"}`}>
+              {STATUS_LABEL[p.status] ?? "Planned"}
+            </span>
+          </a>
+        ))
+      }
+    </div>
 
-  {/* One long grid — no category headers, no filter chips. The pill
-      on each card carries the status. Ordered live → in-review →
-      planned so the eye reaches working stuff first. */}
-  <div class="pgrid">
-    {
-      platforms.map((p) => (
-        <a href={`/platforms/${p.slug}`} class={`pcard ${p.bucket}`}>
-          <span class="glyph">
-            <Icon name={phosphor[p.slug] ?? "ph:circle"} width={20} height={20} />
-          </span>
-          <div class="body">
-            <div class="top">
-              <span class="name">{p.name}</span>
-              {p.bucket !== "live" ? (
-                <span class="pip">{statusLabel[p.bucket]}</span>
-              ) : null}
-            </div>
-            <div class="tagline">{p.tagline}</div>
-            <p class="detail">{p.detail}</p>
-          </div>
-        </a>
-      ))
-    }
-  </div>
+    <div class="callout" style="margin-top: 28px;">
+      <span class="callout-tag">No artificial gates</span>
+      <p>
+        <b>Live</b> means published end-to-end today. <b>In review</b> means the
+        publisher is shipped and tested against developer-tier accounts; approval
+        flips it live with no code change on your side. Self-hosters can BYO platform
+        credentials and skip our shared review entirely.
+      </p>
+    </div>
+  </section>
 
-  {/* "More coming" footer card — sits below the platform grid as a
-      quiet acknowledgement that the inventory grows. Two stacked
-      rows: heading + body. */}
-  <div class="more-coming">
-    <div class="hd">More coming</div>
-    <div class="body">
-      The roadmap is long. Mastodon, Reddit, YouTube, Telegram, Snapchat, Google Business, and the Meta + LinkedIn + TikTok ad APIs are all under consideration.
-      <a href="https://github.com/letmepost/letmepost.dev/issues/new">Open an issue with the platform you need next →</a>
+  <section class="wrap sec divider">
+    <p class="kicker">The shape never changes</p>
+    <h2 class="cl-h2">Add a target, not an integration.</h2>
+    <p class="lead">
+      Every platform is one entry in the <code class="inl">targets</code> array.
+      Per-platform overrides are optional; the base post just works.
+    </p>
+    <div class="code">
+      <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="file">publish.sh</span></div>
+      <pre set:html={highlight("bash", curlSample)} />
     </div>
-  </div>
+  </section>
 
-  <hr class="double" />
+  <section class="wrap sec" style="padding-top: 0;">
+    <div class="callout">
+      <span class="callout-tag">More coming</span>
+      <p>
+        The roadmap is long. Mastodon, Reddit, YouTube, Telegram, Snapchat, Google
+        Business, and the Meta + LinkedIn + TikTok ad APIs are all under consideration.
+        <a href="https://github.com/letmepost/letmepost.dev/issues/new">Open an issue with the platform you need next →</a>
+      </p>
+    </div>
+  </section>
 
-  <Closeout
-    thanks="* * * SHIPPING THE WEDGE * * *"
-    codeLine={`000 LMP PLAT · ${total} PLATFORMS · v1`}
-    links={[
-      { href: "/", label: "home" },
-      { href: "https://docs.letmepost.dev", label: "docs" },
-      { href: "https://github.com/letmepost/letmepost.dev", label: "github" },
-    ]}
-  />
-  <Tape bottom />
-
-  {/* Right rail — platform notes */}
-  <aside class="marg" aria-label="Notes" slot="rightRail">
-    <div class="note">
-      <span class="tag">No artificial gates</span>
-      <b>Live</b> means published end-to-end today. <b>In review</b> means the publisher is shipped and tested against developer-tier accounts; approval flips Dev Mode to Live.
+  <section class="wrap">
+    <div class="final">
+      <h2>Connect your first account in 90 seconds.</h2>
+      <p>Free during alpha. No credit card. One OAuth flow per platform and your posts go live.</p>
+      <div class="ctas">
+        <a class="btn pri lg" href="https://dashboard.letmepost.dev">Start free →</a>
+        <a class="btn ghost lg" href="/api/publishing">See the Publishing API</a>
+      </div>
     </div>
-    <div class="note">
-      <span class="tag">Review timelines</span>
-      Meta App Review: <b>4–8 weeks</b>. LinkedIn MDP: <b>8–12 weeks</b>. Pinterest Standard Access: <b>4 weeks</b>. Each subject to reviewer queue.
-    </div>
-    <div class="note">
-      <span class="tag">Self-host BYO</span>
-      Self-hosters can <b>BYO platform credentials</b> for any platform and skip our shared review entirely.
-    </div>
-    <div class="note">
-      <span class="tag">Version pinning</span>
-      Every platform has its API version pinned in a single config value. <code>GET /v1/platform-versions</code> exposes the current pins.
-    </div>
-    <div class="note">
-      <span class="tag">Add a platform</span>
-      Open an issue with the platform name + your use case. Customer-pulled additions get prioritized.
-    </div>
-  </aside>
+  </section>
 </BaseLayout>
-
-<style is:global>
-  /* ── /platforms index ─────────────────────────────────── */
-
-  .pgrid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
-    border: 1px solid var(--r-line);
-    margin: 14px 0 8px;
-  }
-  .pcard {
-    padding: 20px 22px;
-    border-right: 1px dashed var(--r-very);
-    border-bottom: 1px dashed var(--r-very);
-    background: var(--r-paper);
-    display: grid; grid-template-columns: 36px 1fr;
-    gap: 14px;
-    text-decoration: none; color: inherit;
-    transition: background 100ms;
-    position: relative;
-  }
-  .pcard:nth-child(2n) { border-right: 0; }
-  .pcard:nth-last-child(-n+2) { border-bottom: 0; }
-  .pcard:hover { background: var(--r-accent-soft); }
-  .pcard .glyph {
-    width: 32px; height: 32px;
-    display: inline-flex; align-items: center; justify-content: center;
-    color: var(--r-ink);
-    border: 1px solid var(--r-line);
-    background: var(--r-paper-deep);
-  }
-  .pcard .body { min-width: 0; }
-  .pcard .top {
-    display: flex; justify-content: space-between; align-items: baseline;
-    margin-bottom: 4px; gap: 8px;
-  }
-  .pcard .name {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 16px; line-height: 1.2; color: var(--r-ink);
-  }
-  .pcard .pip {
-    font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase;
-    padding: 3px 7px; border: 1px solid var(--r-line);
-    white-space: nowrap; line-height: 1;
-  }
-  .pcard.live .pip {
-    background: var(--r-accent); color: var(--r-paper); border-color: var(--r-accent);
-  }
-  .pcard.in-review .pip { color: var(--r-ink); border-color: var(--r-ink); }
-  .pcard.planned .pip { color: var(--r-very); }
-  .pcard .tagline {
-    font-size: 11px; color: var(--r-very);
-    letter-spacing: 0.04em; margin-bottom: 8px;
-  }
-  .pcard .detail {
-    font-size: 12px; line-height: 1.55; color: var(--r-dim); margin: 0;
-  }
-  .pcard .detail code { background: var(--r-paper-deep); padding: 0 4px; }
-
-  .oos {
-    margin-top: 28px;
-    padding: 20px 22px;
-    border: 1px dashed var(--r-very);
-    background: var(--r-paper-deep);
-  }
-  .oos h3 {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 13px; margin: 0 0 8px;
-    letter-spacing: 0.06em; text-transform: uppercase;
-    color: var(--r-ink);
-  }
-  .oos p { margin: 0 0 8px; font-size: 12.5px; color: var(--r-dim); }
-  .oos p code { background: var(--r-paper); padding: 0 4px; }
-  .oos ul {
-    list-style: none; padding: 0; margin: 8px 0 0;
-    display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px;
-  }
-  .oos ul li {
-    font-size: 12px; color: var(--r-dim);
-    padding: 4px 0;
-  }
-  .oos ul li::before { content: '× '; color: var(--r-very); font-weight: 700; }
-  .oos ul li b { color: var(--r-fg); font-weight: 700; }
-
-  /* "More coming" 2-row card */
-  .more-coming {
-    margin: 22px 0 0;
-    padding: 18px 22px;
-    border: 1px dashed var(--r-very);
-    background: var(--r-paper-deep);
-  }
-  .more-coming .hd {
-    font-family: var(--r-mono); font-weight: 700;
-    font-size: 11px; letter-spacing: 0.22em;
-    text-transform: uppercase; color: var(--r-accent);
-    margin-bottom: 6px;
-  }
-  .more-coming .body {
-    font-size: 12.5px; line-height: 1.6; color: var(--r-dim);
-  }
-  .more-coming .body a {
-    display: inline-block; margin-top: 6px;
-    color: var(--r-accent);
-  }
-
-  @media (max-width: 700px) {
-    .pgrid { grid-template-columns: 1fr; }
-    .pcard { border-right: 0; }
-    .pcard:nth-last-child(2) { border-bottom: 1px dashed var(--r-very); }
-    .oos ul { grid-template-columns: 1fr; }
-  }
-</style>

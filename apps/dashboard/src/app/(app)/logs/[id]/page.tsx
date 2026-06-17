@@ -193,7 +193,7 @@ function ErrorContract({ error }: { error: NonNullable<PostDetail["error"]> }) {
             <div className="text-xs text-muted-foreground">
               Raw platform response
             </div>
-            <pre className="bg-muted px-3 py-2 text-xs overflow-x-auto whitespace-pre-wrap break-all font-mono">
+            <pre className="rounded-md bg-muted px-3 py-2 text-xs overflow-x-auto whitespace-pre-wrap break-all font-mono">
               {JSON.stringify(error.platformResponse, null, 2)}
             </pre>
           </div>
@@ -335,7 +335,7 @@ function Field({
       <div className="text-xs text-muted-foreground">{label}</div>
       <div
         className={`text-sm break-all ${
-          mono ? "font-mono text-xs bg-muted px-2 py-1" : ""
+          mono ? "font-mono text-xs rounded-md bg-muted px-2 py-1" : ""
         }`}
       >
         {value}
@@ -444,7 +444,7 @@ function CopyAsCurl({ post }: { post: PostDetail }) {
             </Select>
           </div>
         ) : null}
-        <pre className="bg-muted px-3 py-2 text-xs overflow-x-auto whitespace-pre-wrap break-all font-mono">
+        <pre className="rounded-md bg-muted px-3 py-2 text-xs overflow-x-auto whitespace-pre-wrap break-all font-mono">
           {curl}
         </pre>
         <Button variant="outline" size="sm" onClick={copy}>

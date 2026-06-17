@@ -7,7 +7,6 @@ import {
   ArrowsClockwise,
   Check,
   Clock,
-  FunnelSimple,
   MagnifyingGlass,
   WarningCircle,
   X,
@@ -107,9 +106,21 @@ function presetToAfter(preset: RangePreset): string | undefined {
 const DEFAULT_RANGE: RangePreset = "30d";
 
 function parseRange(raw: string | null): RangePreset {
-  return raw && raw in RANGE_PRESET_LABELS
+  return raw && Object.prototype.hasOwnProperty.call(RANGE_PRESET_LABELS, raw)
     ? (raw as RangePreset)
     : DEFAULT_RANGE;
+}
+
+/**
+ * The URL stores custom date bounds as absolute ISO timestamps; convert one
+ * back to the local datetime-local input format. Empty or invalid yields "".
+ */
+function toLocalDateTimeInput(raw: string | null): string {
+  if (!raw) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 /** Decode the comma-joined `errorCode` param, dropping anything unknown. */
@@ -148,10 +159,10 @@ export default function PostsPage() {
     parseRange(searchParams.get("range")),
   );
   const [customAfter, setCustomAfter] = useState<string>(
-    () => searchParams.get("after") ?? "",
+    () => toLocalDateTimeInput(searchParams.get("after")),
   );
   const [customBefore, setCustomBefore] = useState<string>(
-    () => searchParams.get("before") ?? "",
+    () => toLocalDateTimeInput(searchParams.get("before")),
   );
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
 
@@ -239,8 +250,9 @@ export default function PostsPage() {
     if (debouncedSearch.trim()) params.set("q", debouncedSearch.trim());
     if (range !== DEFAULT_RANGE) params.set("range", range);
     if (range === "custom") {
-      if (customAfter) params.set("after", customAfter);
-      if (customBefore) params.set("before", customBefore);
+      if (customAfter) params.set("after", new Date(customAfter).toISOString());
+      if (customBefore)
+        params.set("before", new Date(customBefore).toISOString());
     }
     const qs = params.toString();
     router.replace(qs ? `/logs?${qs}` : "/logs", { scroll: false });
@@ -339,8 +351,6 @@ export default function PostsPage() {
       </FadeIn>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <FunnelSimple className="size-4 text-muted-foreground" />
-
         <div className="relative">
           <MagnifyingGlass className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input

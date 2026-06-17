@@ -125,7 +125,7 @@ export default function PostsCalendarPage() {
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 ring-1 ring-foreground/10">
+      <div className="grid grid-cols-7 rounded-md ring-1 ring-foreground/10">
         {Array.from({ length: leading }).map((_, i) => (
           <div
             key={`lead-${i}`}
@@ -244,7 +244,7 @@ function DayCell({
               onClick={() => onSelectPost(p)}
               className={cn(
                 "flex items-center gap-1 w-full text-left text-[10px] px-1.5 py-0.5 min-w-0",
-                "ring-1 ring-foreground/10 hover:ring-foreground/30 transition-shadow",
+                "rounded-md ring-1 ring-foreground/10 hover:ring-foreground/30 transition-shadow",
                 statusBg(p.status),
               )}
               title={p.text}

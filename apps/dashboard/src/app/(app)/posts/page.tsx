@@ -109,7 +109,7 @@ function PostCard({
     <button
       type="button"
       onClick={() => onSelect(post)}
-      className="text-left ring-1 ring-foreground/10 hover:ring-foreground/30 transition-shadow p-3 space-y-3 bg-background"
+      className="text-left rounded-md ring-1 ring-foreground/10 hover:ring-foreground/30 transition-shadow p-3 space-y-3 bg-background"
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -134,7 +134,7 @@ function PostCard({
           {post.text}
         </p>
         {thumb ? (
-          <div className="size-16 ring-1 ring-foreground/10 overflow-hidden bg-muted/30 shrink-0">
+          <div className="size-16 rounded-md ring-1 ring-foreground/10 overflow-hidden bg-muted/30 shrink-0">
             {thumb.isVideo ? (
               <div className="w-full h-full grid place-items-center text-[10px] uppercase tracking-wide text-muted-foreground">
                 Video

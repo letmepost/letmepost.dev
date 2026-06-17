@@ -138,7 +138,7 @@ export default function MediaListPage() {
             setDragActive(false);
             handleFiles(e.dataTransfer.files);
           }}
-          className={`w-full rounded-none border-2 border-dashed px-6 py-10 text-left transition-colors ${
+          className={`w-full rounded-md border-2 border-dashed px-6 py-10 text-left transition-colors ${
             dragActive
               ? "border-foreground bg-muted"
               : "border-input hover:border-muted-foreground"

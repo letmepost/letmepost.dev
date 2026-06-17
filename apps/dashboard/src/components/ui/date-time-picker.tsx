@@ -83,7 +83,7 @@ export function DateTimePicker({
           <select
             value={hour}
             onChange={(e) => handleHourChange(Number(e.target.value))}
-            className="bg-background ring-1 ring-foreground/10 px-2 py-1 text-sm tabular-nums focus:ring-foreground/20 outline-none"
+            className="bg-background rounded-md ring-1 ring-foreground/10 px-2 py-1 text-sm tabular-nums focus:ring-foreground/20 outline-none"
           >
             {Array.from({ length: 24 }, (_, i) => i).map((h) => (
               <option key={h} value={h}>
@@ -95,7 +95,7 @@ export function DateTimePicker({
           <select
             value={minute}
             onChange={(e) => handleMinuteChange(Number(e.target.value))}
-            className="bg-background ring-1 ring-foreground/10 px-2 py-1 text-sm tabular-nums focus:ring-foreground/20 outline-none"
+            className="bg-background rounded-md ring-1 ring-foreground/10 px-2 py-1 text-sm tabular-nums focus:ring-foreground/20 outline-none"
           >
             {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => (
               <option key={m} value={m}>

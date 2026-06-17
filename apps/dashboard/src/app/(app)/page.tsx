@@ -353,7 +353,7 @@ function ApiKeyStepBody({
           This is the only time we'll show the full key. Copy it and store it
           somewhere secure.
         </p>
-        <div className="break-all bg-muted px-3 py-2 font-mono text-xs">
+        <div className="break-all rounded-md bg-muted px-3 py-2 font-mono text-xs">
           {latestKey}
         </div>
         <Button
@@ -378,7 +378,7 @@ function ApiKeyStepBody({
           Plaintext is only shown at creation. This is the masked form on
           file. Rotate or add another from the API keys page.
         </p>
-        <div className="break-all bg-muted px-3 py-2 font-mono text-xs min-h-[2rem]">
+        <div className="break-all rounded-md bg-muted px-3 py-2 font-mono text-xs min-h-[2rem]">
           {existing ? (
             masked
           ) : (
@@ -520,7 +520,7 @@ function QuickStartBody({
         Paste this into your terminal, or fire it now from this page. Either
         way, the result lands in the post log, published or failed.
       </p>
-      <pre className="bg-muted px-3 py-3 text-xs font-mono overflow-x-auto whitespace-pre">
+      <pre className="rounded-md bg-muted px-3 py-3 text-xs font-mono overflow-x-auto whitespace-pre">
         {example}
       </pre>
       <div className="flex flex-wrap gap-2">
@@ -616,7 +616,7 @@ function NeedsAttentionSection({ accounts }: { accounts: Account[] }) {
         {failureCount > 0 ? (
           <Link
             href="/logs?status=failed"
-            className="flex items-center justify-between gap-3 px-3 py-2 ring-1 ring-foreground/10 hover:ring-foreground/30 hover:bg-muted/40 transition-[box-shadow,background]"
+            className="flex items-center justify-between gap-3 px-3 py-2 rounded-md ring-1 ring-foreground/10 hover:ring-foreground/30 hover:bg-muted/40 transition-[box-shadow,background]"
           >
             <div className="flex items-center gap-2 min-w-0">
               <Badge variant="destructive">
@@ -824,7 +824,7 @@ function QuickActionsStrip() {
           <Link
             key={it.label}
             href={it.href}
-            className="flex items-center gap-3 px-3 py-3 ring-1 ring-foreground/10 hover:ring-foreground/40 hover:bg-muted/40 transition-[box-shadow,background] bg-card"
+            className="flex items-center gap-3 px-3 py-3 rounded-md ring-1 ring-foreground/10 hover:ring-foreground/40 hover:bg-muted/40 transition-[box-shadow,background] bg-card"
           >
             <Icon className="size-5 text-muted-foreground shrink-0" />
             <div className="min-w-0">

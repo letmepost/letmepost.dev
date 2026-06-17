@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -103,6 +104,7 @@ const NAV_GROUPS = [
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: session } = authClient.useSession();
   const { data: organizations } = authClient.useListOrganizations();
   const activeOrg = authClient.useActiveOrganization().data;
@@ -140,7 +142,11 @@ export function AppSidebar() {
         name: "org.switched",
         properties: { from_org_id: fromOrgId, to_org_id: id },
       });
-      // Force a refresh so server components / API calls pick up the new active org.
+      // Every cached query is scoped to the previous org (its key doesn't
+      // include the org id — that's implicit via the session). Drop the whole
+      // cache so the new org refetches instead of showing the old org's data.
+      queryClient.clear();
+      // Refresh so server components / API calls pick up the new active org.
       router.refresh();
     } catch (err) {
       toast.error(

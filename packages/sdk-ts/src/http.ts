@@ -172,7 +172,7 @@ export class HttpClient {
     const h = new Headers();
     h.set("Authorization", `Bearer ${this.apiKey}`);
     h.set("Accept", "application/json");
-    h.set("User-Agent", "letmepost-sdk-ts/0.1.0");
+    h.set("User-Agent", "letmepost-sdk-ts/0.2.0");
     if (args.hasBody) h.set("Content-Type", "application/json");
     if (args.idempotencyKey) h.set("Idempotency-Key", args.idempotencyKey);
     for (const [k, v] of Object.entries(this.defaultHeaders)) h.set(k, v);
