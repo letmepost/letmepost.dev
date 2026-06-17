@@ -1,6 +1,6 @@
 ---
 title: Changelog
-description: Reverse-chronological release notes — API surface, schema, breaking changes, new platforms.
+description: Reverse-chronological release notes covering API surface, schema, breaking changes, and new platforms.
 icon: clock-rotate-left
 ---
 
@@ -8,105 +8,105 @@ The canonical record lives in the git history; this page summarises the mileston
 
 ## 2026-06
 
-### Added — Bluesky reply threading
+### Added: Bluesky reply threading
 
 - **Reply to any Bluesky post** via per-target `options.replyToUri` + `options.replyToCid`, the parent's AT Proto strong ref (both come back in the publish response under `results[]`). The pair must be sent together; one without the other is a `validation_failed`.
 - **Multi-post threads.** Pin the thread's original post with `options.replyRootUri` + `options.replyRootCid` for replies deeper than the first. Omit the root and it defaults to the parent, which is correct for a reply to a top-level post.
 - **Scheduled Bluesky replies are rejected** with `validation_failed` (rule `scheduledAt.no_bluesky_reply`). The queued row carries only text + media, so a scheduled reply would publish un-threaded; publish synchronously by dropping `scheduledAt`. Same stance the scheduled path already takes for `firstComment`.
 - `@letmepost/sdk` exposes the new fields on the Bluesky `TargetOptions` variant; the publish response already carries `uri`/`cid` for chaining. Full reference at [/platforms/bluesky](/platforms/bluesky).
 
-### Added — media on scheduled posts
+### Added: media on scheduled posts
 
 - **Scheduled posts now carry media.** Media refs persist on `posts.mediaRefs` and the worker reads them back at fire time, so a `scheduledAt` post can include images or video. Previously media on a scheduled post was rejected outright.
 - **Breaking (error rule).** The old `scheduledAt.text_only` rejection is gone. First-comment is still unsupported on scheduled posts, now under the narrower rule `scheduledAt.no_first_comment`. If you matched on `scheduledAt.text_only`, switch to the new rule.
 
-### Added — API-key auth on `/v1/webhook-endpoints`
+### Added: API-key auth on `/v1/webhook-endpoints`
 
 - **Manage webhook endpoints programmatically.** The `/v1/webhook-endpoints` CRUD routes now accept an API key (Bearer), not just a dashboard session, so you can register and rotate delivery endpoints from your own code like the rest of v1.
 
 ## 2026-05
 
-### Added — TikTok (in App Review)
+### Added: TikTok (in App Review)
 
 - **TikTok provider** with OAuth 2.0 PKCE, push_by_file upload to the user's TikTok inbox, and a status-poll worker with bucketed backoff (5s → 30s → 120s up to a 30-minute deadline).
-- **State: `pending`** — the dashboard greys the tile and the API rejects connect with `platform_not_enabled` until App Review clears. The publisher itself is fully built; flipping the state in `packages/schemas/src/platform-state.ts` (or via the `PLATFORM_STATE_OVERRIDES` env) is the only step left once approval lands.
-- **Sandbox / audit accounts**: posts go to the inbox with `privacy=SELF_ONLY` and the user confirms publish in the TikTok app. Direct Post (`video.publish`) unlocks the moment review approves — no code change needed.
+- **State: `pending`.** The dashboard greys the tile and the API rejects connect with `platform_not_enabled` until App Review clears. The publisher itself is fully built; flipping the state in `packages/schemas/src/platform-state.ts` (or via the `PLATFORM_STATE_OVERRIDES` env) is the only step left once approval lands.
+- **Sandbox / audit accounts**: posts go to the inbox with `privacy=SELF_ONLY` and the user confirms publish in the TikTok app. Direct Post (`video.publish`) unlocks the moment review approves. No code change needed.
 - New queue: `tiktok-publish-status-poll` with deterministic per-attempt delay (`tiktokPublishStatusPollDelayMs`).
 - Docs at [/platforms/tiktok](/platforms/tiktok) covering caps, scopes, audit gating, and the inbox flow.
 
-### Added — scheduling lifecycle endpoints
+### Added: scheduling lifecycle endpoints
 
-- **`PATCH /v1/posts/:id`** — reschedule a queued post. Body `{ scheduledAt }`. Atomic: removes the existing BullMQ job, enqueues a new one at the updated delay, then persists the new time. Window-gated to `status=queued AND scheduledAt > now` — a `409` lands once the worker has the row. Dispatches [`post.rescheduled`](/webhooks/post-rescheduled) on success with both old and new timestamps.
-- **`DELETE /v1/posts/:id`** — cancel a queued post before it fires. Same window. Removes the BullMQ job and transitions the row to the new terminal state `canceled`. Dispatches [`post.canceled`](/webhooks/post-canceled).
+- **`PATCH /v1/posts/:id`**: reschedule a queued post. Body `{ scheduledAt }`. Atomic: removes the existing BullMQ job, enqueues a new one at the updated delay, then persists the new time. Window-gated to `status=queued AND scheduledAt > now`. A `409` lands once the worker has the row. Dispatches [`post.rescheduled`](/webhooks/post-rescheduled) on success with both old and new timestamps.
+- **`DELETE /v1/posts/:id`**: cancel a queued post before it fires. Same window. Removes the BullMQ job and transitions the row to the new terminal state `canceled`. Dispatches [`post.canceled`](/webhooks/post-canceled).
 - **Stable BullMQ jobIds.** `POST /v1/posts` now writes scheduled jobs with `jobId: publish:<postId>` so the cancel/reschedule endpoints can find and replace by post id without tracking BullMQ-assigned ids on the row.
-- **Worker race-safe transition.** The publish worker's queued→publishing step is now a conditional `UPDATE … WHERE status IN ('queued','validated')` — if a `DELETE` lands between the worker's SELECT and UPDATE, the transition matches zero rows and the worker bails out cleanly. No more canceled posts going out by accident.
+- **Worker race-safe transition.** The publish worker's queued→publishing step is now a conditional `UPDATE … WHERE status IN ('queued','validated')`. If a `DELETE` lands between the worker's SELECT and UPDATE, the transition matches zero rows and the worker bails out cleanly. No more canceled posts going out by accident.
 - **New post status:** `canceled`. Terminal. Set exclusively via `DELETE`.
 - **New webhook events:** [`post.canceled`](/webhooks/post-canceled), [`post.rescheduled`](/webhooks/post-rescheduled).
 
-### Added — dashboard restructure
+### Added: dashboard restructure
 
-- **`/posts` is now the compose surface.** Grid + list views of scheduled and published posts, with a Create Post modal modeled on Zernio's two-column shape (content left, profile + accounts + Schedule / Now / Queue / Draft tabs right). Queue + Draft are selectable but show a coming-soon empty state with a vote button — captures demand signal via the `feature.requested` analytics event.
-- **`/logs` (renamed from old `/posts`)** — same log-viewer behavior, more honest URL. The page was always a "did my post land?" log, not a "what's coming up?" management surface.
-- **`/calendar`** — month grid, scheduled posts as chips on day cells. Click a chip → side drawer with reschedule (datetime picker) and cancel buttons wired through the new endpoints.
-- **`/settings`** — tabbed: Usage (current cycle, profiles + posts progress, reset date), Profile (read-only name + email), Danger Zone (account deletion via support). Billing kept at the dedicated `/billing` route.
-- **`/analytics`** — placeholder with a "prioritize this" vote button.
+- **`/posts` is now the compose surface.** Grid + list views of scheduled and published posts, with a Create Post modal modeled on Zernio's two-column shape (content left, profile + accounts + Schedule / Now / Queue / Draft tabs right). Queue + Draft are selectable but show a coming-soon empty state with a vote button, which captures demand signal via the `feature.requested` analytics event.
+- **`/logs` (renamed from old `/posts`)**: same log-viewer behavior, more honest URL. The page was always a "did my post land?" log, not a "what's coming up?" management surface.
+- **`/calendar`**: month grid, scheduled posts as chips on day cells. Click a chip → side drawer with reschedule (datetime picker) and cancel buttons wired through the new endpoints.
+- **`/settings`** is tabbed: Usage (current cycle, profiles + posts progress, reset date), Profile (read-only name + email), Danger Zone (account deletion via support). Billing kept at the dedicated `/billing` route.
+- **`/analytics`**: placeholder with a "prioritize this" vote button.
 - Sidebar reorganized with new routes + matching Phosphor icons.
 
-### Added — observability + onboarding emails
+### Added: observability + onboarding emails
 
 - **Sentry on api, worker, and dashboard.** Node init via a separate `instrument.mjs` loaded with `node --import` so OpenTelemetry auto-instrumentation works under ESM. Dashboard wired via `@sentry/nextjs`. DSN configurable per service.
-- **Founder-voice onboarding email sequence.** Five emails over seven days — D0 welcome, D1 first-post nudge, D3 stuck-check, D5 webhooks nudge, D7 Sean Ellis PMF question. Gated on email verification so a bad actor can't burn sender reputation with throwaway addresses. Each email is a pure function of the user's state; D1/D3/D5 skip themselves when their gating condition is already met (e.g. D3 skips users who already connected an account).
+- **Founder-voice onboarding email sequence.** Five emails over seven days: D0 welcome, D1 first-post nudge, D3 stuck-check, D5 webhooks nudge, D7 Sean Ellis PMF question. Gated on email verification so a bad actor can't burn sender reputation with throwaway addresses. Each email is a pure function of the user's state; D1/D3/D5 skip themselves when their gating condition is already met (e.g. D3 skips users who already connected an account).
 - **Resend transport** with `Idempotency-Key` deduplication and svix-signed webhook for delivery + complaint events.
 - **Suppression list.** Hard bounces and complaints from the Resend webhook write to `email_suppressions` (PK on lowercased email). The onboarding worker checks this list before sending. Best-effort cancellation of queued onboarding jobs for newly-suppressed addresses.
 - **RFC 2369 mailto `List-Unsubscribe` header** on every transactional onboarding email. RFC 8058 one-click was skipped pending the HTTPS endpoint.
 
-### Fixed — auth blockers
+### Fixed: auth blockers
 
 - **401 on email signup.** With `requireEmailVerification: true` (production), `signUp.email` succeeded but no session landed until the user clicked the verification link. The dashboard's signup form then immediately called `organization.create` and 401'd. Fixed by probing `getSession()` after signup; if no session, the requested org name is stashed in localStorage and the user routes to a new `/verify-email` screen that polls for verification and forwards to `/onboarding` once the session arrives. `/onboarding` picks up the stashed name and creates the org with what the user originally typed.
 - **API key plaintext now auto-copies to clipboard** on creation in the onboarding flow. The dedicated copy button lives below the fold on short viewports and new users were missing it on the only render where the plaintext is visible. Falls back to the button if clipboard permission is denied.
 - **OAuth callback `returnTo`.** `POST /v1/accounts/connect/:platform` now accepts `returnTo` (validated against `DASHBOARD_URL` + `TRUSTED_ORIGINS` to block open-redirect) and carries it through the signed state. Callback redirects there instead of the static `/accounts` page, so dashboard users return to the home dashboard and marketing-site demo connections can return to the landing page. Shared `useConnectCallback` hook surfaces the success/error toast on whatever page the user lands on.
 
-### Added — billing (Lemon Squeezy)
+### Added: billing (Lemon Squeezy)
 
 - **Three tiers: Free (50 posts/mo), Pro ($79/mo for 5k), Business ($299/mo for 25k).** Self-host is unlimited; enterprise was dropped from the tier ladder until a sales path exists.
 - **`POST /v1/billing/checkout`** mints a Lemon Squeezy checkout URL via their Checkouts API (not the legacy `/buy/` URL).
-- **Webhook handler** at `POST /v1/lemonsqueezy/webhook` — CSRF-hardened, status-aware (respects LS's order/subscription state), event-id derived from body hash since Lemon Squeezy has no `X-Event-Id` header. Dispatches `subscription.activated`, `subscription.cancelled`, `subscription.tier_changed`, `billing.payment_failed`, `billing.delinquent`, `billing.recovered`, `quota.warning`, `quota.exceeded`.
+- **Webhook handler** at `POST /v1/lemonsqueezy/webhook`: CSRF-hardened, status-aware (respects LS's order/subscription state), event-id derived from body hash since Lemon Squeezy has no `X-Event-Id` header. Dispatches `subscription.activated`, `subscription.cancelled`, `subscription.tier_changed`, `billing.payment_failed`, `billing.delinquent`, `billing.recovered`, `quota.warning`, `quota.exceeded`.
 - **Quota gate on `POST /v1/posts`.** Idempotent replays skip the counter (the idempotency middleware short-circuits before the handler). Infinity-quota tiers (self_host, grandfather) bypass the cap entirely.
-- **Dashboard billing surface** — plan card, usage meter (animated counter + bar, polled every 60s), upgrade flow, invoices list, eager-written cancel + reactivate state.
+- **Dashboard billing surface**: plan card, usage meter (animated counter + bar, polled every 60s), upgrade flow, invoices list, eager-written cancel + reactivate state.
 - **Dunning + retention jobs** run on the billing queue: hourly past_due → delinquent sweep, nightly per-org log cleanup respecting tier retention windows.
 - **`BILLING_ENABLED` env gate** so self-host instances can skip the entire surface without a code branch.
 
-### Added — official SDKs
+### Added: official SDKs
 
 - **`@letmepost/sdk` (TypeScript)** on npm. Hand-written client mirroring every `/v1/*` endpoint, with first-class types pulled from the same `@letmepost/schemas` package the API uses.
 - **Python (`letmepost`) and Go (`github.com/letmepost/letmepost-go`)** generated from the OpenAPI spec via openapi-generator-cli, published from CI. The spec is down-converted from OpenAPI 3.1 → 3.0 before Go codegen for `oneOf` compatibility.
 
-### Added — GitHub + Google OAuth, account linking, first-touch attribution
+### Added: GitHub + Google OAuth, account linking, first-touch attribution
 
 - **Social sign-in** on the dashboard for Google and GitHub. OAuth identities auto-link to existing email-password accounts when the verified email matches (Google and GitHub are on the `trustedProviders` allowlist; both verify emails server-side before issuing tokens, so auto-link is safe).
-- **`requireLocalEmailVerified: false`** on the linking path — a verified-OAuth email matches an unverified local email cleanly, because the OAuth provider's verification is what we actually rely on.
+- **`requireLocalEmailVerified: false`** on the linking path: a verified-OAuth email matches an unverified local email cleanly, because the OAuth provider's verification is what we actually rely on.
 - **First-touch attribution snapshot** at signup: `signupSource`, `signupUtmSource`, `signupUtmMedium`, `signupUtmCampaign`, `signupUtmContent`, `signupUtmTerm`, `signupReferrer`, `signupLandingPath`. Captured from URL params + localStorage at the moment the form is focused or an OAuth flow begins. Persisted on the `user` row.
 
-### Added — Notion-backed blog
+### Added: Notion-backed blog
 
-- `letmepost.dev/blog` is rendered from a Notion database via a daily Vercel cron. Reading-view design — single column, large type, syntax-highlighted code. Each post has alt text on the cover image and breadcrumbs back to the index. Fonts self-hosted for FCP.
+- `letmepost.dev/blog` is rendered from a Notion database via a daily Vercel cron. Reading-view design: single column, large type, syntax-highlighted code. Each post has alt text on the cover image and breadcrumbs back to the index. Fonts self-hosted for FCP.
 
-### Changed — marketing site redesigned
+### Changed: marketing site redesigned
 
-- Receipt-themed visual identity across landing, pricing, blog, tools, `/platforms`, `/api`, `/agents`, `/about`, `/llms.txt`. New brand mark + wordmark synced to docs and dashboard. SEO upgrades — FAQ + Product schema, `/about`, `/llms.txt`, latest-writing strip on the landing, breadcrumbs on the blog.
+- Receipt-themed visual identity across landing, pricing, blog, tools, `/platforms`, `/api`, `/agents`, `/about`, `/llms.txt`. New brand mark + wordmark synced to docs and dashboard. SEO upgrades: FAQ + Product schema, `/about`, `/llms.txt`, latest-writing strip on the landing, breadcrumbs on the blog.
 
-### Added — Pinterest live
+### Added: Pinterest live
 
 - Pinterest Standard Access approval cleared. Pinterest is now connectable for every signup. Image pins, video pins, board picker, default-board setting, and the v5 API version pinned in the platform-versions registry.
 
-### Added — hosted MCP server + CLI
+### Added: hosted MCP server + CLI
 
 - **[@letmepost/mcp](https://www.npmjs.com/package/@letmepost/mcp) on npm.** `npx @letmepost/mcp@latest` runs the stdio binary for Claude Desktop, Cursor, Claude Code, opencode, and any MCP-aware client. The tool surface is generated from the OpenAPI spec at startup, so the hosted server and the stdio binary expose an identical set of tools (21 today).
 - **Hosted MCP at `https://api.letmepost.dev/mcp`.** Streamable HTTP transport, stateless mode. Accepts both `Authorization: Bearer lmp_live_...` API keys and OAuth 2.1 bearer tokens.
 - **[@letmepost/cli](https://www.npmjs.com/package/@letmepost/cli) on npm.** `npm i -g @letmepost/cli` installs the `lmp` binary. Commands: `login`, `logout`, `whoami`, `version`, `accounts`, `posts`, `post`, `profiles`. Config persists at `~/.letmepost/config.json`.
 - **Profile scoping wired through both.** `lmp post --profile <id>` on the CLI, top-level `profileId` on the OpenAPI request body, and auto-resolution when an API key is profile-scoped. Mismatch surfaces as `profile.scope_mismatch`.
 
-### Added — OAuth 2.1 provider
+### Added: OAuth 2.1 provider
 
 - **Dynamic Client Registration (RFC 7591).** MCP clients self-register at install with no out-of-band config.
 - **PKCE-only flow.** No client secrets needed in fat clients.
@@ -117,78 +117,78 @@ The canonical record lives in the git history; this page summarises the mileston
 - **`POST /v1/oauth-exchange`.** Trades a verified OAuth JWT for a plaintext API key. Used by the CLI's `lmp login` flow so the resulting key works against every `/v1/*` endpoint, not just `/mcp`.
 - **`/mcp` accepts both shapes.** Keys with the `lmp_live_` / `lmp_test_` prefix pass through to the standard auth path. JWTs are verified against JWKS and mint a per-user `letmepost-mcp` API key on first use, cached in-process keyed by JWT `sub`.
 
-### Added — top-level `profileId` on `POST /v1/posts`
+### Added: top-level `profileId` on `POST /v1/posts`
 
 - Sits alongside `targets` so an MCP or CLI caller can scope a whole batch to a profile without rotating to a profile-scoped API key.
 - Validates against the connected account's profile. Mismatches surface as `profile.scope_mismatch`.
 
-### Changed — agent docs live under `/agents/`
+### Changed: agent docs live under `/agents/`
 
 - The MCP and CLI guides moved to [docs.letmepost.dev/agents/mcp](https://docs.letmepost.dev/agents/mcp) and [docs.letmepost.dev/agents/cli](https://docs.letmepost.dev/agents/cli). The old `/mcp` route is reserved by Mintlify for its own docs MCP server, so the local pages were being shadowed.
 
-### Changed — v1 wire shape
+### Changed: v1 wire shape
 
 - **`POST /v1/posts` is now multi-target.** Body shape: `{ targets: [{ accountId | platform, text?, media?, firstComment?, options? }], text?, media?, firstComment?, publishNow?, scheduledAt? }`. One request fans out to up to 25 connected accounts in parallel.
 - **Response is a batch envelope:** `{ id, status, createdAt, results: [{ accountId, platform, postId, status, uri?, cid?, error? }] }`. Batch `status` is `published`, `partial_failed`, `failed`, or `queued`.
-- **Explicit modes:** `publishNow: true` or `scheduledAt`. Mutually exclusive — the route returns `400 mode_conflict` if both are set.
+- **Explicit modes:** `publishNow: true` or `scheduledAt`. Mutually exclusive: the route returns `400 mode_conflict` if both are set.
 - **Atomic shape preflight:** if any target fails the synchronous shape checks (text length, media count, alt-text length, options sanity) the whole batch is rejected before any persistence. Deep preflight (URL reachability, MIME sniffing, byte caps) runs per-target inside the publisher and surfaces in `results[i].error`.
 - **Removed** the legacy single-target `{ account: { platform, id }, text, … }` body. Migration is a one-line rewrite to `{ targets: [{ accountId }], text, … }`.
 
-### Added — error envelope upgrades
+### Added: error envelope upgrades
 
 - Every error response now carries `docUrl` (always) and `ruleUrl` (when `rule` is set). Both are stable URLs that land directly on the canonical docs page for the code / rule.
-- New error code `platform_not_enabled` — surfaces when a platform isn't yet approved for the calling org (review pending, credentials missing, or admin-disabled).
+- New error code `platform_not_enabled`: surfaces when a platform isn't yet approved for the calling org (review pending, credentials missing, or admin-disabled).
 - New validation rules: `targets.required`, `targets.max`, `target.account.not_connected`, `target.account.ambiguous`, `targets.account.platform_mismatch`, `targets.options.platform_mismatch`.
 
-### Added — single-account auto-resolution
+### Added: single-account auto-resolution
 
 - `targets[i]` may omit `accountId` when only `platform` is set; the API resolves the org's unique connected account for that platform (scoped to the api key's profile, so cross-profile leak is prevented). Ambiguous (2+) and not-connected (0) cases surface as structured 400s.
 
-### Added — rate-limit ceiling header
+### Added: rate-limit ceiling header
 
 - `X-RateLimit-Limit` on every response (per-route static ceiling). The IETF-draft `RateLimit-*` headers (no `X-` prefix) carry the real per-window state on routes that enforce it.
 
-### Added — Twitter / X live
+### Added: Twitter / X live
 
 - Approval cleared; X is now connectable for every signup. Premium-tier 25,000-char support included. Token refresh and PKCE state are signed and survive the redirect.
 
-### Added — Instagram Login (standalone OAuth)
+### Added: Instagram Login (standalone OAuth)
 
 - Instagram now has its own OAuth flow at `/v1/accounts/connect/instagram`, separate from the Facebook Login fan-out. Lets a user connect just their Instagram Business / Creator account without authoring a Page.
 
-### Added — docs surface
+### Added: docs surface
 
 - Mintlify docs site at [docs.letmepost.dev](https://docs.letmepost.dev) with 7 platform pages (each with Quick Reference, Common Errors, Wisdom callouts, "What you can't do"), the full preflight rule catalog, and a Best Practices guide for the error contract.
-- Migration guides for [Postiz](/guides/migrate-from-postiz), [Ayrshare](/guides/migrate-from-ayrshare), and [Buffer](/guides/migrate-from-buffer) — field rename tables + side-by-side curl + cutover playbook.
+- Migration guides for [Postiz](/guides/migrate-from-postiz), [Ayrshare](/guides/migrate-from-ayrshare), and [Buffer](/guides/migrate-from-buffer): field rename tables + side-by-side curl + cutover playbook.
 - [Self-host section](/self-host/quick-start) with 5 detailed pages (quick-start, environment, platform-credentials, deploying, troubleshooting), written against the real `apps/api/.env.example`.
-- OpenAPI spec rewritten end-to-end to match the v1 wire shape. Spec size went from 1,413 lines to 3,313 lines — every error references a unified `ApiError` schema with `docUrl` / `ruleUrl`, every write documents the `Idempotency-Key` parameter, and the previously-undocumented Pinterest sub-resources and webhook endpoint detail routes are now in the spec.
+- OpenAPI spec rewritten end-to-end to match the v1 wire shape. Spec size went from 1,413 lines to 3,313 lines. Every error references a unified `ApiError` schema with `docUrl` / `ruleUrl`, every write documents the `Idempotency-Key` parameter, and the previously-undocumented Pinterest sub-resources and webhook endpoint detail routes are now in the spec.
 
-### Added — landing surface
+### Added: landing surface
 
 - Vercel Analytics on the landing alongside PostHog.
 - New free tools at [letmepost.dev/tools](https://letmepost.dev/tools): grapheme counter, idempotency-key generator, YouTube quota calculator, LinkedIn scope checker, LinkedIn API-version tracker, PKCE / OAuth scope debugger, cron expression builder.
 - Blog scaffold at [letmepost.dev/blog](https://letmepost.dev/blog).
-- Canonical logo SVG at `letmepost.dev/logo.svg` (text-as-paths, no font dependency) — referenced from both the landing and the docs.
+- Canonical logo SVG at `letmepost.dev/logo.svg` (text-as-paths, no font dependency), referenced from both the landing and the docs.
 
 ### Fixed
 
-- Instagram provider persists the IG-scoped user id from `GET /me?fields=id` instead of the token-response `user_id`. The token-response value isn't what the Content Publishing API expects in `/{ig-user-id}/media` — sending it produced an opaque `OAuthException code:2 is_transient:true` on every publish.
+- Instagram provider persists the IG-scoped user id from `GET /me?fields=id` instead of the token-response `user_id`. The token-response value isn't what the Content Publishing API expects in `/{ig-user-id}/media`. Sending it produced an opaque `OAuthException code:2 is_transient:true` on every publish.
 - Dashboard QuickStart toast branches on the batch status (`published` / `partial_failed` / `failed` / `queued`) instead of always saying "Post queued."
 - Dashboard error toast now reads `body.error.message` (the real envelope path) instead of the always-undefined `body.message`.
-- Post detail error contract surfaces `docUrl` and `ruleUrl` as clickable links — same URLs the API stamps into live error responses.
+- Post detail error contract surfaces `docUrl` and `ruleUrl` as clickable links, the same URLs the API stamps into live error responses.
 
 ## 2026-04
 
-### Added — first wave of platforms
+### Added: first wave of platforms
 
 - **Bluesky** publisher live end-to-end: text, single image + multi-image, video, alt text, first-comment reply.
-- **LinkedIn** MVP publisher (personal-only — `w_member_social`); org posting awaits the Marketing Developer Platform review.
+- **LinkedIn** MVP publisher (personal-only, `w_member_social`); org posting awaits the Marketing Developer Platform review.
 - **Pinterest** publisher: image + video pins, board picker, sandbox-flip via `PINTEREST_API_BASE` while Standard Access is in review.
 - **Twitter / X** publisher: text, 4-up images + alt-text, video chunked upload, reply chains, quote tweets, PKCE PKCE-state signing.
 - **Threads** publisher: text + image + multi-image + video + carousel up to 20 items, mixed image / video allowed.
 - **Facebook Pages + Instagram (FBLB fan-out)** publishers, one OAuth grant.
 
-### Added — primitives
+### Added: primitives
 
 - **Posts**: hybrid sync + scheduled flow with lifecycle webhook events (`post.queued`, `post.validated`, `post.published`, `post.rejected`, `post.failed`).
 - **Media** service: `POST /v1/media` multipart streaming, `mediaId` resolver path on every publish.
@@ -196,13 +196,13 @@ The canonical record lives in the git history; this page summarises the mileston
 - **API keys**: scoped Bearer tokens; per-profile scoping; rotation surface.
 - **Profiles**: workspace primitive inside an organization; api keys can be profile-scoped so a single org can isolate per-client publishing.
 - **Post log**: `GET /v1/posts` (filterable, cursor-paginated) and `GET /v1/posts/:id` (full record + attempts).
-- **Idempotency**: `Idempotency-Key` middleware on every write — body-hash dedupe, retries replay the original response.
+- **Idempotency**: `Idempotency-Key` middleware on every write, with body-hash dedupe so retries replay the original response.
 - **Rate limiting**: per-route middleware on `/v1/posts` and `/v1/api-keys`.
 - **Encryption at rest**: AES-256-GCM envelope encryption for every stored OAuth token; `KEK_MASTER` env-rotatable.
 - **Queue**: BullMQ worker for scheduled publishes + token refresh + webhook delivery.
 - **Auth**: better-auth integration with email/password + optional Google / GitHub OAuth.
 
-### Added — dashboard
+### Added: dashboard
 
 - Onboarding checklist: API key → connect platform → first post, with inline live-send.
 - Post log with TanStack-Table filters (time range, error code, status, platform).
@@ -232,4 +232,4 @@ The current path is `/v1/`. When `/v2/` ships we'll keep `/v1/` available for at
 
 ## Upstream platform versions
 
-We pin upstream versions and upgrade internally when a platform announces a sunset. The current pins are exposed via `GET /v1/platform-versions`. When we change one, we publish a `version.deprecated` webhook for any account on the outgoing version and run the migration internally — your code keeps working.
+We pin upstream versions and upgrade internally when a platform announces a sunset. The current pins are exposed via `GET /v1/platform-versions`. When we change one, we publish a `version.deprecated` webhook for any account on the outgoing version and run the migration internally, so your code keeps working.
