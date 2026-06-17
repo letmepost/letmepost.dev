@@ -6,6 +6,15 @@ icon: clock-rotate-left
 
 The canonical record lives in the git history; this page summarises the milestones a caller needs to know about. Subscribe to [GitHub releases](https://github.com/rosekamallove/letmepost.dev/releases) for tagged cuts, or follow [the open source repo](https://github.com/rosekamallove/letmepost.dev) for the running history.
 
+## 2026-06
+
+### Added — Bluesky reply threading
+
+- **Reply to any Bluesky post** via per-target `options.replyToUri` + `options.replyToCid`, the parent's AT Proto strong ref (both come back in the publish response under `results[]`). The pair must be sent together; one without the other is a `validation_failed`.
+- **Multi-post threads.** Pin the thread's original post with `options.replyRootUri` + `options.replyRootCid` for replies deeper than the first. Omit the root and it defaults to the parent, which is correct for a reply to a top-level post.
+- **Scheduled Bluesky replies are rejected** with `validation_failed` (rule `scheduledAt.no_bluesky_reply`). The queued row carries only text + media, so a scheduled reply would publish un-threaded; publish synchronously by dropping `scheduledAt`. Same stance the scheduled path already takes for `firstComment`.
+- `@letmepost/sdk` exposes the new fields on the Bluesky `TargetOptions` variant; the publish response already carries `uri`/`cid` for chaining. Full reference at [/platforms/bluesky](/platforms/bluesky).
+
 ## 2026-05
 
 ### Added — TikTok (in App Review)
