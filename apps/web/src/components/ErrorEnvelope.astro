@@ -187,21 +187,23 @@ const demoFailureText =
     color: var(--ink);
   }
 
-  .json-key {
+  /* Scoped under .json-body but :global, since these spans are injected at
+     runtime via innerHTML and never receive Astro's scope attribute. */
+  .json-body :global(.json-key) {
     color: var(--code-c);
   }
 
-  .json-string {
+  .json-body :global(.json-string) {
     color: var(--ink);
   }
 
-  .json-accent {
+  .json-body :global(.json-accent) {
     color: var(--acc);
     font-weight: 700;
   }
 
-  .json-number,
-  .json-boolean {
+  .json-body :global(.json-number),
+  .json-body :global(.json-boolean) {
     color: var(--code-k);
   }
 
