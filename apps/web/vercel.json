@@ -12,6 +12,10 @@
       "destination": "https://us-assets.i.posthog.com/static/:path*"
     },
     {
+      "source": "/_ph/:path+/",
+      "destination": "https://us.i.posthog.com/:path+/"
+    },
+    {
       "source": "/_ph/:path*",
       "destination": "https://us.i.posthog.com/:path*"
     }
