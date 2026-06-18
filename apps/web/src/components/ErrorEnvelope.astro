@@ -1,17 +1,26 @@
 ---
+import { BLUESKY_MAX_GRAPHEMES } from "@letmepost/schemas";
+
 /**
- * "Anatomy of a failure" — a representative preflight rejection (HTTP 422)
- * shown as a field table on the code surface. Every non-2xx carries a
- * stable code, the rule that fired, the pinned platform version, a
- * remediation hint, and docs links. Clarity styling.
+ * "Anatomy of a failure" — a browser-only preflight demo. It uses the
+ * shared schema limit constants and renders the same rich envelope shape
+ * without adding a public API route for a marketing widget.
  */
+const demoFailureText =
+  "A launch note that keeps going past the smallest supported post limit so the failure envelope is visible immediately. Letmepost checks the text before a platform call, names the exact rule that fired, returns a remediation, and keeps request identifiers attached for support. ".repeat(
+    2,
+  );
+
 const fields: { k: string; v: string; cls?: string }[] = [
   { k: "code", v: "preflight_failed", cls: "b" },
   { k: "rule", v: "bluesky.text.max_graphemes", cls: "acc b" },
   { k: "platform", v: "bluesky" },
   { k: "platform_version", v: "atproto-2026-04" },
-  { k: "message", v: "Text is 312 graphemes; Bluesky allows at most 300." },
-  { k: "remediation", v: "Trim the text to 300 graphemes or fewer." },
+  {
+    k: "message",
+    v: `Text exceeds the ${BLUESKY_MAX_GRAPHEMES}-grapheme Bluesky limit.`,
+  },
+  { k: "remediation", v: `Trim the text to ${BLUESKY_MAX_GRAPHEMES} graphemes or fewer.` },
   { k: "doc_url", v: "https://docs.letmepost.dev/errors/preflight_failed", cls: "acc" },
   { k: "rule_url", v: "https://docs.letmepost.dev/preflight/bluesky-text-max_graphemes", cls: "acc" },
   { k: "request_id", v: "req_01HXY7Z8K9MNB1P2QR3STVW" },
@@ -27,35 +36,378 @@ const fields: { k: string; v: string; cls?: string }[] = [
     exact rule that fired, the pinned platform version, and how to fix it.
   </p>
 
-  <div class="envelope">
-    <div class="env-bar">
-      <span>HTTP/1.1 422 Unprocessable Entity</span>
-      <span>application/json</span>
+  <div class="preflight-grid">
+  <form id="preflight-demo" class="preflight-card">
+    <div class="preflight-bar">
+      <span class="method">POST</span>
+      <span class="endpoint">/v1/preflight</span>
     </div>
-    <div class="env-body">
-      {
-        fields.map((f) => (
-          <div class="env-field">
-            <span class="k">{f.k}</span>
-            <span class={`v ${f.cls ?? ""}`}>{f.v}</span>
-          </div>
-        ))
-      }
+
+    <div class="preflight-body">
+      <div class="demo-control">
+        <span class="demo-label">Platform</span>
+
+        <div class="platform-pills" role="radiogroup" aria-label="Platform">
+          <button type="button" class="platform-pill active" data-platform="bluesky">Bluesky</button>
+          <button type="button" class="platform-pill" data-platform="twitter">X / Twitter</button>
+          <button type="button" class="platform-pill" data-platform="threads">Threads</button>
+          <button type="button" class="platform-pill" data-platform="instagram">Instagram</button>
+          <button type="button" class="platform-pill" data-platform="linkedin">LinkedIn</button>
+          <button type="button" class="platform-pill" data-platform="facebook">Facebook</button>
+        </div>
+      </div>
+
+      <label class="demo-control">
+        <span class="demo-label">Post text</span>
+        <textarea id="demo-text" name="text" rows="7">{demoFailureText}</textarea>
+      </label>
     </div>
+  </form>
+
+  <div class="preflight-card response-card">
+    <div class="preflight-bar response-bar">
+      <span class="status-left">
+        <span class="status-dot"></span>
+        <span id="preflight-status">422</span>
+      </span>
+      <span class="response-label">response</span>
+    </div>
+
+    <pre id="preflight-result" class="json-body"></pre>
   </div>
+</div>
 </section>
 
 <style>
-  .envelope { margin-top: 36px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--code-bg); }
-  .env-bar { display: flex; align-items: center; justify-content: space-between; padding: 11px 18px; border-bottom: 1px solid color-mix(in srgb, var(--code-fg) 14%, transparent); font-family: var(--mono); font-size: 12px; color: var(--code-c); }
-  .env-body { padding: 18px; font-family: var(--mono); font-size: 13px; }
-  .env-field { display: grid; grid-template-columns: 170px 1fr; gap: 16px; padding: 4px 0; line-height: 1.6; }
-  .env-field .k { color: var(--code-c); }
-  .env-field .v { color: var(--code-fg); word-break: break-word; }
-  .env-field .v.b { font-weight: 600; }
-  .env-field .v.acc { color: var(--code-k); }
-  @media (max-width: 560px) {
-    .env-field { grid-template-columns: 1fr; gap: 0; }
-    .env-field .k { color: var(--faint); }
+  .preflight-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    margin-top: 34px;
+  }
+
+  .preflight-card {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+    background: var(--paper);
+  }
+
+  .preflight-bar {
+    min-height: 56px;
+    padding: 0 18px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 14px;
+  }
+
+  .method {
+    color: var(--acc);
+    font-weight: 700;
+  }
+
+  .endpoint,
+  .response-label {
+    color: var(--faint);
+  }
+
+  .preflight-body {
+    padding: 26px 18px 24px;
+  }
+
+  .demo-control {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+
+  .demo-control:last-child {
+    margin-bottom: 0;
+  }
+
+  .demo-label {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .platform-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .platform-pill {
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    padding: 10px 16px;
+    font: 14px/1 var(--mono);
+    cursor: pointer;
+  }
+
+  .platform-pill.active {
+    background: var(--paper);
+    border-color: var(--paper);
+    color: var(--ink);
+  }
+
+  .demo-control textarea {
+    width: 100%;
+    min-height: 190px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--paper);
+    color: var(--ink);
+    padding: 18px;
+    resize: vertical;
+    font: 14px/1.65 var(--mono);
+  }
+
+  .status-left {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .response-bar {
+  color: #c7352c;
+  font-weight: 700;
+  }
+
+  .response-bar.ok {
+    color: #22c55e;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: currentColor;
+    display: inline-block;
+  }
+
+  .json-body {
+    margin: 0;
+    padding: 18px 22px 28px;
+    min-height: 360px;
+    white-space: pre-wrap;
+    overflow-x: auto;
+    font: 13px/1.65 var(--mono);
+    color: var(--ink);
+  }
+
+  .json-key {
+    color: var(--code-c);
+  }
+
+  .json-string {
+    color: var(--ink);
+  }
+
+  .json-accent {
+    color: var(--acc);
+    font-weight: 700;
+  }
+
+  .json-number,
+  .json-boolean {
+    color: var(--code-k);
+  }
+
+  @media (max-width: 900px) {
+    .preflight-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
+
+<script>
+  import {
+    BLUESKY_MAX_GRAPHEMES,
+    FACEBOOK_MAX_GRAPHEMES,
+    INSTAGRAM_MAX_GRAPHEMES,
+    LINKEDIN_MAX_GRAPHEMES,
+    THREADS_MAX_GRAPHEMES,
+    TWITTER_MAX_GRAPHEMES,
+  } from "@letmepost/schemas";
+
+  const form = document.querySelector("#preflight-demo");
+  const responseBar=document.querySelector(".response-bar");
+  const platformButtons = document.querySelectorAll<HTMLButtonElement>("[data-platform]");
+  let selectedPlatform: DemoPlatform = "bluesky";
+  const textInput = document.querySelector("#demo-text");
+  const result = document.querySelector("#preflight-result");
+  const status = document.querySelector("#preflight-status");
+
+  type EnvelopeFieldValue = string | number | boolean;
+  type ErrorEnvelope = { error: Record<string, EnvelopeFieldValue> };
+  type SuccessEnvelope = Record<string, EnvelopeFieldValue>;
+  type DemoEnvelope = ErrorEnvelope | SuccessEnvelope;
+
+  const platformNames = {
+    bluesky: "Bluesky",
+    twitter: "X / Twitter",
+    linkedin: "LinkedIn",
+    threads: "Threads",
+    facebook: "Facebook Pages",
+    instagram: "Instagram",
+  };
+
+  const limits = {
+    bluesky: BLUESKY_MAX_GRAPHEMES,
+    twitter: TWITTER_MAX_GRAPHEMES,
+    linkedin: LINKEDIN_MAX_GRAPHEMES,
+    threads: THREADS_MAX_GRAPHEMES,
+    facebook: FACEBOOK_MAX_GRAPHEMES,
+    instagram: INSTAGRAM_MAX_GRAPHEMES,
+  };
+
+  type DemoPlatform = keyof typeof limits;
+
+  const platformVersions: Record<DemoPlatform, string> = {
+    bluesky: "atproto-2026-04",
+    twitter: "v2",
+    linkedin: "202506",
+    threads: "Graph API v1.0",
+    facebook: "Graph API",
+    instagram: "Graph API",
+  };
+
+  function countGraphemes(text: string) {
+    if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+      return Array.from(
+        new Intl.Segmenter("en", { granularity: "grapheme" }).segment(text),
+      ).length;
+    }
+
+    return Array.from(text).length;
+  }
+
+  function buildPassedEnvelope(
+    platform: DemoPlatform,
+    graphemes: number,
+    limit: number,
+  ): SuccessEnvelope {
+    return {
+      ok: true,
+      platform,
+      platform_version: platformVersions[platform],
+      graphemes,
+      max_graphemes: limit,
+      message: `${platformNames[platform]} text is within the published grapheme limit.`,
+    };
+  }
+
+  function buildFailedEnvelope(
+    platform: DemoPlatform,
+    graphemes: number,
+    limit: number,
+  ): ErrorEnvelope {
+    return {
+      error: {
+        code: "preflight_failed",
+        rule: `${platform}.text.max_graphemes`,
+        platform,
+        platform_version: platformVersions[platform],
+        message: `Text is ${graphemes} graphemes; ${platformNames[platform]} allows at most ${limit}.`,
+        remediation: `Trim the text to ${limit} graphemes or fewer.`,
+        doc_url: "https://docs.letmepost.dev/errors/preflight_failed",
+        rule_url: `https://docs.letmepost.dev/preflight/${platform}-text-max_graphemes`,
+        request_id: "req_demo_local",
+        trace_id: "trace_demo_local",
+      },
+    };
+  }
+
+  function escapeHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;",
+    };
+
+    return entities[char] ?? char;
+  });
+}
+
+function highlightJson(json: string) {
+  return escapeHtml(json).replace(
+    /(&quot;(?:\\.|[^\\])*?&quot;)(\s*:)?|\b(true|false)\b|\b\d+\b/g,
+    (match, stringValue, colon) => {
+      if (stringValue && colon) return `<span class="json-key">${stringValue}</span>${colon}`;
+
+      if (
+        stringValue &&
+        (stringValue.includes("preflight_failed") ||
+          stringValue.includes(".text.max_graphemes"))
+      ) {
+        return `<span class="json-accent">${stringValue}</span>`;
+      }
+
+      if (stringValue) return `<span class="json-string">${stringValue}</span>`;
+      if (match === "true" || match === "false") return `<span class="json-boolean">${match}</span>`;
+
+      return `<span class="json-number">${match}</span>`;
+    },
+  );
+}
+
+function renderEnvelope(envelope: DemoEnvelope) {
+  if (!(result instanceof HTMLElement)) return;
+  if (!(status instanceof HTMLElement)) return;
+
+  const isError = "error" in envelope;
+
+  status.textContent = isError ? "422" : "200";
+  responseBar?.classList.toggle("ok", !isError);
+
+  result.innerHTML = highlightJson(JSON.stringify(envelope, null, 2));
+}
+
+  function runPreflightDemo() {
+  if (!(textInput instanceof HTMLTextAreaElement)) return;
+
+  const platform = selectedPlatform;
+  const text = textInput.value;
+  const graphemes = countGraphemes(text);
+  const limit = limits[platform];
+
+  const envelope =
+    graphemes > limit
+      ? buildFailedEnvelope(platform, graphemes, limit)
+      : buildPassedEnvelope(platform, graphemes, limit);
+
+  renderEnvelope(envelope);
+}
+
+platformButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    selectedPlatform = button.dataset.platform as DemoPlatform;
+
+    platformButtons.forEach((item) => {
+      item.classList.toggle("active", item === button);
+    });
+
+    runPreflightDemo();
+  });
+});
+
+textInput?.addEventListener("input", runPreflightDemo);
+
+form?.addEventListener("submit", (event) => {
+  event.preventDefault();
+  runPreflightDemo();
+});
+
+runPreflightDemo();
+</script>
