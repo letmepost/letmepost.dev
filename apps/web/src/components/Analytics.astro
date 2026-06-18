@@ -2,13 +2,16 @@
 // Public env vars are inlined at build time. If `PUBLIC_POSTHOG_KEY` is
 // unset we render nothing — local dev stays quiet by default.
 const key = import.meta.env.PUBLIC_POSTHOG_KEY;
-// Reverse-proxy through letmepost.dev/_ph so ad blockers (uBlock, Brave
-// shields, Firefox ETP) and Safari ITP don't drop the requests at the
-// network layer — calls look like first-party traffic. The Vercel
-// rewrite in vercel.json forwards to us.i.posthog.com server-side.
-// PUBLIC_POSTHOG_HOST stays available as an override for environments
-// without the proxy (preview deploys, local dev).
-const host = import.meta.env.PUBLIC_POSTHOG_HOST ?? "https://letmepost.dev/_ph";
+// Production always routes through the letmepost.dev/_ph reverse proxy so
+// ad blockers (uBlock, Brave shields, Firefox ETP) and Safari ITP can't
+// drop the requests at the network layer. The Vercel rewrite in
+// vercel.json forwards /_ph to us.i.posthog.com server-side. We ignore
+// PUBLIC_POSTHOG_HOST in prod on purpose: pointing it at the raw posthog
+// host bypasses the proxy and the requests get blocked. The override only
+// applies outside production (preview deploys, local dev).
+const host = import.meta.env.PROD
+  ? "https://letmepost.dev/_ph"
+  : (import.meta.env.PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com");
 ---
 
 {/* Step 1: PostHog snippet. Inline because it needs `define:vars` to
