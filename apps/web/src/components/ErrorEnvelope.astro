@@ -1,31 +1,8 @@
 ---
-import { BLUESKY_MAX_GRAPHEMES } from "@letmepost/schemas";
-
-/**
- * "Anatomy of a failure" — a browser-only preflight demo. It uses the
- * shared schema limit constants and renders the same rich envelope shape
- * without adding a public API route for a marketing widget.
- */
+// Browser-only preflight demo: counts graphemes against the shared schema
+// limits and renders the rich failure envelope without a public API route.
 const demoFailureText =
-  "A launch note that keeps going past the smallest supported post limit so the failure envelope is visible immediately. Letmepost checks the text before a platform call, names the exact rule that fired, returns a remediation, and keeps request identifiers attached for support. ".repeat(
-    2,
-  );
-
-const fields: { k: string; v: string; cls?: string }[] = [
-  { k: "code", v: "preflight_failed", cls: "b" },
-  { k: "rule", v: "bluesky.text.max_graphemes", cls: "acc b" },
-  { k: "platform", v: "bluesky" },
-  { k: "platform_version", v: "atproto-2026-04" },
-  {
-    k: "message",
-    v: `Text exceeds the ${BLUESKY_MAX_GRAPHEMES}-grapheme Bluesky limit.`,
-  },
-  { k: "remediation", v: `Trim the text to ${BLUESKY_MAX_GRAPHEMES} graphemes or fewer.` },
-  { k: "doc_url", v: "https://docs.letmepost.dev/errors/preflight_failed", cls: "acc" },
-  { k: "rule_url", v: "https://docs.letmepost.dev/preflight/bluesky-text-max_graphemes", cls: "acc" },
-  { k: "request_id", v: "req_01HXY7Z8K9MNB1P2QR3STVW" },
-  { k: "trace_id", v: "01jb7q9c4e5f6g7h8i9k0lm1np" },
-];
+  "A launch note that keeps going past the smallest supported post limit so the failure envelope is visible immediately. letmepost checks the text before a platform call, names the exact rule that fired, returns a remediation, and keeps request identifiers attached for support, so a 2 a.m. page becomes a one-line fix instead of a guessing game about which of eight platforms rejected you.";
 ---
 
 <section class="wrap sec divider">
@@ -37,45 +14,46 @@ const fields: { k: string; v: string; cls?: string }[] = [
   </p>
 
   <div class="preflight-grid">
-  <form id="preflight-demo" class="preflight-card">
-    <div class="preflight-bar">
-      <span class="method">POST</span>
-      <span class="endpoint">/v1/preflight</span>
-    </div>
-
-    <div class="preflight-body">
-      <div class="demo-control">
-        <span class="demo-label">Platform</span>
-
-        <div class="platform-pills" role="radiogroup" aria-label="Platform">
-          <button type="button" class="platform-pill active" data-platform="bluesky">Bluesky</button>
-          <button type="button" class="platform-pill" data-platform="twitter">X / Twitter</button>
-          <button type="button" class="platform-pill" data-platform="threads">Threads</button>
-          <button type="button" class="platform-pill" data-platform="instagram">Instagram</button>
-          <button type="button" class="platform-pill" data-platform="linkedin">LinkedIn</button>
-          <button type="button" class="platform-pill" data-platform="facebook">Facebook</button>
-        </div>
+    <form id="preflight-demo" class="preflight-card">
+      <div class="preflight-bar">
+        <span class="method">POST</span>
+        <span class="endpoint">/v1/preflight</span>
       </div>
 
-      <label class="demo-control">
-        <span class="demo-label">Post text</span>
-        <textarea id="demo-text" name="text" rows="7">{demoFailureText}</textarea>
-      </label>
-    </div>
-  </form>
+      <div class="preflight-body">
+        <div class="demo-control">
+          <span class="demo-label">Platform</span>
 
-  <div class="preflight-card response-card">
-    <div class="preflight-bar response-bar">
-      <span class="status-left">
-        <span class="status-dot"></span>
-        <span id="preflight-status">422</span>
-      </span>
-      <span class="response-label">response</span>
-    </div>
+          <div class="platform-pills" role="group" aria-label="Platform">
+            <button type="button" class="platform-pill active" data-platform="bluesky" aria-pressed="true">Bluesky</button>
+            <button type="button" class="platform-pill" data-platform="twitter" aria-pressed="false">X / Twitter</button>
+            <button type="button" class="platform-pill" data-platform="threads" aria-pressed="false">Threads</button>
+            <button type="button" class="platform-pill" data-platform="instagram" aria-pressed="false">Instagram</button>
+            <button type="button" class="platform-pill" data-platform="tiktok" aria-pressed="false">TikTok</button>
+            <button type="button" class="platform-pill" data-platform="linkedin" aria-pressed="false">LinkedIn</button>
+            <button type="button" class="platform-pill" data-platform="facebook" aria-pressed="false">Facebook</button>
+          </div>
+        </div>
 
-    <pre id="preflight-result" class="json-body"></pre>
+        <label class="demo-control">
+          <span class="demo-label">Post text</span>
+          <textarea id="demo-text" name="text" rows="7">{demoFailureText}</textarea>
+        </label>
+      </div>
+    </form>
+
+    <div class="preflight-card response-card">
+      <div class="preflight-bar response-bar">
+        <span class="status-left">
+          <span class="status-dot"></span>
+          <span id="preflight-status">422</span>
+        </span>
+        <span class="response-label">response</span>
+      </div>
+
+      <pre id="preflight-result" class="json-body"></pre>
+    </div>
   </div>
-</div>
 </section>
 
 <style>
@@ -90,7 +68,7 @@ const fields: { k: string; v: string; cls?: string }[] = [
     border: 1px solid var(--line);
     border-radius: 18px;
     overflow: hidden;
-    background: var(--paper);
+    background: var(--panel);
   }
 
   .preflight-bar {
@@ -146,16 +124,22 @@ const fields: { k: string; v: string; cls?: string }[] = [
     border: 1px solid var(--line);
     border-radius: 999px;
     background: transparent;
-    color: var(--muted);
+    color: var(--mut);
     padding: 10px 16px;
     font: 14px/1 var(--mono);
     cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+  }
+
+  .platform-pill:hover {
+    color: var(--ink);
+    border-color: var(--mut);
   }
 
   .platform-pill.active {
-    background: var(--paper);
-    border-color: var(--paper);
-    color: var(--ink);
+    background: var(--btn-bg);
+    border-color: var(--btn-bg);
+    color: var(--btn-fg);
   }
 
   .demo-control textarea {
@@ -163,7 +147,7 @@ const fields: { k: string; v: string; cls?: string }[] = [
     min-height: 190px;
     border: 1px solid var(--line);
     border-radius: 12px;
-    background: var(--paper);
+    background: var(--panel);
     color: var(--ink);
     padding: 18px;
     resize: vertical;
@@ -177,12 +161,12 @@ const fields: { k: string; v: string; cls?: string }[] = [
   }
 
   .response-bar {
-  color: #c7352c;
-  font-weight: 700;
+    color: #c7352c;
+    font-weight: 700;
   }
 
   .response-bar.ok {
-    color: #22c55e;
+    color: var(--acc);
   }
 
   .status-dot {
@@ -235,50 +219,53 @@ const fields: { k: string; v: string; cls?: string }[] = [
     INSTAGRAM_MAX_GRAPHEMES,
     LINKEDIN_MAX_GRAPHEMES,
     THREADS_MAX_GRAPHEMES,
+    TIKTOK_MAX_CAPTION_CHARS,
     TWITTER_MAX_GRAPHEMES,
   } from "@letmepost/schemas";
 
-  const form = document.querySelector("#preflight-demo");
-  const responseBar=document.querySelector(".response-bar");
-  const platformButtons = document.querySelectorAll<HTMLButtonElement>("[data-platform]");
-  let selectedPlatform: DemoPlatform = "bluesky";
-  const textInput = document.querySelector("#demo-text");
-  const result = document.querySelector("#preflight-result");
-  const status = document.querySelector("#preflight-status");
+  const limits = {
+    bluesky: BLUESKY_MAX_GRAPHEMES,
+    twitter: TWITTER_MAX_GRAPHEMES,
+    threads: THREADS_MAX_GRAPHEMES,
+    instagram: INSTAGRAM_MAX_GRAPHEMES,
+    tiktok: TIKTOK_MAX_CAPTION_CHARS,
+    linkedin: LINKEDIN_MAX_GRAPHEMES,
+    facebook: FACEBOOK_MAX_GRAPHEMES,
+  };
 
+  type DemoPlatform = keyof typeof limits;
   type EnvelopeFieldValue = string | number | boolean;
   type ErrorEnvelope = { error: Record<string, EnvelopeFieldValue> };
   type SuccessEnvelope = Record<string, EnvelopeFieldValue>;
   type DemoEnvelope = ErrorEnvelope | SuccessEnvelope;
 
-  const platformNames = {
+  const platformNames: Record<DemoPlatform, string> = {
     bluesky: "Bluesky",
     twitter: "X / Twitter",
-    linkedin: "LinkedIn",
     threads: "Threads",
-    facebook: "Facebook Pages",
     instagram: "Instagram",
+    tiktok: "TikTok",
+    linkedin: "LinkedIn",
+    facebook: "Facebook",
   };
-
-  const limits = {
-    bluesky: BLUESKY_MAX_GRAPHEMES,
-    twitter: TWITTER_MAX_GRAPHEMES,
-    linkedin: LINKEDIN_MAX_GRAPHEMES,
-    threads: THREADS_MAX_GRAPHEMES,
-    facebook: FACEBOOK_MAX_GRAPHEMES,
-    instagram: INSTAGRAM_MAX_GRAPHEMES,
-  };
-
-  type DemoPlatform = keyof typeof limits;
 
   const platformVersions: Record<DemoPlatform, string> = {
     bluesky: "atproto-2026-04",
     twitter: "v2",
-    linkedin: "202506",
     threads: "Graph API v1.0",
-    facebook: "Graph API",
     instagram: "Graph API",
+    tiktok: "v2",
+    linkedin: "202605",
+    facebook: "Graph API",
   };
+
+  const form = document.querySelector("#preflight-demo");
+  const responseBar = document.querySelector(".response-bar");
+  const platformButtons = document.querySelectorAll<HTMLButtonElement>("[data-platform]");
+  const textInput = document.querySelector("#demo-text");
+  const result = document.querySelector("#preflight-result");
+  const status = document.querySelector("#preflight-status");
+  let selectedPlatform: DemoPlatform = "bluesky";
 
   function countGraphemes(text: string) {
     if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
@@ -320,94 +307,95 @@ const fields: { k: string; v: string; cls?: string }[] = [
         remediation: `Trim the text to ${limit} graphemes or fewer.`,
         doc_url: "https://docs.letmepost.dev/errors/preflight_failed",
         rule_url: `https://docs.letmepost.dev/preflight/${platform}-text-max_graphemes`,
-        request_id: "req_demo_local",
-        trace_id: "trace_demo_local",
+        request_id: "req_01HXY7Z8K9MNB1P2QR3STVW",
+        trace_id: "01jb7q9c4e5f6g7h8i9k0lm1np",
       },
     };
   }
 
   function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (char) => {
-    const entities: Record<string, string> = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#039;",
-    };
+    return value.replace(/[&<>"']/g, (char) => {
+      const entities: Record<string, string> = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      };
 
-    return entities[char] ?? char;
-  });
-}
+      return entities[char] ?? char;
+    });
+  }
 
-function highlightJson(json: string) {
-  return escapeHtml(json).replace(
-    /(&quot;(?:\\.|[^\\])*?&quot;)(\s*:)?|\b(true|false)\b|\b\d+\b/g,
-    (match, stringValue, colon) => {
-      if (stringValue && colon) return `<span class="json-key">${stringValue}</span>${colon}`;
+  function highlightJson(json: string) {
+    return escapeHtml(json).replace(
+      /(&quot;(?:\\.|[^\\])*?&quot;)(\s*:)?|\b(true|false)\b|\b\d+\b/g,
+      (match, stringValue, colon) => {
+        if (stringValue && colon) return `<span class="json-key">${stringValue}</span>${colon}`;
 
-      if (
-        stringValue &&
-        (stringValue.includes("preflight_failed") ||
-          stringValue.includes(".text.max_graphemes"))
-      ) {
-        return `<span class="json-accent">${stringValue}</span>`;
-      }
+        if (
+          stringValue &&
+          (stringValue.includes("preflight_failed") ||
+            stringValue.includes(".text.max_graphemes"))
+        ) {
+          return `<span class="json-accent">${stringValue}</span>`;
+        }
 
-      if (stringValue) return `<span class="json-string">${stringValue}</span>`;
-      if (match === "true" || match === "false") return `<span class="json-boolean">${match}</span>`;
+        if (stringValue) return `<span class="json-string">${stringValue}</span>`;
+        if (match === "true" || match === "false") return `<span class="json-boolean">${match}</span>`;
 
-      return `<span class="json-number">${match}</span>`;
-    },
-  );
-}
+        return `<span class="json-number">${match}</span>`;
+      },
+    );
+  }
 
-function renderEnvelope(envelope: DemoEnvelope) {
-  if (!(result instanceof HTMLElement)) return;
-  if (!(status instanceof HTMLElement)) return;
+  function renderEnvelope(envelope: DemoEnvelope) {
+    if (!(result instanceof HTMLElement)) return;
+    if (!(status instanceof HTMLElement)) return;
 
-  const isError = "error" in envelope;
+    const isError = "error" in envelope;
 
-  status.textContent = isError ? "422" : "200";
-  responseBar?.classList.toggle("ok", !isError);
+    status.textContent = isError ? "422" : "200";
+    responseBar?.classList.toggle("ok", !isError);
 
-  result.innerHTML = highlightJson(JSON.stringify(envelope, null, 2));
-}
+    result.innerHTML = highlightJson(JSON.stringify(envelope, null, 2));
+  }
 
   function runPreflightDemo() {
-  if (!(textInput instanceof HTMLTextAreaElement)) return;
+    if (!(textInput instanceof HTMLTextAreaElement)) return;
 
-  const platform = selectedPlatform;
-  const text = textInput.value;
-  const graphemes = countGraphemes(text);
-  const limit = limits[platform];
+    const platform = selectedPlatform;
+    const graphemes = countGraphemes(textInput.value);
+    const limit = limits[platform];
 
-  const envelope =
-    graphemes > limit
-      ? buildFailedEnvelope(platform, graphemes, limit)
-      : buildPassedEnvelope(platform, graphemes, limit);
+    const envelope =
+      graphemes > limit
+        ? buildFailedEnvelope(platform, graphemes, limit)
+        : buildPassedEnvelope(platform, graphemes, limit);
 
-  renderEnvelope(envelope);
-}
+    renderEnvelope(envelope);
+  }
 
-platformButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    selectedPlatform = button.dataset.platform as DemoPlatform;
+  platformButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedPlatform = button.dataset.platform as DemoPlatform;
 
-    platformButtons.forEach((item) => {
-      item.classList.toggle("active", item === button);
+      platformButtons.forEach((item) => {
+        const isActive = item === button;
+        item.classList.toggle("active", isActive);
+        item.setAttribute("aria-pressed", String(isActive));
+      });
+
+      runPreflightDemo();
     });
+  });
 
+  textInput?.addEventListener("input", runPreflightDemo);
+
+  form?.addEventListener("submit", (event) => {
+    event.preventDefault();
     runPreflightDemo();
   });
-});
 
-textInput?.addEventListener("input", runPreflightDemo);
-
-form?.addEventListener("submit", (event) => {
-  event.preventDefault();
   runPreflightDemo();
-});
-
-runPreflightDemo();
 </script>
