@@ -3169,8 +3169,12 @@
           "Webhooks"
         ],
         "summary": "Register a webhook endpoint",
-        "description": "Dashboard session only. The `signingSecret` is returned **once** at creation — used to verify the HMAC-SHA256 `X-Letmepost-Signature` header on every delivery. An empty `events` array subscribes to every event type.",
-        "security": [],
+        "description": "Authenticated with an API key or dashboard session. The `signingSecret` is returned **once** at creation and is used to verify the HMAC-SHA256 `X-Letmepost-Signature` header on every delivery. An empty `events` array subscribes to every event type.",
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "parameters": [
           {
             "$ref": "#/components/parameters/IdempotencyKey"
@@ -3235,7 +3239,11 @@
           "Webhooks"
         ],
         "summary": "List webhook endpoints",
-        "security": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "responses": {
           "200": {
             "description": "Endpoints for the active org.",
@@ -3270,7 +3278,11 @@
           "Webhooks"
         ],
         "summary": "Fetch a webhook endpoint",
-        "security": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3318,7 +3330,11 @@
         ],
         "summary": "Update a webhook endpoint",
         "description": "Partial update. Setting `active: false` pauses delivery without losing the endpoint; flipping back to `true` re-enables it.",
-        "security": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3379,7 +3395,11 @@
         ],
         "summary": "Delete a webhook endpoint",
         "description": "Hard delete — the row is removed. Use `PATCH … { active: false }` instead if you want to pause delivery while preserving history.",
-        "security": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
@@ -3429,7 +3449,11 @@
         ],
         "summary": "Send a synthetic test delivery",
         "description": "Fires a synthetic event at the endpoint URL synchronously and returns what the consumer responded — bypasses the BullMQ delivery queue on purpose so operators get immediate feedback. The real signing secret is used; the consumer's HMAC verification path is identical to production.",
-        "security": [],
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
         "parameters": [
           {
             "name": "id",
