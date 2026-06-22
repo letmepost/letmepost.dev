@@ -1,9 +1,9 @@
 version: 2
 
-# Weekly dependency updates, grouped to keep PR noise bounded. Each
-# ecosystem opens at most ~2 PRs per week (one grouped minor+patch, one
-# per major). Maintainer can dismiss anything that fails CI without
-# investigation cost.
+# Weekly minor+patch dependency updates, grouped per directory to keep PR
+# noise bounded. Major-version bumps are ignored here and taken manually when
+# the maintainer chooses, so dependabot never opens a separate PR per major.
+# Maintainer can dismiss anything that fails CI without investigation cost.
 
 updates:
   # ── npm — one entry per package.json with a lockfile ──
@@ -20,6 +20,9 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels:
       - type:chore
 
@@ -30,6 +33,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [type:chore, area:api]
 
   - package-ecosystem: npm
@@ -39,6 +45,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [type:chore, area:dashboard]
 
   - package-ecosystem: npm
@@ -48,6 +57,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [type:chore, area:web]
 
   - package-ecosystem: npm
@@ -57,6 +69,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [type:chore, area:mcp]
 
   - package-ecosystem: npm
@@ -66,6 +81,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [type:chore, area:cli]
 
   - package-ecosystem: npm
@@ -75,6 +93,9 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [type:chore, area:sdk]
 
   - package-ecosystem: npm
@@ -84,9 +105,12 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     labels: [type:chore]
 
-  # ── GitHub Actions ──
+  # ── GitHub Actions (group already folds majors into one PR) ──
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly, day: monday, time: "06:00", timezone: Asia/Kolkata }
