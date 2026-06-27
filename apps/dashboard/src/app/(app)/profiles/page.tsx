@@ -108,8 +108,8 @@ export default function ProfilesPage() {
         </Card>
       ) : profiles === null ? (
         <div className="space-y-2">
-          <Skeleton className="h-14" />
-          <Skeleton className="h-14" />
+          <Skeleton className="h-16" />
+          <Skeleton className="h-16" />
         </div>
       ) : profiles.length === 0 ? (
         <Card>
