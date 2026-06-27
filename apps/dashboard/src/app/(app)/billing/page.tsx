@@ -96,8 +96,8 @@ export default function BillingPage() {
 
       {subQuery.isLoading ? (
         <div className="space-y-4">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+          <Skeleton className="h-80" />
+          <Skeleton className="h-52" />
         </div>
       ) : subQuery.error ? (
         <Card>
@@ -457,7 +457,7 @@ function UsageCard({ subscription }: { subscription: Subscription }) {
   const usage = useUsage();
 
   if (usage.isLoading) {
-    return <Skeleton className="h-32" />;
+    return <Skeleton className="h-52" />;
   }
   if (!usage.data) return null;
 
@@ -575,8 +575,8 @@ function InvoicesSection() {
       <CardContent className="px-0">
         {invoices.isLoading ? (
           <div className="px-4 space-y-2">
-            <Skeleton className="h-10" />
-            <Skeleton className="h-10" />
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
           </div>
         ) : invoices.error ? (
           <p className="px-4 text-xs text-muted-foreground">
