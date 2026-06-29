@@ -22,6 +22,7 @@ import { DrizzlePlatformAccountsRepository } from "../repositories/platform-acco
 import { deliverWebhook } from "../webhooks/deliver.js";
 import { createDefaultWebhookDispatcher } from "../webhooks/dispatch.js";
 import { startTierInvalidationListener } from "../billing/invalidate.js";
+import { refundQuota } from "../billing/quota.js";
 import { runBillingDunning } from "./jobs/billing-dunning.js";
 import { runPostsRetention } from "./jobs/posts-retention.js";
 import { createRedisConnection } from "./connection.js";
@@ -88,13 +89,17 @@ const publishWorker = new Worker<PublishJobData>(
     // this UPDATE, the WHERE clause matches nothing, the row count is
     // zero, and we bail out instead of publishing a post the user
     // canceled mid-flight.
+    //
+    // `publishing` is in the re-claimable set so a BullMQ retry can recover a
+    // row left there by a crashed or transiently-failed prior attempt; without
+    // it those posts strand forever.
     const transitioned = await db
       .update(postsTable)
       .set({ status: "publishing" })
       .where(
         and(
           eq(postsTable.id, post.id),
-          inArray(postsTable.status, ["queued", "validated"]),
+          inArray(postsTable.status, ["queued", "validated", "publishing"]),
         ),
       )
       .returning();
@@ -197,17 +202,27 @@ const publishWorker = new Worker<PublishJobData>(
 
       return { ok: true, uri: result.uri, cid: result.cid };
     } catch (err) {
-      await finaliseFailure(post.id, err, account, organizationId, requestId);
-      // 4xx-family errors → don't retry (preflight / platform_rejected /
-      // platform_auth_failed). Transient errors bubble up so BullMQ retries.
-      if (err instanceof LetmepostError) {
-        const permanent =
-          err.code === "preflight_failed" ||
+      const permanent =
+        err instanceof LetmepostError &&
+        (err.code === "preflight_failed" ||
           err.code === "platform_rejected" ||
           err.code === "platform_auth_failed" ||
-          err.code === "validation_failed";
+          err.code === "validation_failed");
+
+      // Mirrors BullMQ's own shouldRetryJob predicate: attemptsMade counts
+      // prior failures, so a retry follows iff attemptsMade + 1 < attempts.
+      const maxAttempts = job.opts.attempts ?? 1;
+      const isLastAttempt = job.attemptsMade + 1 >= maxAttempts;
+
+      // Only finalise on a terminal outcome. Finalising a transient failure
+      // that still has retries left would fire a premature post.failed and
+      // flip the row to `failed`, which the CAS guard then can't re-claim.
+      if (permanent || isLastAttempt) {
+        await finaliseFailure(post.id, err, account, organizationId, requestId);
         if (permanent) {
-          throw new UnrecoverableError(err.message);
+          throw new UnrecoverableError(
+            err instanceof Error ? err.message : String(err),
+          );
         }
       }
       throw err;
@@ -253,6 +268,10 @@ async function finaliseFailure(
     .update(postsTable)
     .set({ status, error: errorRecord })
     .where(eq(postsTable.id, postId));
+
+  // The slot was charged at schedule time; a terminally-failed publish never
+  // went out, so give it back.
+  await refundQuota(db, organizationId, 1);
 
   if (!account) return;
   await dispatcher

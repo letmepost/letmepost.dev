@@ -47,19 +47,21 @@ function deriveSource(
   } catch {
     return undefined;
   }
-  if (host.endsWith("producthunt.com")) return "producthunt";
+  const matches = (domain: string): boolean =>
+    host === domain || host.endsWith("." + domain);
+  if (matches("producthunt.com")) return "producthunt";
   if (host === "news.ycombinator.com" || host === "hn.algolia.com")
     return "hackernews";
-  if (host.endsWith("google.com")) return "google";
+  if (matches("google.com")) return "google";
   if (host === "twitter.com" || host === "x.com" || host === "t.co")
     return "twitter";
-  if (host.endsWith("bsky.app")) return "bluesky";
-  if (host.endsWith("linkedin.com") || host === "lnkd.in") return "linkedin";
-  if (host.endsWith("reddit.com")) return "reddit";
-  if (host.endsWith("github.com")) return "github";
-  if (host.endsWith("dev.to")) return "devto";
-  if (host.endsWith("indiehackers.com")) return "indiehackers";
-  if (host.endsWith("letmepost.dev")) return undefined; // our own site
+  if (matches("bsky.app")) return "bluesky";
+  if (matches("linkedin.com") || host === "lnkd.in") return "linkedin";
+  if (matches("reddit.com")) return "reddit";
+  if (matches("github.com")) return "github";
+  if (matches("dev.to")) return "devto";
+  if (matches("indiehackers.com")) return "indiehackers";
+  if (matches("letmepost.dev")) return undefined; // our own site
   return "referral";
 }
 

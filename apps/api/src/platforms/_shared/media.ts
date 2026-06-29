@@ -1,3 +1,5 @@
+import { isIP } from "node:net";
+import { lookup } from "node:dns/promises";
 import type { MediaInput } from "@letmepost/schemas";
 import type { DrizzleClient } from "../../db/index.js";
 import { LetmepostError } from "../../errors.js";
@@ -6,6 +8,177 @@ import {
   getPublicBaseUrl,
 } from "../../media/s3.js";
 import { DrizzleMediaRepository } from "../../repositories/media.js";
+
+const MAX_URL_FETCH_BYTES = 4 * 1024 * 1024 * 1024;
+
+// Residual limitation: DNS-validated IPs can differ from what `fetch` finally
+// connects to (DNS rebinding / TOCTOU); global `fetch` exposes no socket pin.
+async function assertUrlIsFetchable(
+  rawUrl: string,
+  opts: LoadMediaOptions,
+): Promise<void> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: `Media URL is not a valid URL: ${rawUrl}`,
+      ...(opts.platform ? { platform: opts.platform } : {}),
+      remediation: "Provide an absolute http(s) URL, or inline via bytesBase64.",
+    });
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: `Unsupported media URL scheme '${parsed.protocol}'.`,
+      ...(opts.platform ? { platform: opts.platform } : {}),
+      remediation: "Only http(s) media URLs are accepted.",
+    });
+  }
+
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+
+  const lowerHost = hostname.toLowerCase();
+  if (lowerHost === "localhost" || lowerHost.endsWith(".localhost")) {
+    throwBlocked(rawUrl, opts);
+  }
+
+  const ipsToCheck: string[] = [];
+  if (isIP(hostname) !== 0) {
+    ipsToCheck.push(hostname);
+  } else {
+    let resolved: { address: string }[];
+    try {
+      resolved = await lookup(hostname, { all: true });
+    } catch {
+      throw new LetmepostError({
+        code: "platform_unavailable",
+        status: 503,
+        message: `Could not resolve media URL host '${hostname}'.`,
+        ...(opts.platform ? { platform: opts.platform } : {}),
+        remediation:
+          "Verify the media URL host is publicly resolvable, or inline via bytesBase64.",
+      });
+    }
+    if (resolved.length === 0) throwBlocked(rawUrl, opts);
+    for (const r of resolved) ipsToCheck.push(r.address);
+  }
+
+  for (const ip of ipsToCheck) {
+    if (isBlockedAddress(ip)) throwBlocked(rawUrl, opts);
+  }
+}
+
+function throwBlocked(rawUrl: string, opts: LoadMediaOptions): never {
+  throw new LetmepostError({
+    code: "validation_failed",
+    status: 400,
+    message: `Media URL host is not allowed: ${rawUrl}`,
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    remediation:
+      "Media URLs must point at a public host. Internal / private addresses are blocked; inline via bytesBase64 instead.",
+  });
+}
+
+function isBlockedAddress(ip: string): boolean {
+  const kind = isIP(ip);
+  if (kind === 4) return isBlockedIPv4(ip);
+  if (kind === 6) return isBlockedIPv6(ip);
+  return true;
+}
+
+function isBlockedIPv4(ip: string): boolean {
+  const parts = ip.split(".").map((p) => Number(p));
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+    return true;
+  }
+  const [a, b] = parts as [number, number, number, number];
+  if (a === 0) return true;
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a >= 224) return true;
+  return false;
+}
+
+function isBlockedIPv6(ip: string): boolean {
+  const lower = ip.toLowerCase();
+  if (lower === "::1" || lower === "::") return true;
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped?.[1]) return isBlockedIPv4(mapped[1]);
+  if (lower.startsWith("fe80")) return true;
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true;
+  return false;
+}
+
+async function readBoundedBody(
+  res: Response,
+  maxBytes: number,
+  rawUrl: string,
+  opts: LoadMediaOptions,
+): Promise<Uint8Array> {
+  const declared = res.headers.get("content-length");
+  if (declared !== null) {
+    const n = Number(declared);
+    if (Number.isFinite(n) && n > maxBytes) {
+      throwTooLarge(rawUrl, maxBytes, opts);
+    }
+  }
+
+  if (!res.body) {
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf.byteLength > maxBytes) throwTooLarge(rawUrl, maxBytes, opts);
+    return buf;
+  }
+
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => {});
+        throwTooLarge(rawUrl, maxBytes, opts);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
+
+function throwTooLarge(
+  rawUrl: string,
+  maxBytes: number,
+  opts: LoadMediaOptions,
+): never {
+  throw new LetmepostError({
+    code: "preflight_failed",
+    status: 400,
+    message: `Media at ${rawUrl} exceeds the maximum download size of ${maxBytes} bytes.`,
+    ...(opts.platform ? { platform: opts.platform } : {}),
+    ...(opts.reachableRule ? { rule: opts.reachableRule } : {}),
+    remediation: `Host media under ${maxBytes} bytes, or inline via bytesBase64.`,
+  });
+}
 
 /**
  * A `MediaInput` resolved to actual bytes + a definite mime type. Preflight
@@ -94,6 +267,8 @@ export async function loadMediaItem(
     });
   }
 
+  await assertUrlIsFetchable(item.url, opts);
+
   let res: Response;
   try {
     res = await fetch(item.url);
@@ -119,8 +294,7 @@ export async function loadMediaItem(
     });
   }
 
-  const buf = await res.arrayBuffer();
-  const bytes = new Uint8Array(buf);
+  const bytes = await readBoundedBody(res, MAX_URL_FETCH_BYTES, item.url, opts);
   const contentType = res.headers.get("content-type");
   const mimeType = contentType
     ? contentType.split(";")[0]!.trim().toLowerCase()

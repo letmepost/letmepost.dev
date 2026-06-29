@@ -1,4 +1,9 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import {
+  createHash,
+  createHmac,
+  randomBytes,
+  timingSafeEqual,
+} from "node:crypto";
 
 /**
  * Stateless OAuth state token. Carries the {organizationId, profileId,
@@ -63,22 +68,30 @@ function readSecret(): string {
 }
 
 function b64urlEncode(buf: Buffer | string): string {
-  return (typeof buf === "string" ? Buffer.from(buf) : buf)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  return (typeof buf === "string" ? Buffer.from(buf) : buf).toString(
+    "base64url",
+  );
 }
 
 function b64urlDecode(s: string): Buffer {
-  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
-  return Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/") + pad, "base64");
+  return Buffer.from(s, "base64url");
 }
 
 function sign(payload: string, secret: string): string {
   return b64urlEncode(
     createHmac("sha256", secret).update(payload).digest(),
   );
+}
+
+export function generatePkcePair(): {
+  codeVerifier: string;
+  codeChallenge: string;
+} {
+  const codeVerifier = b64urlEncode(randomBytes(32));
+  const codeChallenge = b64urlEncode(
+    createHash("sha256").update(codeVerifier).digest(),
+  );
+  return { codeVerifier, codeChallenge };
 }
 
 export function encodeOAuthState(input: {

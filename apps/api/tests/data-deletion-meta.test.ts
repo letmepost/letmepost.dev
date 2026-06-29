@@ -44,7 +44,7 @@ describe("POST /data-deletion/meta", () => {
     const sr = makeSignedRequest({
       algorithm: "HMAC-SHA256",
       user_id: "fb_user_42",
-      issued_at: 1746000000,
+      issued_at: Math.floor(Date.now() / 1000),
     });
     const body = new URLSearchParams({ signed_request: sr });
     const res = await app.request("/data-deletion/meta", {
@@ -68,6 +68,7 @@ describe("POST /data-deletion/meta", () => {
     const sr = makeSignedRequest({
       algorithm: "HMAC-SHA256",
       user_id: "fb_user_42",
+      issued_at: Math.floor(Date.now() / 1000),
     });
     const res = await app.request("/data-deletion/meta", {
       method: "POST",
@@ -75,6 +76,38 @@ describe("POST /data-deletion/meta", () => {
       body: JSON.stringify({ signed_request: sr }),
     });
     expect(res.status).toBe(200);
+  });
+
+  it("rejects a stale signed_request (replay guard)", async () => {
+    const app = createApp();
+    const sr = makeSignedRequest({
+      algorithm: "HMAC-SHA256",
+      user_id: "fb_user_42",
+      issued_at: Math.floor(Date.now() / 1000) - 48 * 60 * 60,
+    });
+    const body = new URLSearchParams({ signed_request: sr });
+    const res = await app.request("/data-deletion/meta", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "signed_request_invalid" });
+  });
+
+  it("rejects a signed_request with no issued_at (replay guard)", async () => {
+    const app = createApp();
+    const sr = makeSignedRequest({
+      algorithm: "HMAC-SHA256",
+      user_id: "fb_user_42",
+    });
+    const body = new URLSearchParams({ signed_request: sr });
+    const res = await app.request("/data-deletion/meta", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+    expect(res.status).toBe(400);
   });
 
   it("returns 400 if signed_request is missing", async () => {

@@ -14,7 +14,7 @@ import {
   type PublishResult,
   type WebhookEventType,
 } from "@letmepost/schemas";
-import { checkAndIncrementQuota } from "../billing/quota.js";
+import { checkAndIncrementQuota, refundQuota } from "../billing/quota.js";
 import { posts as postsTable, type Post } from "../db/schema/posts.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
@@ -360,15 +360,65 @@ posts.post(
       { db: c.var.db },
     );
 
-    const results: PostTargetResult[] = [];
-    let successCount = 0;
-    let failCount = 0;
-    for (let i = 0; i < persisted.length; i++) {
-      const { account, rowId } = persisted[i]!;
-      const outcome = settled[i]!;
-      if (outcome.status === "fulfilled") {
+    // Targets are independent, so process each outcome concurrently rather
+    // than serialising the per-target DB write + webhook dispatch.
+    const results = await Promise.all(
+      persisted.map(async ({ account, rowId }, i): Promise<PostTargetResult> => {
+        const outcome = settled[i]!;
+        if (outcome.status === "rejected") {
+          const err = outcome.reason;
+          const { status, eventType } = classifyError(err);
+          await c.var.db
+            .update(postsTable)
+            .set({ status, error: letmepostErrorToRecord(err) })
+            .where(eq(postsTable.id, rowId));
+
+          if (eventType) {
+            await c.var.webhookDispatcher
+              .dispatch({
+                organizationId,
+                type: eventType,
+                data: {
+                  id: rowId,
+                  platform: account.platform,
+                  accountId: account.id,
+                  profileId: account.profileId,
+                  error: letmepostErrorToRecord(err),
+                  rejectedAt: new Date().toISOString(),
+                },
+                ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+              })
+              .catch((dispatchErr: unknown) => {
+                console.error(
+                  "[posts] webhook dispatch failed after publish error",
+                  dispatchErr,
+                );
+              });
+          }
+          return buildFailureResult(account, rowId, status, err);
+        }
+
         const result = outcome.value;
-        successCount++;
+
+        // TikTok publishes asynchronously: the publisher returns
+        // status:"publishing" with the publish_id on `cid`. Leave the row in
+        // `publishing`, enqueue the status poller (the scheduled worker does
+        // the same), and report "publishing" — NOT a false "published".
+        if (result.status === "publishing") {
+          await c.var.db
+            .update(postsTable)
+            .set({ status: "publishing", platformCid: result.cid ?? null })
+            .where(eq(postsTable.id, rowId));
+          await c.var.tiktokStatusPollEnqueuer.enqueue({
+            postId: rowId,
+            publishId: result.cid ?? result.id,
+            platformAccountId: account.id,
+            organizationId,
+            ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+          });
+          return buildPublishingResult(account, rowId, result);
+        }
+
         const publishedAt = new Date();
         await c.var.db
           .update(postsTable)
@@ -398,50 +448,23 @@ posts.post(
           ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
         });
 
-        results.push(buildSuccessResult(account, rowId, result));
-      } else {
-        failCount++;
-        const err = outcome.reason;
-        const { status, eventType } = classifyError(err);
-        await c.var.db
-          .update(postsTable)
-          .set({
-            status,
-            error: letmepostErrorToRecord(err),
-          })
-          .where(eq(postsTable.id, rowId));
+        return buildSuccessResult(account, rowId, result);
+      }),
+    );
 
-        if (eventType) {
-          await c.var.webhookDispatcher
-            .dispatch({
-              organizationId,
-              type: eventType,
-              data: {
-                id: rowId,
-                platform: account.platform,
-                accountId: account.id,
-                profileId: account.profileId,
-                error: letmepostErrorToRecord(err),
-                rejectedAt: new Date().toISOString(),
-              },
-              ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-            })
-            .catch((dispatchErr: unknown) => {
-              console.error(
-                "[posts] webhook dispatch failed after publish error",
-                dispatchErr,
-              );
-            });
-        }
-
-        results.push(buildFailureResult(account, rowId, status, err));
-      }
+    const failCount = results.filter(
+      (r) => r.status === "rejected" || r.status === "failed",
+    ).length;
+    // Quota was charged one slot per target before the fan-out; give back the
+    // slots for targets that failed so failed publishes don't burn quota.
+    if (failCount > 0) {
+      await refundQuota(c.var.db, organizationId, failCount);
     }
 
     const batchStatus: CreatePostResponse["status"] =
       failCount === 0
         ? "published"
-        : successCount === 0
+        : failCount === results.length
           ? "failed"
           : "partial_failed";
 
@@ -666,6 +689,21 @@ function buildSuccessResult(
     out.firstCommentCid = result.firstCommentCid;
   }
   if (result.warnings !== undefined) out.warnings = result.warnings;
+  return out;
+}
+
+function buildPublishingResult(
+  account: DecryptedPlatformAccount,
+  postId: string,
+  result: PublishResult,
+): PostTargetResult {
+  const out: PostTargetResult = {
+    accountId: account.id,
+    platform: account.platform,
+    postId,
+    status: "publishing",
+  };
+  if (result.cid !== undefined) out.cid = result.cid;
   return out;
 }
 

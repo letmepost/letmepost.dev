@@ -67,6 +67,8 @@ export type FacebookPageMetadata = {
   kind: "page";
   /** Tasks the user has been granted on this Page (e.g. CREATE_CONTENT). */
   pageTasks?: string[];
+  /** App-scoped connecting-user id; matched by the deauth/data-deletion callbacks. */
+  metaUserId?: string;
 };
 
 /**
@@ -98,9 +100,13 @@ function expiresAtFrom(expiresInSeconds: number | undefined): Date | null {
  * IG fan-out was removed when IG got its own OAuth — see the file
  * header docstring for why.
  */
-function buildPageRecord(page: MetaPageAccount): ConnectedAccount {
+function buildPageRecord(
+  page: MetaPageAccount,
+  metaUserId: string,
+): ConnectedAccount {
   const fbMeta: FacebookPageMetadata = { kind: "page" };
   if (page.tasks) fbMeta.pageTasks = page.tasks;
+  if (metaUserId) fbMeta.metaUserId = metaUserId;
 
   return {
     platform: "facebook",
@@ -198,7 +204,11 @@ export class MetaProvider implements AccountProvider {
       });
     }
 
-    return pages.map(buildPageRecord);
+    // Stamp the connecting user's app-scoped id onto each row so the
+    // deauth/data-deletion callbacks can find them.
+    const me = await client.getMe();
+
+    return pages.map((page) => buildPageRecord(page, me.id));
   }
 
   async refreshToken(input: RefreshInput): Promise<RefreshResult> {

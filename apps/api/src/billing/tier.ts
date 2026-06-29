@@ -187,16 +187,19 @@ async function resolveFromDb(
     };
   }
 
-  // Cancelled but still inside the paid period: keep paid tier.
-  if (
-    row.status === "cancelled" &&
-    row.currentPeriodEnd &&
-    row.currentPeriodEnd > now
-  ) {
+  // Cancelled: keep paid quota only while still inside the paid period. Once
+  // it lapses (or there's no period end) drop to free, else the org keeps the
+  // paid cap after it stops paying until subscription_expired lands.
+  if (row.status === "cancelled") {
+    const inPaidPeriod = Boolean(
+      row.currentPeriodEnd && row.currentPeriodEnd > now,
+    );
     return {
       tier,
       status: row.status,
-      quotaPerMonth: constants.quotaPerMonth,
+      quotaPerMonth: inPaidPeriod
+        ? constants.quotaPerMonth
+        : TIERS.free.quotaPerMonth,
       logRetentionDays: constants.logRetentionDays,
       grandfathered: false,
       delinquent: false,

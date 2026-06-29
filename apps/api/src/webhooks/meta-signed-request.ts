@@ -22,6 +22,17 @@ export type MetaSignedRequestPayload = {
   [key: string]: unknown;
 };
 
+// Bounds the replay window for the unauthenticated destructive callbacks: a
+// captured signed_request is otherwise valid forever (the HMAC never changes).
+export const META_SIGNED_REQUEST_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+const CLOCK_SKEW_MS = 5 * 60 * 1000;
+
+export type ParseSignedRequestOptions = {
+  maxAgeMs?: number;
+  now?: number;
+};
+
 function base64UrlDecode(input: string): Buffer {
   const padded = input.replace(/-/g, "+").replace(/_/g, "/");
   const padLen = (4 - (padded.length % 4)) % 4;
@@ -37,6 +48,7 @@ function base64UrlDecode(input: string): Buffer {
 export function parseMetaSignedRequest(
   signedRequest: string,
   appSecret: string,
+  opts: ParseSignedRequestOptions = {},
 ): MetaSignedRequestPayload | null {
   if (typeof signedRequest !== "string" || signedRequest.length === 0) {
     return null;
@@ -80,6 +92,27 @@ export function parseMetaSignedRequest(
   const p = payload as Record<string, unknown>;
   if (p.algorithm !== "HMAC-SHA256") return null;
   if (typeof p.user_id !== "string" || p.user_id.length === 0) return null;
+
+  const now = opts.now ?? Date.now();
+
+  // Meta sends expires:0 to mean "non-expiring", so only a positive value bounds.
+  if (
+    typeof p.expires === "number" &&
+    Number.isFinite(p.expires) &&
+    p.expires > 0 &&
+    p.expires * 1000 <= now
+  ) {
+    return null;
+  }
+
+  if (opts.maxAgeMs !== undefined) {
+    if (typeof p.issued_at !== "number" || !Number.isFinite(p.issued_at)) {
+      return null;
+    }
+    const issuedAtMs = p.issued_at * 1000;
+    if (issuedAtMs > now + CLOCK_SKEW_MS) return null;
+    if (now - issuedAtMs > opts.maxAgeMs) return null;
+  }
 
   return p as MetaSignedRequestPayload;
 }

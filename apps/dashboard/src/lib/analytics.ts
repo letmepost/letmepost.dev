@@ -1,6 +1,7 @@
 "use client";
 
 import posthog from "posthog-js";
+import type { WebhookEventType } from "@letmepost/schemas";
 
 // `Platform` is wider than `@letmepost/schemas`'s Platform enum because
 // analytics tracks intent (we want events ready when YouTube/TikTok land)
@@ -46,16 +47,6 @@ type PostStatus =
   | "rejected"
   | "failed"
   | "canceled";
-
-type WebhookEventType =
-  | "post.queued"
-  | "post.validated"
-  | "post.published"
-  | "post.rejected"
-  | "post.failed"
-  | "token.expiring"
-  | "token.revoked"
-  | "version.deprecated";
 
 export type DashboardEvent =
   // ── Auth & onboarding ───────────────────────────────────────────────

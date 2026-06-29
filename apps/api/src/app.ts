@@ -11,7 +11,9 @@ import type { SessionContext } from "./middleware/session.js";
 import "./platforms/index.js";
 import {
   createDefaultPublishEnqueuer,
+  createDefaultTikTokStatusPollEnqueuer,
   type PublishEnqueuer,
+  type TikTokStatusPollEnqueuer,
 } from "./queue/enqueue.js";
 import {
   accountRoutes,
@@ -54,6 +56,7 @@ declare module "hono" {
     traceId?: string;
     webhookDispatcher: WebhookDispatcher;
     publishEnqueuer: PublishEnqueuer;
+    tiktokStatusPollEnqueuer: TikTokStatusPollEnqueuer;
   }
 }
 
@@ -71,6 +74,8 @@ export type AppOptions = {
   webhookDispatcher?: WebhookDispatcher;
   /** Override the publish enqueuer — tests pass a capturing stub to assert delays. */
   publishEnqueuer?: PublishEnqueuer;
+  /** Override the TikTok status-poll enqueuer — tests pass a stub to avoid Redis. */
+  tiktokStatusPollEnqueuer?: TikTokStatusPollEnqueuer;
   /** Override the token-refresh enqueuer — tests pass a no-op to avoid Redis. */
   refreshEnqueuer?: import("./queue/refresh-enqueue.js").TokenRefreshEnqueuer;
 };
@@ -81,6 +86,8 @@ export function createApp(options: AppOptions = {}) {
     options.webhookDispatcher ?? createDefaultWebhookDispatcher(db);
   const publishEnqueuer =
     options.publishEnqueuer ?? createDefaultPublishEnqueuer();
+  const tiktokStatusPollEnqueuer =
+    options.tiktokStatusPollEnqueuer ?? createDefaultTikTokStatusPollEnqueuer();
 
   const app = new Hono();
 
@@ -121,6 +128,7 @@ export function createApp(options: AppOptions = {}) {
     c.set("db", db);
     c.set("webhookDispatcher", webhookDispatcher);
     c.set("publishEnqueuer", publishEnqueuer);
+    c.set("tiktokStatusPollEnqueuer", tiktokStatusPollEnqueuer);
     await next();
   });
 

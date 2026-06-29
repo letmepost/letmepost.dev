@@ -1,7 +1,7 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { LetmepostError } from "../../errors.js";
-import { encodeOAuthState } from "../../oauth/state.js";
+import { encodeOAuthState, generatePkcePair } from "../../oauth/state.js";
 import type {
   AccountProvider,
   ConnectContext,
@@ -58,14 +58,6 @@ export type TwitterTokenMetadata = {
   tokenUrl?: string;
 };
 
-function base64UrlEncode(buf: Buffer): string {
-  return buf
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/g, "");
-}
-
 function computeRedirectUri(baseUrl: string): string {
   return new URL("/v1/accounts/oauth/twitter/callback", baseUrl).toString();
 }
@@ -103,10 +95,7 @@ export class TwitterProvider implements AccountProvider {
 
   describeConnect(ctx: ConnectContext): ConnectDescriptor {
     const scopes = [...scopeSetFor(PLATFORM).write];
-    const codeVerifier = base64UrlEncode(randomBytes(32));
-    const codeChallenge = base64UrlEncode(
-      createHash("sha256").update(codeVerifier).digest(),
-    );
+    const { codeVerifier, codeChallenge } = generatePkcePair();
 
     // Re-sign the state to embed the PKCE verifier. The dashboard does a
     // full-page redirect to Twitter immediately after this call returns,

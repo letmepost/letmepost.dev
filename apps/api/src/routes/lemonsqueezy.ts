@@ -70,10 +70,24 @@ lemonSqueezy.post("/webhook", async (c) => {
     .onConflictDoNothing({ target: billingEvents.lsEventId })
     .returning();
 
+  let rowId: string;
   if (inserted.length === 0) {
-    return c.json({ ok: true, deduped: true });
+    // Only treat as a duplicate if the prior attempt actually completed
+    // (processedAt set). A row with a null processedAt is the residue of an
+    // attempt that failed before finishing — reprocess instead of dropping it,
+    // otherwise a transient handler failure strands the customer permanently.
+    const [existing] = await c.var.db
+      .select({ id: billingEvents.id, processedAt: billingEvents.processedAt })
+      .from(billingEvents)
+      .where(eq(billingEvents.lsEventId, eventId))
+      .limit(1);
+    if (!existing || existing.processedAt) {
+      return c.json({ ok: true, deduped: true });
+    }
+    rowId = existing.id;
+  } else {
+    rowId = inserted[0]!.id;
   }
-  const rowId = inserted[0]!.id;
 
   const handler = EVENT_HANDLERS[eventName];
   if (!handler) {
