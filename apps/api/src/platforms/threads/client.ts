@@ -2,6 +2,7 @@ import { platformFetch } from "../_shared/http.js";
 import {
   authFailed,
   extractUpstreamMessage,
+  rateLimited,
   rejected,
 } from "../_shared/errors.js";
 
@@ -452,9 +453,9 @@ function mapPublishError(res: {
     });
   }
 
-  // Rate limit. Meta's "code 4" plus a few subcodes around app/user throttle.
+  // Rate limit (transient → retryable, not a permanent platform_rejected).
   if (res.status === 429 || code === 4 || code === 17 || code === 32) {
-    return rejected({
+    return rateLimited({
       platform: PLATFORM,
       platformResponse: res.body ?? res.raw ?? undefined,
       upstreamMessage: upstreamMessage ?? "Rate limited by Threads.",

@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or } from "drizzle-orm";
+import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import type { DrizzleClient } from "../db/index.js";
 import { media, type Media } from "../db/schema/media.js";
 
@@ -117,58 +117,53 @@ export class DrizzleMediaRepository implements MediaRepository {
         // Keyset pagination on (createdAt desc, id desc) — strict less-than
         // tuple comparison, expressed as: createdAt < cursor.createdAt OR
         // (createdAt = cursor.createdAt AND id < cursor.id).
+        const boundary = sql`${decoded.createdAtText}::timestamptz`;
         conds.push(
           or(
-            lt(media.createdAt, decoded.createdAt),
-            and(
-              eq(media.createdAt, decoded.createdAt),
-              lt(media.id, decoded.id),
-            ),
+            lt(media.createdAt, boundary),
+            and(eq(media.createdAt, boundary), lt(media.id, decoded.id)),
           )!,
         );
       }
     }
 
     const rows = await this.db
-      .select()
+      .select({
+        row: media,
+        createdAtText: sql<string>`${media.createdAt}::text`,
+      })
       .from(media)
       .where(and(...conds))
       .orderBy(desc(media.createdAt), desc(media.id))
       .limit(limit + 1);
 
     const hasMore = rows.length > limit;
-    const data = hasMore ? rows.slice(0, limit) : rows;
-    const last = data[data.length - 1];
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
     const nextCursor =
-      hasMore && last ? encodeCursor(last.createdAt, last.id) : null;
-    return { data, nextCursor };
+      hasMore && last ? encodeCursor(last.createdAtText, last.row.id) : null;
+    return { data: page.map((r) => r.row), nextCursor };
   }
 }
 
-/**
- * Cursor format: base64url(JSON.stringify({ t: createdAt ISO, i: id })).
- * Opaque to callers — they round-trip the string verbatim.
- */
-function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(
-    JSON.stringify({ t: createdAt.toISOString(), i: id }),
-    "utf-8",
-  ).toString("base64url");
+// Cursor format: base64url("{createdAt}:{id}"). createdAt is the raw Postgres
+// timestamptz text (microsecond precision): a JS Date truncates to ms and
+// breaks the keyset tie-breaker. Opaque to callers.
+function encodeCursor(createdAtText: string, id: string): string {
+  return Buffer.from(`${createdAtText}:${id}`).toString("base64url");
 }
 
 function decodeCursor(
   cursor: string,
-): { createdAt: Date; id: string } | null {
+): { createdAtText: string; id: string } | null {
   try {
-    const parsed = JSON.parse(
-      Buffer.from(cursor, "base64url").toString("utf-8"),
-    ) as { t?: unknown; i?: unknown };
-    if (typeof parsed.t !== "string" || typeof parsed.i !== "string") {
-      return null;
-    }
-    const createdAt = new Date(parsed.t);
-    if (Number.isNaN(createdAt.getTime())) return null;
-    return { createdAt, id: parsed.i };
+    const decoded = Buffer.from(cursor, "base64url").toString("utf-8");
+    const colon = decoded.indexOf(":");
+    if (colon === -1) return null;
+    const createdAtText = decoded.slice(0, colon);
+    const id = decoded.slice(colon + 1);
+    if (createdAtText.length === 0 || id.length === 0) return null;
+    return { createdAtText, id };
   } catch {
     return null;
   }

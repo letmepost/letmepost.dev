@@ -166,6 +166,13 @@ export async function handleSubscriptionCreatedOrUpdated(
   const status =
     mapLsStatus(a.status) ?? (cancelAtPeriodEnd ? "cancelled" : "active");
 
+  // Stamp the dunning clock when entering past_due (preserving an earlier
+  // failure time), and clear it otherwise. Without this, a sub that reaches
+  // past_due via subscription_updated has a null paymentFailedAt and the
+  // dunning sweep's `lt(paymentFailedAt, cutoff)` never escalates it.
+  const paymentFailedAt =
+    status === "past_due" ? (before?.paymentFailedAt ?? new Date()) : null;
+
   await ctx.db
     .insert(billingSubscriptions)
     .values({
@@ -179,6 +186,7 @@ export async function handleSubscriptionCreatedOrUpdated(
       currentPeriodStart: periodStart,
       currentPeriodEnd: periodEnd,
       cancelAtPeriodEnd,
+      paymentFailedAt,
     })
     .onConflictDoUpdate({
       target: billingSubscriptions.organizationId,
@@ -192,6 +200,7 @@ export async function handleSubscriptionCreatedOrUpdated(
         currentPeriodStart: periodStart,
         currentPeriodEnd: periodEnd,
         cancelAtPeriodEnd,
+        paymentFailedAt,
       },
     });
 

@@ -1,10 +1,16 @@
 import { createHash } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
 import { idempotencyRecords } from "../db/schema/idempotency_records.js";
 import { LetmepostError } from "../errors.js";
 
-const WINDOW_MS = 24 * 60 * 60 * 1000;
+// How long a key is honored. A record is matched (and the key therefore
+// non-reusable) until the retention sweep deletes it past this age — the
+// lookup deliberately does NOT filter by age, so it stays in lockstep with the
+// (organizationId, key) unique constraint. A windowed lookup against a
+// permanent constraint let an aged key both re-run the handler and then
+// silently fail to refresh its stored response.
+export const IDEMPOTENCY_RETENTION_MS = 24 * 60 * 60 * 1000;
 const MAX_KEY_LENGTH = 255;
 
 function hashBody(raw: string): string {
@@ -23,12 +29,14 @@ function getOrgId(c: Context): string | null {
  * Idempotency-Key replay middleware. Opt-in: if the caller doesn't send
  * `Idempotency-Key`, the request passes through unchanged.
  *
- * On hit within the 24h window:
+ * On hit (a record exists for this org+key, until retention prunes it):
  *   - matching body hash → the stored response is replayed verbatim.
  *   - different body hash → 409 idempotency_conflict.
  *
  * On miss, we run the handler, then persist the response for future replays.
- * We only store 2xx and 4xx responses — 5xx should be retried, not replayed.
+ * Responses are stored regardless of status, INCLUDING 5xx: a retried key must
+ * replay the original outcome, never re-run a handler whose side effects (e.g.
+ * a partially-succeeded publish) already happened.
  *
  * Must run after auth middleware so we can scope records per organization.
  *
@@ -62,7 +70,6 @@ export function idempotency(): MiddlewareHandler {
     const requestHash = hashBody(rawBody);
 
     const db = c.var.db;
-    const cutoff = new Date(Date.now() - WINDOW_MS);
 
     const [existing] = await db
       .select()
@@ -71,7 +78,6 @@ export function idempotency(): MiddlewareHandler {
         and(
           eq(idempotencyRecords.organizationId, organizationId),
           eq(idempotencyRecords.key, key),
-          gt(idempotencyRecords.createdAt, cutoff),
         ),
       )
       .limit(1);
@@ -98,7 +104,6 @@ export function idempotency(): MiddlewareHandler {
     await next();
 
     const status = c.res.status;
-    if (status >= 500) return;
 
     let parsed: unknown = null;
     try {

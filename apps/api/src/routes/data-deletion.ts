@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { platformAccounts } from "../db/schema/index.js";
-import { parseMetaSignedRequest } from "../webhooks/meta-signed-request.js";
+import {
+  META_SIGNED_REQUEST_MAX_AGE_MS,
+  parseMetaSignedRequest,
+} from "../webhooks/meta-signed-request.js";
 
 /**
  * Public, unauthenticated callback endpoint Meta calls when a user requests
@@ -83,7 +86,9 @@ dataDeletion.post("/meta", async (c) => {
     return c.json({ error: "signed_request_missing" }, 400);
   }
 
-  const payload = parseMetaSignedRequest(signedRequest, appSecret);
+  const payload = parseMetaSignedRequest(signedRequest, appSecret, {
+    maxAgeMs: META_SIGNED_REQUEST_MAX_AGE_MS,
+  });
   if (!payload) {
     return c.json({ error: "signed_request_invalid" }, 400);
   }
@@ -91,18 +96,15 @@ dataDeletion.post("/meta", async (c) => {
   const db = c.var.db;
   const confirmationCode = `lmp_${randomUUID()}`;
 
-  // Delete every platform_account row for the Meta product family that maps
-  // to this app-scoped user_id. Posts and post_attempts cascade via the
-  // schema's onDelete setup, so we don't need to touch them by hand here.
-  // If no rows match (user never connected, or already disconnected) we still
-  // return 200 — Meta's contract doesn't differentiate, and from the user's
-  // perspective "no data to delete" is a successful deletion.
+  // Match the connecting Meta user, NOT platformAccountId (which holds the
+  // Page/IG/Threads id). The app-scoped user_id is in tokenMetadata.metaUserId
+  // (facebook/instagram) or tokenMetadata.userId (threads).
   const removed = await db
     .delete(platformAccounts)
     .where(
       and(
         inArray(platformAccounts.platform, META_PLATFORMS),
-        eq(platformAccounts.platformAccountId, payload.user_id),
+        sql`(${platformAccounts.tokenMetadata} ->> 'metaUserId' = ${payload.user_id} OR ${platformAccounts.tokenMetadata} ->> 'userId' = ${payload.user_id})`,
       ),
     )
     .returning();

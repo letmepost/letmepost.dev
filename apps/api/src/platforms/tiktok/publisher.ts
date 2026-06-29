@@ -105,13 +105,15 @@ export const tiktokPublisher: Publisher<
     // ─── Init upload-inbox slot ──────────────────────────────────────────
     const client = new TikTokClient(creds.accessToken, creds.apiBase);
     const totalBytes = loaded.byteLength;
+    // floor (not ceil): TikTok's last chunk absorbs the remainder, so a ceil
+    // split could leave a final chunk under the 5MiB minimum and be rejected.
     const singleChunk = totalBytes <= TIKTOK_SINGLE_CHUNK_THRESHOLD_BYTES;
     const chunkSize = singleChunk
       ? totalBytes
       : Math.min(TIKTOK_CHUNK_SIZE_BYTES, totalBytes);
     const totalChunkCount = singleChunk
       ? 1
-      : Math.ceil(totalBytes / chunkSize);
+      : Math.floor(totalBytes / chunkSize);
 
     const slot: TikTokInitInboxResponse = await client.initInboxUpload({
       videoSize: totalBytes,
@@ -131,7 +133,8 @@ export const tiktokPublisher: Publisher<
     } else {
       for (let i = 0; i < totalChunkCount; i++) {
         const start = i * chunkSize;
-        const end = Math.min(start + chunkSize, totalBytes);
+        const isLast = i === totalChunkCount - 1;
+        const end = isLast ? totalBytes : start + chunkSize;
         const chunk = loaded.bytes.subarray(start, end);
         await client.uploadChunk({
           uploadUrl: slot.upload_url,

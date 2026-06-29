@@ -2,6 +2,7 @@ import { platformFetch } from "../_shared/http.js";
 import {
   authFailed,
   extractUpstreamMessage,
+  rateLimited,
   rejected,
 } from "../_shared/errors.js";
 import { LetmepostError } from "../../errors.js";
@@ -298,7 +299,7 @@ export function mapMetaError(
     code === 32 ||
     code === 613
   ) {
-    return rejected({
+    return rateLimited({
       platform,
       platformResponse: res.body ?? res.raw ?? undefined,
       upstreamMessage: upstreamMessage ?? "Rate limited by Meta.",

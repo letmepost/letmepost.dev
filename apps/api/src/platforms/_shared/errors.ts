@@ -50,6 +50,30 @@ export function rejected(params: {
   });
 }
 
+export function rateLimited(params: {
+  platform: string;
+  platformResponse?: unknown;
+  upstreamMessage?: string;
+  remediation?: string;
+}): LetmepostError {
+  const base = `${params.platform} rate limited the request`;
+  const message = params.upstreamMessage
+    ? `${base}: ${params.upstreamMessage}`
+    : `${base}.`;
+  return new LetmepostError({
+    code: "rate_limited",
+    status: 429,
+    message,
+    platform: params.platform,
+    remediation:
+      params.remediation ??
+      "Back off and retry after the rate-limit window resets.",
+    ...(params.platformResponse !== undefined
+      ? { platformResponse: params.platformResponse }
+      : {}),
+  });
+}
+
 /** Pull a human-readable `message` out of a loosely-typed upstream JSON body. */
 export function extractUpstreamMessage(body: unknown): string | undefined {
   if (body && typeof body === "object" && "message" in body) {

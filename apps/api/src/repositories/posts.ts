@@ -152,24 +152,25 @@ export type PostListResult = {
 };
 
 /**
- * Cursor codec — opaque to callers. Format kept simple so we can debug:
- * `base64url("{epochMillis}:{id}")`. Don't expose the format publicly.
+ * Cursor codec — opaque to callers. Format: `base64url("{createdAt}:{id}")`.
+ * `createdAt` is the raw Postgres `timestamptz` text (microsecond precision):
+ * a JS `Date` truncates to ms and breaks the keyset tie-breaker. Don't expose.
  */
-export function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(`${createdAt.getTime()}:${id}`).toString("base64url");
+export function encodeCursor(createdAtText: string, id: string): string {
+  return Buffer.from(`${createdAtText}:${id}`).toString("base64url");
 }
 
 export function decodeCursor(
   cursor: string,
-): { createdAt: Date; id: string } | null {
+): { createdAtText: string; id: string } | null {
   try {
     const decoded = Buffer.from(cursor, "base64url").toString("utf8");
     const colon = decoded.indexOf(":");
     if (colon === -1) return null;
-    const ts = Number(decoded.slice(0, colon));
+    const createdAtText = decoded.slice(0, colon);
     const id = decoded.slice(colon + 1);
-    if (!Number.isFinite(ts) || id.length === 0) return null;
-    return { createdAt: new Date(ts), id };
+    if (createdAtText.length === 0 || id.length === 0) return null;
+    return { createdAtText, id };
   } catch {
     return null;
   }
@@ -244,13 +245,11 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
     if (paging.cursor) {
       const decoded = decodeCursor(paging.cursor);
       if (decoded) {
+        const boundary = sql`${decoded.createdAtText}::timestamptz`;
         conditions.push(
           or(
-            lt(posts.createdAt, decoded.createdAt),
-            and(
-              eq(posts.createdAt, decoded.createdAt),
-              lt(posts.id, decoded.id),
-            ),
+            lt(posts.createdAt, boundary),
+            and(eq(posts.createdAt, boundary), lt(posts.id, decoded.id)),
           )!,
         );
       }
@@ -262,6 +261,7 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
     const rows = await this.db
       .select({
         post: posts,
+        createdAtText: sql<string>`${posts.createdAt}::text`,
         account: {
           id: platformAccounts.id,
           profileId: platformAccounts.profileId,
@@ -281,7 +281,7 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
 
     const last = page[page.length - 1];
     const nextCursor =
-      hasMore && last ? encodeCursor(last.post.createdAt, last.post.id) : null;
+      hasMore && last ? encodeCursor(last.createdAtText, last.post.id) : null;
 
     return {
       data: page.map((row) => ({ ...row.post, account: row.account })),

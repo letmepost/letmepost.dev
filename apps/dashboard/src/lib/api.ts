@@ -81,17 +81,18 @@ export async function apiFetch<T>(
 
   if (!res.ok) {
     const body = (parsed ?? {}) as Record<string, unknown>;
+    const envelope = (body.error ?? {}) as Record<string, unknown>;
     const err: ApiError = {
-      code: (body.code as string | undefined) ?? "unknown_error",
+      code: (envelope.code as string | undefined) ?? "unknown_error",
       message:
-        (body.message as string | undefined) ??
+        (envelope.message as string | undefined) ??
         `Request failed with status ${res.status}`,
-      rule: body.rule as string | undefined,
-      platform: body.platform as string | undefined,
-      platformResponse: body.platformResponse,
-      remediation: body.remediation as string | undefined,
-      requestId: body.requestId as string | undefined,
-      traceId: body.traceId as string | undefined,
+      rule: envelope.rule as string | undefined,
+      platform: envelope.platform as string | undefined,
+      platformResponse: envelope.platformResponse,
+      remediation: envelope.remediation as string | undefined,
+      requestId: envelope.requestId as string | undefined,
+      traceId: envelope.traceId as string | undefined,
       status: res.status,
     };
     throw new ApiRequestError(err);

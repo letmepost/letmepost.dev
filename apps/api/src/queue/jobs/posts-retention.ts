@@ -4,6 +4,8 @@ import type { DrizzleClient } from "../../db/index.js";
 import { billingSubscriptions } from "../../db/schema/billing_subscriptions.js";
 import { organization } from "../../db/schema/auth.js";
 import { posts as postsTable } from "../../db/schema/posts.js";
+import { idempotencyRecords } from "../../db/schema/idempotency_records.js";
+import { IDEMPOTENCY_RETENTION_MS } from "../../middleware/idempotency.js";
 
 // Nightly log retention sweep. Deletes `posts` rows older than each org's
 // tier-specific logRetentionDays. Infinity-retention orgs (self_host) skip
@@ -12,7 +14,11 @@ import { posts as postsTable } from "../../db/schema/posts.js";
 export async function runPostsRetention(
   db: DrizzleClient,
   options: { now?: Date } = {},
-): Promise<{ orgsScanned: number; rowsDeleted: number }> {
+): Promise<{
+  orgsScanned: number;
+  rowsDeleted: number;
+  idempotencyRowsDeleted: number;
+}> {
   const now = options.now ?? new Date();
 
   // Pull every org with its (possibly null) subscription. Orgs with no
@@ -49,5 +55,17 @@ export async function runPostsRetention(
     rowsDeleted += deleted.length;
   }
 
-  return { orgsScanned: rows.length, rowsDeleted };
+  // Idempotency keys are honored until pruned here, so this delete is what
+  // actually bounds their lifetime (and lets a key be reused afterwards).
+  const idempotencyCutoff = new Date(now.getTime() - IDEMPOTENCY_RETENTION_MS);
+  const idempotencyDeleted = await db
+    .delete(idempotencyRecords)
+    .where(lt(idempotencyRecords.createdAt, idempotencyCutoff))
+    .returning();
+
+  return {
+    orgsScanned: rows.length,
+    rowsDeleted,
+    idempotencyRowsDeleted: idempotencyDeleted.length,
+  };
 }

@@ -1,7 +1,10 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { platformAccounts } from "../db/schema/index.js";
-import { parseMetaSignedRequest } from "../webhooks/meta-signed-request.js";
+import {
+  META_SIGNED_REQUEST_MAX_AGE_MS,
+  parseMetaSignedRequest,
+} from "../webhooks/meta-signed-request.js";
 
 /**
  * Meta deauthorize callback. Meta pings this when a user removes the app
@@ -14,8 +17,11 @@ import { parseMetaSignedRequest } from "../webhooks/meta-signed-request.js";
  *   auth: the signed_request itself (HMAC-SHA256 keyed with META_APP_SECRET)
  *
  * Cleanup parity with /data-deletion/meta: every platform_account row in
- * the Meta product family (facebook, instagram, threads) keyed off the
- * app-scoped user_id is removed. Posts + post_attempts cascade.
+ * the Meta product family (facebook, instagram, threads) belonging to the
+ * connecting Meta user is removed. The match is on the app-scoped user id
+ * persisted in tokenMetadata (`metaUserId` for facebook/instagram, `userId`
+ * for threads) — NOT platformAccountId, which holds the Page/IG/Threads id.
+ * Posts + post_attempts cascade.
  */
 
 const META_PLATFORMS = ["facebook", "instagram", "threads"] as const;
@@ -55,7 +61,9 @@ deauth.post("/meta", async (c) => {
     return c.json({ error: "signed_request_missing" }, 400);
   }
 
-  const payload = parseMetaSignedRequest(signedRequest, appSecret);
+  const payload = parseMetaSignedRequest(signedRequest, appSecret, {
+    maxAgeMs: META_SIGNED_REQUEST_MAX_AGE_MS,
+  });
   if (!payload) {
     return c.json({ error: "signed_request_invalid" }, 400);
   }
@@ -65,7 +73,7 @@ deauth.post("/meta", async (c) => {
     .where(
       and(
         inArray(platformAccounts.platform, META_PLATFORMS),
-        eq(platformAccounts.platformAccountId, payload.user_id),
+        sql`(${platformAccounts.tokenMetadata} ->> 'metaUserId' = ${payload.user_id} OR ${platformAccounts.tokenMetadata} ->> 'userId' = ${payload.user_id})`,
       ),
     )
     .returning();

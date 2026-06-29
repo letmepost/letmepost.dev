@@ -92,4 +92,87 @@ describe("parseMetaSignedRequest", () => {
     )}`;
     expect(parseMetaSignedRequest(tampered, SECRET)).toBeNull();
   });
+
+  describe("maxAgeMs replay guard", () => {
+    const NOW = 1_750_000_000_000;
+    const issuedAt = Math.floor(NOW / 1000) - 60;
+
+    it("accepts a fresh issued_at within the window", () => {
+      const sr = makeSignedRequest({
+        algorithm: "HMAC-SHA256",
+        user_id: "1",
+        issued_at: issuedAt,
+      });
+      const result = parseMetaSignedRequest(sr, SECRET, {
+        maxAgeMs: 24 * 60 * 60 * 1000,
+        now: NOW,
+      });
+      expect(result?.user_id).toBe("1");
+    });
+
+    it("rejects a stale issued_at", () => {
+      const sr = makeSignedRequest({
+        algorithm: "HMAC-SHA256",
+        user_id: "1",
+        issued_at: Math.floor(NOW / 1000) - 48 * 60 * 60,
+      });
+      expect(
+        parseMetaSignedRequest(sr, SECRET, {
+          maxAgeMs: 24 * 60 * 60 * 1000,
+          now: NOW,
+        }),
+      ).toBeNull();
+    });
+
+    it("rejects an implausibly-future issued_at", () => {
+      const sr = makeSignedRequest({
+        algorithm: "HMAC-SHA256",
+        user_id: "1",
+        issued_at: Math.floor(NOW / 1000) + 60 * 60,
+      });
+      expect(
+        parseMetaSignedRequest(sr, SECRET, {
+          maxAgeMs: 24 * 60 * 60 * 1000,
+          now: NOW,
+        }),
+      ).toBeNull();
+    });
+
+    it("rejects a missing issued_at when maxAgeMs is set", () => {
+      const sr = makeSignedRequest({ algorithm: "HMAC-SHA256", user_id: "1" });
+      expect(
+        parseMetaSignedRequest(sr, SECRET, {
+          maxAgeMs: 24 * 60 * 60 * 1000,
+          now: NOW,
+        }),
+      ).toBeNull();
+    });
+
+    it("ignores a stale issued_at when no maxAgeMs is passed", () => {
+      const sr = makeSignedRequest({
+        algorithm: "HMAC-SHA256",
+        user_id: "1",
+        issued_at: 1,
+      });
+      expect(parseMetaSignedRequest(sr, SECRET)?.user_id).toBe("1");
+    });
+
+    it("rejects a positive expires in the past but allows expires:0", () => {
+      const expired = makeSignedRequest({
+        algorithm: "HMAC-SHA256",
+        user_id: "1",
+        expires: Math.floor(NOW / 1000) - 10,
+      });
+      expect(parseMetaSignedRequest(expired, SECRET, { now: NOW })).toBeNull();
+
+      const nonExpiring = makeSignedRequest({
+        algorithm: "HMAC-SHA256",
+        user_id: "1",
+        expires: 0,
+      });
+      expect(
+        parseMetaSignedRequest(nonExpiring, SECRET, { now: NOW })?.user_id,
+      ).toBe("1");
+    });
+  });
 });

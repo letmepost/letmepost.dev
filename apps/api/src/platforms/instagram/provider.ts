@@ -54,6 +54,8 @@ export type InstagramAccountMetadataIgLogin = {
   accountType?: string;
   /** Comma-joined string of granted permissions (Meta echoes back what user actually granted). */
   grantedScopes?: string;
+  /** App-scoped connecting-user id; matched by the deauth/data-deletion callbacks. */
+  metaUserId?: string;
 };
 
 export type InstagramProviderConfig = {
@@ -152,6 +154,7 @@ export class InstagramProvider implements AccountProvider {
 
     const shortLived = tokenRes.body.access_token;
     const grantedScopes = tokenRes.body.permissions;
+    const appScopedUserId = tokenRes.body.user_id;
 
     // 2. Swap short-lived (1h) → long-lived (60d).
     const longUrl = new URL(
@@ -235,6 +238,9 @@ export class InstagramProvider implements AccountProvider {
     if (username) metadata.username = username;
     if (accountType) metadata.accountType = accountType;
     if (grantedScopes) metadata.grantedScopes = grantedScopes;
+    if (appScopedUserId !== undefined && appScopedUserId !== null) {
+      metadata.metaUserId = String(appScopedUserId);
+    }
 
     return [
       {

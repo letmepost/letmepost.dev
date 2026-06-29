@@ -119,6 +119,29 @@ export async function checkAndIncrementQuota(
   return { newCount, quota, period, resetAt };
 }
 
+// Give back slots charged by checkAndIncrementQuota for publishes that then
+// failed. GREATEST(...,0) keeps a refund from driving the counter negative.
+export async function refundQuota(
+  db: DrizzleClient,
+  orgId: string,
+  count: number,
+): Promise<void> {
+  if (count <= 0) return;
+  const period = periodFor();
+  await db
+    .update(billingUsage)
+    .set({
+      postsCount: sql`GREATEST(${billingUsage.postsCount} - ${count}, 0)`,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(billingUsage.organizationId, orgId),
+        eq(billingUsage.period, period),
+      ),
+    );
+}
+
 // Conditional atomic UPSERT. On conflict we add the cost only when the
 // total stays under the quota. Returns null when the cap was hit.
 async function tryIncrement(

@@ -1,17 +1,7 @@
-/**
- * Mirror of @letmepost/schemas WEBHOOK_EVENT_TYPES. Kept local for the same
- * reason as CONNECTABLE_PLATFORMS — avoids a cross-package zod dependency in
- * the dashboard bundle. Keep both arrays in sync when the catalog changes.
- */
-export const WEBHOOK_EVENT_TYPES = [
-  "post.queued",
-  "post.validated",
-  "post.published",
-  "post.rejected",
-  "post.failed",
-  "token.expiring",
-  "token.revoked",
-  "version.deprecated",
-] as const;
+import {
+  WEBHOOK_EVENT_TYPES,
+  type WebhookEventType,
+} from "@letmepost/schemas";
 
-export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
+export { WEBHOOK_EVENT_TYPES };
+export type { WebhookEventType };

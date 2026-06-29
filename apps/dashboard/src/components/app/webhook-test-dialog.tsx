@@ -38,7 +38,7 @@ type TestResult = {
   sentEvent: unknown;
 };
 
-const DEFAULT_DATA: Record<WebhookEventType, unknown> = {
+const DEFAULT_DATA: Partial<Record<WebhookEventType, unknown>> = {
   "post.queued": {
     postId: "00000000-0000-0000-0000-000000000000",
     platform: "bluesky",
@@ -100,6 +100,10 @@ function pretty(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function sampleFor(type: WebhookEventType): unknown {
+  return DEFAULT_DATA[type] ?? { type };
+}
+
 /**
  * Test-deliver dialog. Picks a synthetic event type, lets the user edit the
  * `data` payload as JSON, fires `POST /v1/webhook-endpoints/:id/test`, and
@@ -120,7 +124,7 @@ export function WebhookTestDialog({
   endpointUrl: string | null;
 }) {
   const [type, setType] = useState<WebhookEventType>("post.published");
-  const [json, setJson] = useState<string>(pretty(DEFAULT_DATA["post.published"]));
+  const [json, setJson] = useState<string>(pretty(sampleFor("post.published")));
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState<TestResult | null>(null);
@@ -140,17 +144,17 @@ export function WebhookTestDialog({
   }, [open]);
 
   function pickType(next: WebhookEventType) {
-    const previousDefault = pretty(DEFAULT_DATA[type]);
+    const previousDefault = pretty(sampleFor(type));
     if (json === previousDefault) {
       // Body is still the previous-type default — safe to swap.
-      setJson(pretty(DEFAULT_DATA[next]));
+      setJson(pretty(sampleFor(next)));
     }
     setType(next);
     setJsonError(null);
   }
 
   function resetBody() {
-    setJson(pretty(DEFAULT_DATA[type]));
+    setJson(pretty(sampleFor(type)));
     setJsonError(null);
   }
 
