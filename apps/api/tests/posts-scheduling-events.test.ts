@@ -129,7 +129,7 @@ describeIfDb("POST /v1/posts — scheduled path (Approach B hybrid)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "scheduled hello",
           scheduledAt: future,
         }),
@@ -139,25 +139,28 @@ describeIfDb("POST /v1/posts — scheduled path (Approach B hybrid)", () => {
       const body = (await res.json()) as {
         id: string;
         status: string;
-        platform: string;
         scheduledAt: string;
+        results: Array<{ postId: string; platform: string; status: string }>;
       };
       expect(body.status).toBe("queued");
-      expect(body.platform).toBe("bluesky");
       expect(body.scheduledAt).toBe(future);
+      const target = body.results[0]!;
+      expect(target.platform).toBe("bluesky");
+      expect(target.status).toBe("queued");
+      const postId = target.postId;
 
       // Row landed with queued status + scheduledAt.
       const [row] = await tx
         .select()
         .from(postsTable)
-        .where(eq(postsTable.id, body.id));
+        .where(eq(postsTable.id, postId));
       expect(row?.status).toBe("queued");
       expect(row?.scheduledAt?.toISOString()).toBe(future);
       expect(row?.text).toBe("scheduled hello");
 
       // Enqueuer saw the job with a reasonable future delay.
       expect(calls).toHaveLength(1);
-      expect(calls[0]!.data.postId).toBe(body.id);
+      expect(calls[0]!.data.postId).toBe(postId);
       expect(calls[0]!.data.organizationId).toBe(fixture.organizationId);
       expect(calls[0]!.delayMs).toBeGreaterThan(59 * 60 * 1000);
       expect(calls[0]!.delayMs).toBeLessThanOrEqual(60 * 60 * 1000);
@@ -171,7 +174,7 @@ describeIfDb("POST /v1/posts — scheduled path (Approach B hybrid)", () => {
         platform: string;
         scheduledAt: string;
       };
-      expect(qdata.id).toBe(body.id);
+      expect(qdata.id).toBe(postId);
       expect(qdata.platform).toBe("bluesky");
       expect(qdata.scheduledAt).toBe(future);
     });
@@ -192,7 +195,7 @@ describeIfDb("POST /v1/posts — scheduled path (Approach B hybrid)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "too late",
           scheduledAt: past,
         }),
@@ -298,25 +301,32 @@ describeIfDb("POST /v1/posts — immediate path event dispatch", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "immediate hello",
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
         id: string;
         status: string;
-        uri?: string;
-        cid?: string;
+        results: Array<{
+          postId: string;
+          status: string;
+          uri?: string;
+          cid?: string;
+        }>;
       };
       expect(body.status).toBe("published");
+      const target = body.results[0]!;
+      expect(target.status).toBe("published");
+      const postId = target.postId;
 
       // Row landed as published.
       const [row] = await tx
         .select()
         .from(postsTable)
-        .where(eq(postsTable.id, body.id));
+        .where(eq(postsTable.id, postId));
       expect(row?.status).toBe("published");
       expect(row?.platformCid).toBe("bafy-mock");
 
@@ -328,7 +338,7 @@ describeIfDb("POST /v1/posts — immediate path event dispatch", () => {
         uri?: string;
         cid?: string;
       };
-      expect(pdata.id).toBe(body.id);
+      expect(pdata.id).toBe(postId);
       expect(pdata.cid).toBe("bafy-mock");
     });
   });
@@ -367,14 +377,20 @@ describeIfDb("POST /v1/posts — immediate path event dispatch", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "will be rejected",
         }),
       });
 
-      expect(res.status).toBe(502);
-      const errBody = (await res.json()) as { error: { code: string } };
-      expect(errBody.error.code).toBe("platform_rejected");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ status: string; error?: { code: string } }>;
+      };
+      expect(body.status).toBe("failed");
+      const target = body.results[0]!;
+      expect(target.status).toBe("rejected");
+      expect(target.error!.code).toBe("platform_rejected");
 
       // post.rejected dispatched.
       const rejected = events.find((e) => e.type === "post.rejected");

@@ -6,9 +6,11 @@ import {
   expect,
   it,
 } from "vitest";
+import { createHash, randomBytes } from "node:crypto";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { createApp } from "../src/app.js";
+import { apiKeys } from "../src/db/schema/api_keys.js";
 import { member, organization, user } from "../src/db/schema/auth.js";
 import {
   canRunDbTests,
@@ -51,7 +53,22 @@ async function seedOrg(tx: Awaited<ReturnType<typeof getTestDb>>["db"]) {
   await tx
     .insert(member)
     .values({ organizationId: org!.id, userId: u!.id, role: "owner" });
-  return { userId: u!.id, organizationId: org!.id };
+  // Mint a real org-scoped API key. The /v1/accounts read routes authenticate
+  // through `apiKeyOrSession()`, which is NOT the injected test session —
+  // it only honors a Bearer `lmp_…` token or a live better-auth cookie. The
+  // testSession short-circuit covers the session-guarded write routes only,
+  // so list/detail must present a genuine Bearer key to reach the handlers
+  // and actually exercise the cross-org isolation checks.
+  const apiKey = `lmp_test_${randomBytes(24).toString("base64url")}`;
+  await tx.insert(apiKeys).values({
+    organizationId: org!.id,
+    name: "acct-test-key",
+    prefix: "lmp_test_",
+    hashedKey: createHash("sha256").update(apiKey).digest("hex"),
+    last4: apiKey.slice(-4),
+    scopes: ["posts:read", "posts:write"],
+  });
+  return { userId: u!.id, organizationId: org!.id, apiKey };
 }
 
 // Minimal JWT with an `exp` claim 2h out so decodeJwtExp has something to read.
@@ -199,7 +216,7 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
   it("POST /connect/bluesky/complete upserts on reconnect (rotates token, no duplicate row)", async () => {
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {
-      const { userId, organizationId } = await seedOrg(tx);
+      const { userId, organizationId, apiKey } = await seedOrg(tx);
       server.use(
         http.post(
           "https://bsky.social/xrpc/com.atproto.server.createSession",
@@ -241,7 +258,9 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
       const secondBody = (await second.json()) as { id: string };
       expect(secondBody.id).toBe(firstBody.id);
 
-      const list = await app.request("/v1/accounts");
+      const list = await app.request("/v1/accounts", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
       const listBody = (await list.json()) as { data: unknown[] };
       expect(listBody.data).toHaveLength(1);
     });
@@ -297,8 +316,12 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
         }),
       });
 
-      const listA = await appA.request("/v1/accounts");
-      const listB = await appB.request("/v1/accounts");
+      const listA = await appA.request("/v1/accounts", {
+        headers: { Authorization: `Bearer ${orgA.apiKey}` },
+      });
+      const listB = await appB.request("/v1/accounts", {
+        headers: { Authorization: `Bearer ${orgB.apiKey}` },
+      });
       const bodyA = (await listA.json()) as { data: { displayName: string }[] };
       const bodyB = (await listB.json()) as { data: { displayName: string }[] };
       expect(bodyA.data.map((r) => r.displayName)).toEqual(["alice.bsky.social"]);
@@ -348,7 +371,9 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
       );
       const { id } = (await created.json()) as { id: string };
 
-      const crossOrg = await appB.request(`/v1/accounts/${id}`);
+      const crossOrg = await appB.request(`/v1/accounts/${id}`, {
+        headers: { Authorization: `Bearer ${orgB.apiKey}` },
+      });
       expect(crossOrg.status).toBe(404);
     });
   });
@@ -356,7 +381,7 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
   it("DELETE /:id hard-deletes; subsequent GET returns 404", async () => {
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {
-      const { userId, organizationId } = await seedOrg(tx);
+      const { userId, organizationId, apiKey } = await seedOrg(tx);
       server.use(
         http.post(
           "https://bsky.social/xrpc/com.atproto.server.createSession",
@@ -391,7 +416,9 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
       const del = await app.request(`/v1/accounts/${id}`, { method: "DELETE" });
       expect(del.status).toBe(200);
 
-      const after = await app.request(`/v1/accounts/${id}`);
+      const after = await app.request(`/v1/accounts/${id}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
       expect(after.status).toBe(404);
     });
   });
@@ -443,7 +470,9 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
       });
       expect(crossOrg.status).toBe(404);
 
-      const stillThere = await appA.request(`/v1/accounts/${id}`);
+      const stillThere = await appA.request(`/v1/accounts/${id}`, {
+        headers: { Authorization: `Bearer ${orgA.apiKey}` },
+      });
       expect(stillThere.status).toBe(200);
     });
   });

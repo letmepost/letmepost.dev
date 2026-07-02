@@ -94,25 +94,31 @@ describeIfDb("POST /v1/posts (twitter)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "twitter", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "hello",
         }),
       });
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
         id: string;
-        platform: string;
-        status?: string;
-        uri?: string;
+        status: string;
+        results: Array<{
+          platform: string;
+          status: string;
+          postId?: string;
+          uri?: string;
+        }>;
       };
-      expect(body.platform).toBe("twitter");
       expect(body.status).toBe("published");
-      expect(body.uri).toContain("twitter.com");
+      const result = body.results[0]!;
+      expect(result.platform).toBe("twitter");
+      expect(result.status).toBe("published");
+      expect(result.uri).toContain("twitter.com");
 
       const [row] = await tx
         .select()
         .from(postsTable)
-        .where(eq(postsTable.id, body.id));
+        .where(eq(postsTable.id, result.postId!));
       expect(row?.status).toBe("published");
       expect(events.some((e) => e.type === "post.published")).toBe(true);
     });
@@ -140,13 +146,19 @@ describeIfDb("POST /v1/posts (twitter)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "twitter", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "unauthorized path",
         }),
       });
-      expect(res.status).toBe(401);
-      const body = (await res.json()) as { error: { code: string } };
-      expect(body.error.code).toBe("platform_auth_failed");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ status: string; error?: { code: string } }>;
+      };
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("platform_auth_failed");
 
       const [row] = await tx
         .select()
@@ -183,14 +195,23 @@ describeIfDb("POST /v1/posts (twitter)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "twitter", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "a duplicate tweet",
         }),
       });
-      expect(res.status).toBe(502);
-      const body = (await res.json()) as { error: { code: string; remediation?: string } };
-      expect(body.error.code).toBe("platform_rejected");
-      expect(body.error.remediation).toContain("duplicate");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; remediation?: string };
+        }>;
+      };
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("platform_rejected");
+      expect(result.error!.remediation).toContain("duplicate");
 
       expect(events.some((e) => e.type === "post.rejected")).toBe(true);
     });
@@ -209,7 +230,7 @@ describeIfDb("POST /v1/posts (twitter)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "twitter", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "a".repeat(281),
         }),
       });
@@ -220,11 +241,14 @@ describeIfDb("POST /v1/posts (twitter)", () => {
       expect(body.error.code).toBe("preflight_failed");
       expect(body.error.rule).toBe("twitter.text.max_graphemes");
 
+      // Atomic preflight runs before any post row is persisted, so a batch
+      // rejected at preflight leaves no row behind (no upstream call, nothing
+      // to record as rejected).
       const [row] = await tx
         .select()
         .from(postsTable)
         .where(eq(postsTable.organizationId, fixture.organizationId));
-      expect(row?.status).toBe("rejected");
+      expect(row).toBeUndefined();
     });
   });
 
@@ -305,7 +329,7 @@ describeIfDb("POST /v1/posts (twitter)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "twitter", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "video tweet",
           media: [
             {
@@ -316,7 +340,7 @@ describeIfDb("POST /v1/posts (twitter)", () => {
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(calls.init).toBe(1);
       // 6 MB / 4 MB chunk size → 2 APPEND calls (4 MB + 2 MB).
       expect(calls.append).toBe(2);
@@ -371,7 +395,7 @@ describeIfDb("POST /v1/posts (twitter)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "twitter", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "bad video",
           media: [
             {
@@ -382,12 +406,19 @@ describeIfDb("POST /v1/posts (twitter)", () => {
         }),
       });
 
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; rule?: string };
+        }>;
       };
-      expect(body.error.code).toBe("platform_rejected");
-      expect(body.error.rule).toBe("twitter.media.video_processing_failed");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("platform_rejected");
+      expect(result.error!.rule).toBe("twitter.media.video_processing_failed");
     });
   });
 
@@ -410,13 +441,19 @@ describeIfDb("POST /v1/posts (twitter)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "twitter", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "network dies",
         }),
       });
-      expect(res.status).toBe(503);
-      const body = (await res.json()) as { error: { code: string } };
-      expect(body.error.code).toBe("platform_unavailable");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ status: string; error?: { code: string } }>;
+      };
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("failed");
+      expect(result.error!.code).toBe("platform_unavailable");
 
       const [row] = await tx
         .select()

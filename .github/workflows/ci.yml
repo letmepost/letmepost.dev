@@ -73,12 +73,6 @@ jobs:
 
       - name: Apply database migrations
         run: pnpm --filter @letmepost/api db:migrate
-        continue-on-error: true
 
       - name: Test
-        # Non-blocking for now — the suite needs Redis (BullMQ) and some
-        # tests have CI-only fail modes we're still working through.
-        # Tracked in a follow-up issue; typecheck + lint are the merge
-        # gate until the test step is reliable.
         run: pnpm test
-        continue-on-error: true
