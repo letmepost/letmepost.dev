@@ -14,7 +14,6 @@ export class SsrfBlockedError extends Error {
   }
 }
 
-/** Raised when a URL's scheme is not http: or https:. */
 export class UnsupportedProtocolError extends Error {
   readonly code = "UNSUPPORTED_PROTOCOL" as const;
   constructor(message: string) {
@@ -23,7 +22,6 @@ export class UnsupportedProtocolError extends Error {
   }
 }
 
-/** True for either guard-level rejection — used by callers to map to a 4xx. */
 export function isDisallowedUrlError(err: unknown): boolean {
   return (
     err instanceof SsrfBlockedError || err instanceof UnsupportedProtocolError
