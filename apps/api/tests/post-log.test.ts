@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql, type SQL } from "drizzle-orm";
 import { createApp } from "../src/app.js";
 import { posts as postsTable } from "../src/db/schema/posts.js";
 import { seed } from "../src/db/seed.js";
@@ -26,12 +26,23 @@ async function seedPosts(
     accountId: string;
     count: number;
     template: (i: number) => Partial<typeof postsTable.$inferInsert>;
+    /**
+     * createdAt strategy. Default: distinct values that differ ONLY in the
+     * microsecond field, so all rows share one millisecond. A JS Date (and
+     * therefore a millisecond-precision cursor) cannot tell these apart, so the
+     * keyset cursor is forced to round-trip at full Postgres precision — the
+     * regression this suite guards. Pass a function returning a fixed timestamp
+     * to seed rows that share the exact SAME instant.
+     */
+    createdAt?: (i: number) => Date | SQL;
   },
 ) {
   const inserted: { id: string; createdAt: Date }[] = [];
-  // Postgres now() is frozen inside the test transaction, so assign explicit
-  // whole-millisecond, increasing createdAt values for the cursor to round-trip.
-  const base = new Date("2026-01-01T00:00:00.000Z").getTime();
+  const baseIso = "2026-01-01T00:00:00.000000Z";
+  const createdAtFor =
+    args.createdAt ??
+    ((i: number): SQL =>
+      sql`${baseIso}::timestamptz + ${i} * interval '1 microsecond'`);
   for (let i = 0; i < args.count; i++) {
     const overrides = args.template(i);
     const [row] = await tx
@@ -41,7 +52,7 @@ async function seedPosts(
         accountId: args.accountId,
         text: `post ${i}`,
         status: "published",
-        createdAt: new Date(base + i * 1000),
+        createdAt: createdAtFor(i),
         ...overrides,
       })
       .returning();
@@ -230,6 +241,54 @@ describeIfDb("GET /v1/posts (Post Log list)", () => {
         ...secondBody.data.map((d) => d.id),
       ]);
       expect(seen.size).toBe(4); // no duplicates across pages
+    });
+  });
+
+  it("paginates rows sharing ONE microsecond createdAt with no skips or dupes", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      // Simulate a single-transaction multi-target batch: every row gets the
+      // exact same microsecond-precision createdAt (distinct ids only). A
+      // millisecond-precision cursor cannot separate these rows, so page 2's
+      // keyset would drop the tied rows unless the cursor is full-precision.
+      const seeded = await seedPosts(tx, {
+        organizationId: fixture.organizationId,
+        accountId: fixture.accountId,
+        count: 5,
+        template: () => ({}),
+        createdAt: () => sql`'2026-03-15T12:00:00.123456Z'::timestamptz`,
+      });
+      const seededIds = new Set(seeded.map((r) => r.id));
+      expect(seededIds.size).toBe(5);
+
+      const app = createApp({ db: tx });
+      const collected: string[] = [];
+      let cursor: string | null = null;
+      let pages = 0;
+      do {
+        const url = cursor
+          ? `/v1/posts?limit=2&cursor=${encodeURIComponent(cursor)}`
+          : "/v1/posts?limit=2";
+        const res = await app.request(url, {
+          headers: { Authorization: `Bearer ${fixture.apiKey.plaintext}` },
+        });
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as {
+          data: { id: string }[];
+          nextCursor: string | null;
+        };
+        for (const row of body.data) collected.push(row.id);
+        cursor = body.nextCursor;
+        pages += 1;
+        if (pages > 10) throw new Error("pagination did not terminate");
+      } while (cursor);
+
+      // Every seeded row appears EXACTLY once across the pages: no skips (all 5
+      // ids present, total length 5) and no duplicates (unique set size 5).
+      expect(collected).toHaveLength(5);
+      expect(new Set(collected).size).toBe(5);
+      for (const id of seededIds) expect(collected).toContain(id);
     });
   });
 

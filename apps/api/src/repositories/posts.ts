@@ -152,24 +152,30 @@ export type PostListResult = {
 };
 
 /**
- * Cursor codec — opaque to callers. Format kept simple so we can debug:
- * `base64url("{epochMillis}:{id}")`. Don't expose the format publicly.
+ * Cursor codec — opaque to callers. The boundary `createdAt` is carried at FULL
+ * Postgres precision (ISO-8601 with 6-digit microseconds) rather than epoch
+ * millis: Postgres timestamps have microsecond precision, and truncating to
+ * milliseconds makes the keyset comparison miss rows tied on the same
+ * millisecond (e.g. a multi-target batch inserted under one `now()`), silently
+ * dropping posts across page boundaries. Format: `base64url("{iso}|{id}")`.
  */
-export function encodeCursor(createdAt: Date, id: string): string {
-  return Buffer.from(`${createdAt.getTime()}:${id}`).toString("base64url");
+export function encodeCursor(createdAtIso: string, id: string): string {
+  return Buffer.from(`${createdAtIso}|${id}`).toString("base64url");
 }
+
+const CURSOR_TS_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
 
 export function decodeCursor(
   cursor: string,
-): { createdAt: Date; id: string } | null {
+): { createdAt: string; id: string } | null {
   try {
     const decoded = Buffer.from(cursor, "base64url").toString("utf8");
-    const colon = decoded.indexOf(":");
-    if (colon === -1) return null;
-    const ts = Number(decoded.slice(0, colon));
-    const id = decoded.slice(colon + 1);
-    if (!Number.isFinite(ts) || id.length === 0) return null;
-    return { createdAt: new Date(ts), id };
+    const sep = decoded.lastIndexOf("|");
+    if (sep === -1) return null;
+    const createdAt = decoded.slice(0, sep);
+    const id = decoded.slice(sep + 1);
+    if (!CURSOR_TS_RE.test(createdAt) || id.length === 0) return null;
+    return { createdAt, id };
   } catch {
     return null;
   }
@@ -244,11 +250,14 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
     if (paging.cursor) {
       const decoded = decodeCursor(paging.cursor);
       if (decoded) {
+        // Cast the cursor's microsecond ISO string back to timestamptz so the
+        // keyset compares at the same precision the column stores — a Date bind
+        // would truncate to milliseconds and skip rows on the boundary tick.
         conditions.push(
           or(
-            lt(posts.createdAt, decoded.createdAt),
+            sql`${posts.createdAt} < ${decoded.createdAt}::timestamptz`,
             and(
-              eq(posts.createdAt, decoded.createdAt),
+              sql`${posts.createdAt} = ${decoded.createdAt}::timestamptz`,
               lt(posts.id, decoded.id),
             ),
           )!,
@@ -269,6 +278,9 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
           platformAccountId: platformAccounts.platformAccountId,
           displayName: platformAccounts.displayName,
         },
+        // Full-precision (microsecond) rendering of createdAt for the cursor —
+        // `mode: "date"` truncates to milliseconds, so it can't feed the codec.
+        cursorTs: sql<string>`to_char(${posts.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
       })
       .from(posts)
       .innerJoin(platformAccounts, eq(posts.accountId, platformAccounts.id))
@@ -281,7 +293,7 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
 
     const last = page[page.length - 1];
     const nextCursor =
-      hasMore && last ? encodeCursor(last.post.createdAt, last.post.id) : null;
+      hasMore && last ? encodeCursor(last.cursorTs, last.post.id) : null;
 
     return {
       data: page.map((row) => ({ ...row.post, account: row.account })),
