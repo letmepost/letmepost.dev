@@ -422,6 +422,54 @@ describeIfDb("POST /v1/posts (twitter)", () => {
     });
   });
 
+  it("marks row failed + emits post.failed on a 429 rate limit (retryable → platform_unavailable)", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const { fixture, account } = await seedWithTwitter(tx);
+      server.use(
+        http.post("https://api.twitter.com/2/tweets", () =>
+          HttpResponse.json(
+            { title: "Too Many Requests", detail: "rate limit exceeded" },
+            { status: 429 },
+          ),
+        ),
+      );
+      const { dispatcher, events } = captureDispatcher();
+      const app = createApp({ db: tx, webhookDispatcher: dispatcher });
+
+      const res = await app.request("/v1/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+        },
+        body: JSON.stringify({
+          targets: [{ accountId: account.id }],
+          text: "rate limited path",
+        }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ status: string; error?: { code: string } }>;
+      };
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      // 429 is transient — NOT rejected. The row is "failed" (retryable) so
+      // a momentary throttle doesn't permanently drop the scheduled post.
+      expect(result.status).toBe("failed");
+      expect(result.error!.code).toBe("platform_unavailable");
+
+      const [row] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.organizationId, fixture.organizationId));
+      expect(row?.status).toBe("failed");
+      expect(events.some((e) => e.type === "post.failed")).toBe(true);
+      expect(events.some((e) => e.type === "post.rejected")).toBe(false);
+    });
+  });
+
   it("marks row failed + emits post.failed when X is unreachable (network error)", async () => {
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {

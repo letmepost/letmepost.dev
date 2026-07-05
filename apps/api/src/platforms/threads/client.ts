@@ -4,6 +4,7 @@ import {
   extractUpstreamMessage,
   rejected,
 } from "../_shared/errors.js";
+import { LetmepostError } from "../../errors.js";
 
 const PLATFORM = "threads";
 
@@ -452,14 +453,37 @@ function mapPublishError(res: {
     });
   }
 
-  // Rate limit. Meta's "code 4" plus a few subcodes around app/user throttle.
-  if (res.status === 429 || code === 4 || code === 17 || code === 32) {
-    return rejected({
+  // Transient upstream failures — rate limits (429 / codes 4,17,32,613),
+  // 5xx responses, and Meta's "unknown error, please retry" codes (1 & 2).
+  // These are RETRYABLE: surface as platform_unavailable so the queue worker
+  // backs off and retries instead of permanently dropping the post.
+  if (
+    res.status === 429 ||
+    res.status >= 500 ||
+    code === 4 ||
+    code === 17 ||
+    code === 32 ||
+    code === 613 ||
+    code === 1 ||
+    code === 2
+  ) {
+    const rateLimited =
+      res.status === 429 ||
+      code === 4 ||
+      code === 17 ||
+      code === 32 ||
+      code === 613;
+    return new LetmepostError({
+      code: "platform_unavailable",
+      status: 503,
       platform: PLATFORM,
+      message: `${PLATFORM} is temporarily unavailable${
+        upstreamMessage ? `: ${upstreamMessage}` : "."
+      }`,
+      remediation: rateLimited
+        ? "Back off and retry; Threads enforces app- and user-level quotas."
+        : "Threads returned a transient error; retry shortly.",
       platformResponse: res.body ?? res.raw ?? undefined,
-      upstreamMessage: upstreamMessage ?? "Rate limited by Threads.",
-      remediation:
-        "Back off and retry; Threads enforces app- and user-level quotas.",
     });
   }
 

@@ -273,7 +273,15 @@ async function finalizePublish(
 
   // Permalink fetch is best-effort. The dashboard's Post Log surfaces
   // platformUri when present, and falls back to the post id otherwise.
-  const detail = await client.getPost(published.id);
+  // getPost returns null on non-2xx, but platformFetch THROWS on network
+  // error / timeout — swallow that too so a transient blip on this cosmetic
+  // read never fails an already-published post.
+  let detail: Awaited<ReturnType<typeof client.getPost>> | null = null;
+  try {
+    detail = await client.getPost(published.id);
+  } catch {
+    detail = null;
+  }
   const response: PublishResult = {
     id: published.id,
     platform: "threads",

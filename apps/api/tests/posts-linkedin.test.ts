@@ -206,6 +206,53 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
     });
   });
 
+  it("maps 429 to platform_unavailable (retryable) → row failed + post.failed", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const { fixture, account } = await seedWithLinkedIn(tx);
+      server.use(
+        http.post("https://api.linkedin.com/rest/posts", () =>
+          HttpResponse.json(
+            { message: "Request exceeded rate limit" },
+            { status: 429 },
+          ),
+        ),
+      );
+      const { dispatcher, events } = captureDispatcher();
+      const app = createApp({ db: tx, webhookDispatcher: dispatcher });
+
+      const res = await app.request("/v1/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+        },
+        body: JSON.stringify({
+          targets: [{ accountId: account.id }],
+          text: "rate limited path",
+        }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ status: string; error?: { code: string } }>;
+      };
+      expect(body.status).toBe("failed");
+      // 429 is transient — NOT rejected. The row is "failed" (retryable) so a
+      // momentary throttle doesn't permanently drop the scheduled post.
+      expect(body.results[0]!.status).toBe("failed");
+      expect(body.results[0]!.error!.code).toBe("platform_unavailable");
+
+      const [row] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.accountId, account.id));
+      expect(row?.status).toBe("failed");
+      expect(events.some((e) => e.type === "post.failed")).toBe(true);
+      expect(events.some((e) => e.type === "post.rejected")).toBe(false);
+    });
+  });
+
   it("maps 422 INVALID_AUTHOR to platform_rejected with URN remediation", async () => {
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {

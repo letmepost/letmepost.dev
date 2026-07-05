@@ -446,14 +446,19 @@ export class TwitterClient {
       });
     }
 
-    // Rate limit.
+    // Rate limit — RETRYABLE. Surface as platform_unavailable so the queue
+    // worker backs off and retries instead of permanently dropping the post.
     if (res.status === 429) {
-      throw rejected({
+      throw new LetmepostError({
+        code: "platform_unavailable",
+        status: 503,
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
-        upstreamMessage: upstreamMessage ?? "Rate limited by X.",
+        message: `X is rate limiting${
+          upstreamMessage ? `: ${upstreamMessage}` : "."
+        }`,
         remediation:
           "Back off and retry — X enforces per-app and per-user tweet-posting ceilings.",
+        platformResponse: res.body ?? res.raw ?? undefined,
       });
     }
 
