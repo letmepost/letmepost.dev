@@ -241,9 +241,6 @@ describeIfDb("POST /v1/posts (twitter)", () => {
       expect(body.error.code).toBe("preflight_failed");
       expect(body.error.rule).toBe("twitter.text.max_graphemes");
 
-      // Atomic preflight runs before any post row is persisted, so a batch
-      // rejected at preflight leaves no row behind (no upstream call, nothing
-      // to record as rejected).
       const [row] = await tx
         .select()
         .from(postsTable)
