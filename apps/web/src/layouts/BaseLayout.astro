@@ -6,6 +6,7 @@ import Analytics from "../components/Analytics.astro";
 import Attribution from "../components/Attribution.astro";
 import ClarityHeader from "../components/ClarityHeader.astro";
 import ClarityFooter from "../components/ClarityFooter.astro";
+import { serializeJsonLd } from "../lib/seo.ts";
 
 /**
  * The marketing site's shared chrome — "Clarity" direction. A sticky,
@@ -157,7 +158,7 @@ const mainStyle = stripWidth ? `--maxw: ${stripWidth}px;` : undefined;
     <meta name="twitter:image:alt" content="letmepost.dev. Social media publishing that fails loudly." />
 
     {allGraphs.map((graph) => (
-      <script is:inline type="application/ld+json" set:html={JSON.stringify(graph)} />
+      <script is:inline type="application/ld+json" set:html={serializeJsonLd(graph)} />
     ))}
 
     <ClientRouter />

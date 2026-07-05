@@ -3,6 +3,35 @@ import sitemap from "@astrojs/sitemap";
 import mdx from "@astrojs/mdx";
 import icon from "astro-icon";
 import tailwindcss from "@tailwindcss/vite";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+
+/**
+ * Blog posts come from a third-party-writable Notion database and render
+ * through Astro's markdown pipeline, which parses raw embedded HTML. Run
+ * rehype-sanitize over that content so untrusted `<script>`, event-handler
+ * attributes (onerror/onload/…), and `javascript:`/`data:` URLs can never
+ * reach the page — the default schema strips all of those and drops raw
+ * HTML nodes entirely. Sanitize runs before Astro's internal rehype-raw
+ * step, so raw HTML never survives to be re-parsed. The only extension to
+ * the default schema re-allows the inline `style` Shiki emits for syntax
+ * highlighting; that's safe because untrusted raw HTML (the only vector
+ * for a hostile `style`) is dropped, leaving Shiki's own styles as the
+ * sole source.
+ */
+const blogSanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    span: [...(defaultSchema.attributes?.span ?? []), "style", "className"],
+    code: [...(defaultSchema.attributes?.code ?? []), "style"],
+    pre: [
+      ...(defaultSchema.attributes?.pre ?? []),
+      "style",
+      "className",
+      "tabindex",
+    ],
+  },
+};
 
 /**
  * Per-route SEO weighting. Tells Google how to prioritize crawling the
@@ -45,6 +74,9 @@ function classify(pathname) {
 
 export default defineConfig({
   site: "https://letmepost.dev",
+  markdown: {
+    rehypePlugins: [[rehypeSanitize, blogSanitizeSchema]],
+  },
   integrations: [
     // MDX support for the /blog content collection. Order matters —
     // mdx() must come before sitemap() so the sitemap integration sees

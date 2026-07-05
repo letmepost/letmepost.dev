@@ -19,6 +19,33 @@ const posts = allPosts.sort(
 const featured = posts[0];
 const rest = posts.slice(1);
 
+/**
+ * The featured post's hero image comes from the (third-party-writable)
+ * Notion cover and is interpolated into an inline `background-image:
+ * url(...)`. Left raw, a value like `x); background: url(javascript:...`
+ * or one containing quotes/parens could break out of the `url(...)` (and
+ * the style attribute) and inject CSS. Only emit the declaration for a
+ * plain http(s) URL that contains none of the characters that could
+ * terminate `url("...")` or the attribute; otherwise drop it and fall
+ * back to the placeholder tile.
+ */
+function safeBgImage(url?: string): string | undefined {
+  if (!url) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return undefined;
+  }
+  if (/["'()\\\s]/.test(url)) return undefined;
+  return `background-image: url("${url}");`;
+}
+
+const featuredBg = featured ? safeBgImage(featured.data.heroImage) : undefined;
+
 function fmtDate(d: Date): string {
   return d.toLocaleDateString("en-US", {
     year: "numeric",
@@ -62,10 +89,10 @@ function readingMin(post: (typeof posts)[number]): number {
       <a class="feat" href={`/blog/${featured.id}`}>
         <div
           class="ph"
-          data-has-image={featured.data.heroImage ? "1" : "0"}
-          style={featured.data.heroImage ? `background-image: url(${featured.data.heroImage});` : ""}
+          data-has-image={featuredBg ? "1" : "0"}
+          style={featuredBg ?? ""}
         >
-          {!featured.data.heroImage && <span>[ {featured.data.category} ]</span>}
+          {!featuredBg && <span>[ {featured.data.category} ]</span>}
         </div>
         <div class="ft">
           <div class="meta">{fmtDate(featured.data.pubDate)} · {featured.data.author} · {readingMin(featured)} min read</div>
