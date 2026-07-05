@@ -1,0 +1,70 @@
+---
+title: quota_exceeded
+description: Your organization hit its monthly post quota. Upgrade the plan or wait for the reset.
+icon: chart-line
+---
+
+Your organization has reached the monthly post quota for its plan. Each target in a `POST /v1/posts` request counts against the quota, so a fan-out to three accounts costs three. Upgrade the plan or wait until the quota resets at the start of next month.
+
+This is distinct from [`rate_limited`](/errors/rate_limited): rate limiting is a short-term per-key burst control, while `quota_exceeded` is your plan's total monthly allowance. Both return `429`.
+
+## What triggers it
+
+- A `POST /v1/posts` request whose target count would push the organization past its monthly post cap.
+- A single request whose target count alone exceeds the entire monthly quota (rejected up front before any target is persisted).
+
+The check is atomic — two concurrent requests can't double-spend the last slot under the cap. Self-hosted and unlimited tiers skip the gate entirely.
+
+## Response shape
+
+```json quota_exceeded.json
+{
+  "error": {
+    "code": "quota_exceeded",
+    "message": "Monthly post quota of 500 has been reached for this organization.",
+    "rule": "billing.posts.monthly_cap",
+    "remediation": "Upgrade your plan at https://dashboard.letmepost.dev/billing or wait until the quota resets at the start of next month.",
+    "platformResponse": {
+      "period": "2026-07",
+      "quota": 500,
+      "resetAt": "2026-08-01T00:00:00.000Z"
+    },
+    "docUrl": "https://docs.letmepost.dev/errors/quota_exceeded",
+    "requestId": "req_..."
+  }
+}
+```
+
+`platformResponse` carries the billing `period` (`YYYY-MM`), the `quota`, and the `resetAt` timestamp — the exact moment the counter rolls over. When a single request is larger than the whole quota, `platformResponse` also includes the request `cost`.
+
+## How to handle
+
+```ts handle.ts
+const res = await fetch("https://api.letmepost.dev/v1/posts", { /* ... */ });
+if (res.status === 429) {
+  const body = await res.json();
+  if (body.error.code === "quota_exceeded") {
+    // Retrying won't help until resetAt — surface an upgrade prompt instead.
+    const resetAt = body.error.platformResponse?.resetAt;
+    throw new QuotaError(body.error.message, resetAt);
+  }
+  // rate_limited — honor Retry-After and retry.
+}
+```
+
+Unlike `rate_limited`, retrying a `quota_exceeded` response before `resetAt` will keep failing. Branch on `code` and route users to an upgrade rather than a backoff loop.
+
+## Get ahead of it with webhooks
+
+Subscribe to the quota webhooks so you're warned before you hit the wall:
+
+- `quota.warning` — fires once when usage crosses 80% of the monthly cap.
+- `quota.exceeded` — fires once per period when the cap is reached.
+
+Both carry `period`, `postsCount`, `quota`, and `resetAt` in `data`. See [Webhooks](/webhooks).
+
+## Related
+
+- [`rate_limited`](/errors/rate_limited) — short-term per-key burst limit, not the monthly plan cap.
+- [Pricing](/pricing) — per-tier monthly quotas.
+- [Webhooks](/webhooks) — `quota.warning` and `quota.exceeded` events.
