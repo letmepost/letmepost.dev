@@ -12,6 +12,8 @@ import { setupServer } from "msw/node";
 import { createApp } from "../src/app.js";
 import { apiKeys } from "../src/db/schema/api_keys.js";
 import { member, organization, user } from "../src/db/schema/auth.js";
+import { DrizzlePlatformAccountsRepository } from "../src/repositories/platform-accounts.js";
+import { DrizzleProfilesRepository } from "../src/repositories/profiles.js";
 import {
   canRunDbTests,
   closeTestDb,
@@ -470,6 +472,176 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
         headers: { Authorization: `Bearer ${orgA.apiKey}` },
       });
       expect(stillThere.status).toBe(200);
+    });
+  });
+});
+
+/**
+ * Seed one org with TWO profiles, a Bluesky account in each, plus a key
+ * scoped to profile A and an org-wide key. Mirrors the profile-scope harness
+ * in posts-profile-scope.test.ts so account reads honor the same contract:
+ * a profile-scoped key sees only its own profile; org-wide keys see all.
+ */
+async function seedTwoProfiles(
+  tx: Awaited<ReturnType<typeof getTestDb>>["db"],
+) {
+  const suffix = randomBytes(4).toString("hex");
+  const [org] = await tx
+    .insert(organization)
+    .values({ name: `scope-org-${suffix}`, slug: `scope-${suffix}` })
+    .returning();
+  const organizationId = org!.id;
+
+  const profileRepo = new DrizzleProfilesRepository(tx);
+  const profileA = await profileRepo.create({
+    organizationId,
+    name: "Client A",
+    slug: `client-a-${suffix}`,
+  });
+  const profileB = await profileRepo.create({
+    organizationId,
+    name: "Client B",
+    slug: `client-b-${suffix}`,
+  });
+
+  const accountRepo = new DrizzlePlatformAccountsRepository(tx);
+  const accountA = await accountRepo.create({
+    organizationId,
+    profileId: profileA.id,
+    platform: "bluesky",
+    platformAccountId: `a-${suffix}.bsky.social`,
+    displayName: `a-${suffix}.bsky.social`,
+    token: "token-a",
+  });
+  const accountB = await accountRepo.create({
+    organizationId,
+    profileId: profileB.id,
+    platform: "bluesky",
+    platformAccountId: `b-${suffix}.bsky.social`,
+    displayName: `b-${suffix}.bsky.social`,
+    token: "token-b",
+  });
+
+  async function mintKey(profileId: string | null): Promise<string> {
+    const plaintext = `lmp_test_${randomBytes(24).toString("base64url")}`;
+    await tx.insert(apiKeys).values({
+      organizationId,
+      profileId,
+      name: profileId ? "scoped-key" : "org-wide-key",
+      prefix: "lmp_test_",
+      hashedKey: createHash("sha256").update(plaintext).digest("hex"),
+      last4: plaintext.slice(-4),
+      scopes: ["posts:read", "posts:write"],
+    });
+    return plaintext;
+  }
+
+  return {
+    organizationId,
+    profileA,
+    profileB,
+    accountA,
+    accountB,
+    scopedKeyA: await mintKey(profileA.id),
+    orgWideKey: await mintKey(null),
+  };
+}
+
+describeIfDb("/v1/accounts profile-scope enforcement", () => {
+  it("GET / with a profile-scoped key lists only that profile's account", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const s = await seedTwoProfiles(tx);
+      const app = createApp({ db: tx });
+
+      const res = await app.request("/v1/accounts", {
+        headers: { Authorization: `Bearer ${s.scopedKeyA}` },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        data: { id: string; profileId: string }[];
+      };
+      expect(body.data.map((r) => r.id)).toEqual([s.accountA.id]);
+      expect(body.data.every((r) => r.profileId === s.profileA.id)).toBe(true);
+    });
+  });
+
+  it("GET / with a profile-scoped key can't widen scope via ?profileId=<sibling>", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const s = await seedTwoProfiles(tx);
+      const app = createApp({ db: tx });
+
+      const res = await app.request(
+        `/v1/accounts?profileId=${s.profileB.id}`,
+        { headers: { Authorization: `Bearer ${s.scopedKeyA}` } },
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { id: string }[] };
+      // The key's scope wins over the query param — still only profile A.
+      expect(body.data.map((r) => r.id)).toEqual([s.accountA.id]);
+    });
+  });
+
+  it("GET / with an org-wide key lists both profiles' accounts", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const s = await seedTwoProfiles(tx);
+      const app = createApp({ db: tx });
+
+      const res = await app.request("/v1/accounts", {
+        headers: { Authorization: `Bearer ${s.orgWideKey}` },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { id: string }[] };
+      expect(body.data.map((r) => r.id).sort()).toEqual(
+        [s.accountA.id, s.accountB.id].sort(),
+      );
+    });
+  });
+
+  it("GET /:id with a profile-scoped key reads its own account", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const s = await seedTwoProfiles(tx);
+      const app = createApp({ db: tx });
+
+      const res = await app.request(`/v1/accounts/${s.accountA.id}`, {
+        headers: { Authorization: `Bearer ${s.scopedKeyA}` },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { id: string };
+      expect(body.id).toBe(s.accountA.id);
+    });
+  });
+
+  it("GET /:id with a profile-scoped key 404s on a sibling profile's account (no leak)", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const s = await seedTwoProfiles(tx);
+      const app = createApp({ db: tx });
+
+      const res = await app.request(`/v1/accounts/${s.accountB.id}`, {
+        headers: { Authorization: `Bearer ${s.scopedKeyA}` },
+      });
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as { error: { rule?: string } };
+      expect(body.error.rule).toBe("api_key.profile_scope");
+    });
+  });
+
+  it("GET /:id with an org-wide key reads any profile's account", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const s = await seedTwoProfiles(tx);
+      const app = createApp({ db: tx });
+
+      const res = await app.request(`/v1/accounts/${s.accountB.id}`, {
+        headers: { Authorization: `Bearer ${s.orgWideKey}` },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { id: string };
+      expect(body.id).toBe(s.accountB.id);
     });
   });
 });

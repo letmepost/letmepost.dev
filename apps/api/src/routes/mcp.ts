@@ -53,7 +53,77 @@ const specPath = join(here, "openapi.json");
 const tools = loadAutogenTools(specPath);
 const toolIndex = new Map<string, AutogenTool>(tools.map((t) => [t.name, t]));
 
-function buildServer(apiKey: string, loopbackBaseUrl: string): Server {
+// OAuth consent scopes minted by the provider (see auth.ts oauthProvider
+// `scopes`). `publish` grants write access — create/publish/schedule/cancel/
+// update a post, or mutate account/webhook state; `read` grants read-only
+// access — list/get/describe.
+const SCOPE_PUBLISH = "publish";
+const SCOPE_READ = "read";
+
+// Autogen derives every tool name as `<httpMethod>_<slug>` (see
+// @letmepost/mcp/autogen `deriveToolName`), so the leading token is the HTTP
+// method. Only GET operations are read-only; everything else mutates state.
+const READ_TOOL_PREFIX = "get_";
+
+/**
+ * Classify a tool as write/publish (mutating) vs read-only, data-driven off
+ * the HTTP method encoded in the autogen tool name. FAIL-SAFE: any tool whose
+ * name we don't recognise as a GET is treated as a write and therefore
+ * requires the `publish` scope. A new mutating endpoint is protected the
+ * moment it appears in the spec; only an explicit `get_*` read is exempted.
+ */
+export function toolRequiresPublish(toolName: string): boolean {
+  return !toolName.startsWith(READ_TOOL_PREFIX);
+}
+
+export type ScopeDecision =
+  | { allowed: true }
+  | { allowed: false; message: string };
+
+/**
+ * Enforce a token's granted OAuth scopes against a tool call.
+ *
+ * `scopes === null` marks the API-key auth path: the caller presented an
+ * `lmp_live_`/`lmp_test_` key, which carries no OAuth consent scopes. Those
+ * requests are authorized downstream by apiKeyAuth() when the loopback hits
+ * /v1/*, so we don't second-guess them here.
+ *
+ * For OAuth tokens: write/publish tools require `publish`; read tools require
+ * either `read` or `publish`.
+ */
+export function authorizeToolCall(
+  toolName: string,
+  scopes: string[] | null,
+): ScopeDecision {
+  if (scopes === null) return { allowed: true };
+
+  const granted = scopes.length > 0 ? scopes.join(", ") : "none";
+  if (toolRequiresPublish(toolName)) {
+    if (scopes.includes(SCOPE_PUBLISH)) return { allowed: true };
+    return {
+      allowed: false,
+      message:
+        `Insufficient OAuth scope: "${toolName}" is a write tool and ` +
+        `requires the "publish" scope, but this access token was granted ` +
+        `[${granted}]. Re-authorize the MCP client and grant publish access.`,
+    };
+  }
+  if (scopes.includes(SCOPE_READ) || scopes.includes(SCOPE_PUBLISH)) {
+    return { allowed: true };
+  }
+  return {
+    allowed: false,
+    message:
+      `Insufficient OAuth scope: "${toolName}" requires the "read" scope, ` +
+      `but this access token was granted [${granted}].`,
+  };
+}
+
+function buildServer(
+  apiKey: string,
+  loopbackBaseUrl: string,
+  scopes: string[] | null,
+): Server {
   const server = new Server(
     { name: "letmepost", version: "0.2.0" },
     { capabilities: { tools: {} } },
@@ -76,6 +146,15 @@ function buildServer(apiKey: string, loopbackBaseUrl: string): Server {
         content: [{ type: "text", text: `Unknown tool: ${name}` }],
       };
     }
+
+    const decision = authorizeToolCall(name, scopes);
+    if (!decision.allowed) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: decision.message }],
+      };
+    }
+
     try {
       const result = await tool.execute(
         (args as Record<string, unknown>) ?? {},
@@ -113,7 +192,34 @@ function mintKey(): string {
   return `lmp_live_${randomBytes(24).toString("base64url")}`;
 }
 
-async function resolveLoopbackKey(c: Context): Promise<string> {
+// Read the granted scopes off a verified access token. `scope` is the
+// OAuth-standard space-delimited string; `scopes` is the array form some
+// providers emit. Accept either — same forgiving logic as oauth-bearer.ts.
+function extractScopes(
+  payload: Awaited<ReturnType<typeof verifyAccessToken>>,
+): string[] {
+  const rawScope = (payload as { scope?: unknown }).scope;
+  if (typeof rawScope === "string") {
+    return rawScope.split(" ").filter(Boolean);
+  }
+  const rawScopes = (payload as { scopes?: unknown }).scopes;
+  if (Array.isArray(rawScopes)) {
+    return rawScopes.filter((s): s is string => typeof s === "string");
+  }
+  return [];
+}
+
+type ResolvedAuth = {
+  apiKey: string;
+  /**
+   * OAuth-granted scopes for this request's token, or `null` when the caller
+   * authenticated with a raw API key (no OAuth consent scopes to enforce at
+   * the MCP layer — apiKeyAuth() handles those downstream on the loopback).
+   */
+  scopes: string[] | null;
+};
+
+async function resolveLoopbackKey(c: Context): Promise<ResolvedAuth> {
   const header = c.req.header("Authorization") ?? "";
   if (!header.startsWith("Bearer ")) {
     throw new LetmepostError({
@@ -137,7 +243,7 @@ async function resolveLoopbackKey(c: Context): Promise<string> {
   // JWT; the actual validation happens when /v1/* receives the loopback
   // request and runs apiKeyAuth() against the api_keys table.
   if (token.startsWith("lmp_live_") || token.startsWith("lmp_test_")) {
-    return token;
+    return { apiKey: token, scopes: null };
   }
 
   // OAuth JWT path. Verify the token against the JWKS, then look up (or mint)
@@ -172,8 +278,13 @@ async function resolveLoopbackKey(c: Context): Promise<string> {
     });
   }
 
+  // Scopes always come from the freshly verified token, never the cache: the
+  // cache maps user → api key, but a single user may hold both a read-only and
+  // a publish token, so enforcement must reflect *this* request's grant.
+  const scopes = extractScopes(payload);
+
   const cached = jwtUserToApiKey.get(userId);
-  if (cached) return cached;
+  if (cached) return { apiKey: cached, scopes };
 
   const db = c.var.db as DrizzleClient;
   const [m] = await db
@@ -205,7 +316,7 @@ async function resolveLoopbackKey(c: Context): Promise<string> {
     scopes: [],
   });
   jwtUserToApiKey.set(userId, plaintext);
-  return plaintext;
+  return { apiKey: plaintext, scopes };
 }
 
 export const mcp = new Hono();
@@ -233,7 +344,7 @@ mcp.use("/", async (c, next) => {
 });
 
 mcp.post("/", async (c) => {
-  const apiKey = await resolveLoopbackKey(c);
+  const { apiKey, scopes } = await resolveLoopbackKey(c);
 
   // Loopback target: when running on Railway the public hostname is fine, but
   // hitting localhost saves a network hop. Configurable via MCP_LOOPBACK_BASE.
@@ -246,7 +357,7 @@ mcp.post("/", async (c) => {
   const transport = new WebStandardStreamableHTTPServerTransport({
     enableJsonResponse: true,
   });
-  const server = buildServer(apiKey, loopbackBaseUrl);
+  const server = buildServer(apiKey, loopbackBaseUrl, scopes);
   await server.connect(transport);
 
   // The Web Standard transport takes a Request and returns a Response.
