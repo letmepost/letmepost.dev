@@ -5,6 +5,9 @@ import { auth } from "../auth.js";
 import { apiKeys } from "../db/schema/api_keys.js";
 import { LetmepostError } from "../errors.js";
 import type { ApiKeyContext } from "./api-key.js";
+import { assertTrustedOrigin } from "./origin-guard.js";
+
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /**
  * Auth middleware for read endpoints that should be reachable from BOTH
@@ -96,6 +99,17 @@ export function apiKeyOrSession(): MiddlewareHandler {
     };
     c.set("apiKey", synthetic);
     c.set("session", { userId: result.user.id, organizationId: orgId });
+
+    // CSRF gate — session-cookie path only. In production the cookie is
+    // SameSite=None, so the browser attaches it to cross-site credentialed
+    // mutations; without this a text/plain (preflight-free) POST from any
+    // site could publish on a logged-in user's behalf. Bearer-key clients
+    // (Path 1 above) legitimately send no Origin and returned earlier, so
+    // they never reach this. Reads stay open.
+    if (!SAFE_METHODS.has(c.req.method.toUpperCase())) {
+      assertTrustedOrigin(c);
+    }
+
     await next();
   };
 }
