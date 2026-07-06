@@ -32,6 +32,7 @@
     "astro-icon": "^1.1.5",
     "notion-to-md": "^3.1.9",
     "posthog-js": "^1.372.10",
+    "rehype-sanitize": "^6.0.0",
     "tailwindcss": "^4.2.4"
   },
   "devDependencies": {

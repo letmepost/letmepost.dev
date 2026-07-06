@@ -14,6 +14,26 @@
 
 const SITE = "https://letmepost.dev";
 
+/**
+ * Serialize a JSON-LD graph for safe embedding inside a
+ * `<script type="application/ld+json">` body. `JSON.stringify` does not
+ * escape `<`, `>`, `&`, or the U+2028/U+2029 line separators, so a value
+ * sourced from the (third-party-writable) Notion blog — a post title or
+ * description — could contain `</script>` and break out of the script
+ * element into live HTML. Escaping these as JSON `\uXXXX` sequences keeps
+ * the payload valid JSON (parsers decode them back) while making it
+ * impossible for the raw text to terminate the script element or inject
+ * markup.
+ */
+export function serializeJsonLd(graph: unknown): string {
+  return JSON.stringify(graph)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}
+
 export type FaqEntry = { q: string; a: string };
 
 function stripHtml(html: string): string {

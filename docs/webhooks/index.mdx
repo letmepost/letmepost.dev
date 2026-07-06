@@ -1,11 +1,13 @@
 ---
 title: Webhooks
-description: HMAC-signed deliveries for queued, validated, published, rejected, failed, token, and version events.
+description: HMAC-signed deliveries for post lifecycle, token, version, subscription, quota, and billing events.
 ---
 
 Register an HTTPS URL once via `POST /v1/webhook-endpoints` and we'll deliver signed JSON for every event. No polling.
 
 ## Event types
+
+### Post lifecycle
 
 | event | when |
 |-------|------|
@@ -14,9 +16,31 @@ Register an HTTPS URL once via `POST /v1/webhook-endpoints` and we'll deliver si
 | [`post.published`](/webhooks/post-published) | upstream returned success |
 | [`post.rejected`](/webhooks/post-rejected) | preflight or platform rejected; not retried |
 | [`post.failed`](/webhooks/post-failed) | transient failure; the worker may retry |
+| [`post.canceled`](/webhooks/post-canceled) | queued scheduled post canceled via `DELETE` before it fired |
+| [`post.rescheduled`](/webhooks/post-rescheduled) | queued scheduled post moved to a new firing time via `PATCH` |
+
+### Tokens & versions
+
+| event | when |
+|-------|------|
 | [`token.expiring`](/webhooks/token-expiring) | platform token approaching expiry |
 | [`token.revoked`](/webhooks/token-revoked) | platform token rejected by upstream |
 | [`version.deprecated`](/webhooks/version-deprecated) | upstream platform announced an API version sunset |
+
+### Subscription & billing
+
+These carry billing state in `data` — see the shapes in `WEBHOOK_EVENT_TYPES`.
+
+| event | when |
+|-------|------|
+| `subscription.activated` | a plan was activated (carries `tier`, `previousTier`, `periodStart`, `periodEnd`) |
+| `subscription.cancelled` | a plan was cancelled (carries `tier`, `cancelAtPeriodEnd`, `cancelledAt`, `effectiveAt`) |
+| `subscription.tier_changed` | a plan moved between tiers (carries `previousTier`, `tier`, `periodStart`, `periodEnd`) |
+| `quota.warning` | monthly post usage crossed 80% (carries `period`, `postsCount`, `quota`, `percent`, `resetAt`) |
+| `quota.exceeded` | monthly post quota reached (carries `period`, `postsCount`, `quota`, `resetAt`) |
+| `billing.payment_failed` | a subscription payment failed (carries `ls_subscription_id`, `failedAt`, `tier`) |
+| `billing.delinquent` | a subscription is past due and downgraded to free (carries `ls_subscription_id`, `since`, `tier`) |
+| `billing.recovered` | a previously-failed payment recovered (carries `ls_subscription_id`, `recoveredAt`, `tier`) |
 
 This list is canonical — see `WEBHOOK_EVENT_TYPES` in `packages/schemas/src/webhook-events.ts`. Adding an event is non-breaking; removing one is breaking and shows up in the [changelog](/changelog).
 
@@ -36,49 +60,57 @@ Every delivery has the same outer shape:
 
 The `data` field is the only thing that varies between event types. The envelope is stable so consumers can write one verifier and one router.
 
-## Signature verification
+## Delivery headers
 
 Every delivery includes:
 
 ```
-X-Letmepost-Signature: t=1715000000,v1=<hex hmac>
+X-Letmepost-Signature: sha256=<hex hmac>
 X-Letmepost-Event: post.published
-X-Letmepost-Delivery: evt_01HY6X4AWBJM2K9F2PTQMRD9JQ
+X-Letmepost-Event-Id: evt_01HY6X4AWBJM2K9F2PTQMRD9JQ
+X-Letmepost-Delivery-Id: 5f3b0c2e-8a1d-4b6c-9e7f-2a1c3d4e5f60
 Content-Type: application/json
 ```
 
-`v1` is `HMAC-SHA256(secret, t + "." + raw_body)` in hex. Verify before parsing the body:
+| header | meaning |
+|--------|---------|
+| `X-Letmepost-Signature` | `sha256=` + the HMAC-SHA256 of the **raw request body**, hex-encoded. No timestamp. |
+| `X-Letmepost-Event` | the event `type` (e.g. `post.published`). |
+| `X-Letmepost-Event-Id` | the event id — **stable across retries** of the same event. Deduplicate on this. |
+| `X-Letmepost-Delivery-Id` | a unique id for this one delivery attempt — changes on every retry. |
+| `X-Letmepost-Request-Id` | set when the event was produced by an inbound API request; correlates back to that request. |
+
+## Signature verification
+
+The signature is `HMAC-SHA256(secret, raw_body)` — computed over the exact bytes of the request body, with no timestamp. The value is hex-encoded and prefixed with `sha256=`. Verify before parsing the body:
 
 ```ts verify.ts
 import crypto from "node:crypto";
 
 function verify(rawBody: string, header: string, secret: string): boolean {
-  const parts = Object.fromEntries(
-    header.split(",").map((s) => s.split("=")),
-  ) as { t: string; v1: string };
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(\`\${parts.t}.\${rawBody}\`)
-    .digest("hex");
-  // Constant-time compare.
-  return crypto.timingSafeEqual(
-    Buffer.from(parts.v1, "hex"),
-    Buffer.from(expected, "hex"),
-  );
+  const expected =
+    "sha256=" +
+    crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  const a = Buffer.from(header);
+  const b = Buffer.from(expected);
+  // Constant-time compare; length check first so timingSafeEqual can't throw.
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 ```
 
-Reject the request if verification fails. Accept the request even on duplicate `X-Letmepost-Delivery` ids — at-least-once is the contract.
+Compute the HMAC over the raw body **before** JSON-parsing it — reserializing changes bytes and breaks the digest. Reject the request if verification fails.
+
+## Idempotency
+
+Delivery is **at-least-once**: a retried event arrives with the same `X-Letmepost-Event-Id` but a new `X-Letmepost-Delivery-Id`. Deduplicate on `X-Letmepost-Event-Id` and treat a repeat as a no-op. There is no timestamp on the signature, so there is no replay window to enforce — the signature and event-id dedup are the security boundary.
 
 ## Retries
 
-Delivery is retried with exponential backoff for any non-2xx response. After ~5 attempts the delivery is dropped and surfaces in the dashboard's webhook log.
+Delivery is retried with exponential backoff on `5xx` responses and network errors (DNS, TCP, TLS, timeout). The budget is **8 attempts** with backoff starting at 5s and doubling each time — roughly 5s, 10s, 20s, 40s, 80s, 160s, 320s, 640s, about 21 minutes total. After the final attempt the delivery lands in the failed set and surfaces in the dashboard's webhook log.
 
-Respond `2xx` quickly — within 5 seconds. Defer your work to a background queue if it takes longer.
+A `4xx` response is treated as a **permanent failure and is never retried** — a `4xx` means the consumer deliberately rejected the payload (bad signature config, missing route, auth failure), and retrying can't fix a config error.
 
-## Replay window
-
-Reject deliveries where `t` is more than 5 minutes from `now`. That window catches replay attacks while tolerating clock skew.
+Each attempt times out after 10 seconds. Respond `2xx` quickly and defer your work to a background queue if it takes longer.
 
 ## See also
 

@@ -51,7 +51,9 @@ Save `results[].postId` per target. To check what happened later, fetch [`GET /v
 
 - `scheduledAt` must be at least 1 second in the future. Closer than that and you get [`validation_failed`](/errors/validation_failed) with `rule: "scheduledAt.future"`. The 1-second floor is a guardrail against races where the worker fires before the persisting transaction commits.
 - **`publishNow: true` is mutually exclusive with `scheduledAt`.** Sending both surfaces `validation_failed` with `rule: "mode_conflict"`. Drop one of them.
-- **v1 scheduled posts accept text only.** Media and `firstComment` on scheduled posts surface `validation_failed` with `rule: "scheduledAt.text_only"`. The remediation is to publish synchronously — the scheduled-media path needs persistent media storage and ships in a follow-up slice.
+- **Scheduled posts accept text and media.** Media refs persist on the queued row and the worker reads them back at fire time, so a `scheduledAt` post can include images or video.
+- **`firstComment` is not supported on scheduled posts.** It surfaces `validation_failed` with `rule: "scheduledAt.no_first_comment"`. Publish synchronously (drop `scheduledAt`) if you need a first comment.
+- **Bluesky reply threading is not supported on scheduled posts.** The `bluesky` `replyTo*` options surface `validation_failed` with `rule: "scheduledAt.no_bluesky_reply"` — a queued reply would publish un-threaded, so publish synchronously instead.
 
 ## Multi-target scheduling
 

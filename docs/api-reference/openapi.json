@@ -128,7 +128,8 @@
           "unauthorized",
           "not_found",
           "idempotency_conflict",
-          "rate_limited"
+          "rate_limited",
+          "quota_exceeded"
         ],
         "description": "Canonical error codes. See https://letmepost.dev/docs/errors/ for per-code documentation."
       },
@@ -348,8 +349,71 @@
               "platform": {
                 "type": "string",
                 "enum": [
+                  "tiktok"
+                ]
+              },
+              "privacy": {
+                "type": "string",
+                "enum": [
+                  "public_to_everyone",
+                  "mutual_follow_friend",
+                  "self_only"
+                ],
+                "description": "Privacy level surfaced to TikTok. Audit/sandbox accounts force `self_only`: preflight rewrites `public_to_everyone` / `mutual_follow_friend` to `self_only` and emits a `tiktok_audit_self_only` warning. Defaults to `self_only`."
+              },
+              "disableComment": {
+                "type": "boolean",
+                "description": "Disable comments on the video. Defaults to `false`."
+              },
+              "disableDuet": {
+                "type": "boolean",
+                "description": "Disable Duet on the video. Defaults to `false`."
+              },
+              "disableStitch": {
+                "type": "boolean",
+                "description": "Disable Stitch on the video. Defaults to `false`."
+              },
+              "brandContentToggle": {
+                "type": "boolean",
+                "description": "Paid-partnership branded-content disclosure. Mutually exclusive with `brandOrganicToggle` (enforced by TikTok at publish); requires the account to have agreed to TikTok's branded-content rules. Defaults to `false`."
+              },
+              "brandOrganicToggle": {
+                "type": "boolean",
+                "description": "\"Your own brand\" branded-content disclosure. Requires the account to have agreed to TikTok's branded-content rules. Defaults to `false`."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "platform"
+            ],
+            "properties": {
+              "platform": {
+                "type": "string",
+                "enum": [
                   "bluesky"
                 ]
+              },
+              "replyToUri": {
+                "type": "string",
+                "minLength": 1,
+                "description": "AT-URI of the post being replied to. Must be sent together with `replyToCid` (a strong ref to the parent)."
+              },
+              "replyToCid": {
+                "type": "string",
+                "minLength": 1,
+                "description": "CID of the post being replied to. Must be sent together with `replyToUri`."
+              },
+              "replyRootUri": {
+                "type": "string",
+                "minLength": 1,
+                "description": "AT-URI of the thread root. Must be sent together with `replyRootCid` and requires `replyToUri` + `replyToCid`. Omit to reply to a top-level post — root defaults to the parent."
+              },
+              "replyRootCid": {
+                "type": "string",
+                "minLength": 1,
+                "description": "CID of the thread root. Must be sent together with `replyRootUri`."
               }
             }
           },
@@ -479,7 +543,7 @@
           "scheduledAt": {
             "type": "string",
             "format": "date-time",
-            "description": "ISO-8601 timestamp at least 1 second in the future. When set, every target row is queued and the response is 202. Scheduled posts currently accept text only — media and firstComment require an immediate publish.",
+            "description": "ISO-8601 timestamp at least 1 second in the future. When set, every target row is queued and the response is 202. Scheduled posts accept text and media (media refs persist and the worker reads them back at fire time); `firstComment` (rule `scheduledAt.no_first_comment`) and Bluesky reply threading (rule `scheduledAt.no_bluesky_reply`) require an immediate publish.",
             "example": "2026-06-01T12:00:00.000Z"
           },
           "profileId": {
@@ -1015,11 +1079,11 @@
           "state": {
             "type": "string",
             "enum": [
-              "stable",
+              "live",
               "trial",
               "pending"
             ],
-            "description": "Platform enablement state. `pending` rejects `connect` with `platform_not_enabled`."
+            "description": "Platform enablement state. `live` is production-ready; `trial` connects but the upstream is sandboxed or rate-capped; `pending` rejects `connect` with `platform_not_enabled`."
           },
           "descriptor": {
             "type": "object",
@@ -1219,7 +1283,15 @@
           "post.rescheduled",
           "token.expiring",
           "token.revoked",
-          "version.deprecated"
+          "version.deprecated",
+          "subscription.activated",
+          "subscription.cancelled",
+          "subscription.tier_changed",
+          "quota.warning",
+          "quota.exceeded",
+          "billing.payment_failed",
+          "billing.delinquent",
+          "billing.recovered"
         ]
       },
       "WebhookEndpoint": {
@@ -1440,7 +1512,7 @@
     },
     "responses": {
       "ValidationError": {
-        "description": "`validation_failed` — request body or query parameters didn't match the schema. Rules surfaced include `body.json`, `targets.required`, `targets.max`, `mode_conflict`, `targets.options.platform_mismatch`, `targets.account.platform_mismatch`, `target.account.not_connected`, `target.account.ambiguous`, `scheduledAt.future`, `scheduledAt.text_only`.",
+        "description": "`validation_failed` — request body or query parameters didn't match the schema. Rules surfaced include `body.json`, `targets.required`, `targets.max`, `mode_conflict`, `targets.options.platform_mismatch`, `targets.account.platform_mismatch`, `target.account.not_connected`, `target.account.ambiguous`, `scheduledAt.future`, `scheduledAt.no_first_comment`, `scheduledAt.no_bluesky_reply`.",
         "headers": {
           "X-RateLimit-Limit": {
             "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -1531,6 +1603,24 @@
       },
       "RateLimited": {
         "description": "`rate_limited` — too many requests. Inspect `X-RateLimit-Limit` (static ceiling) and the IETF-draft `RateLimit-*` headers (sliding-window remaining/reset) before retrying.",
+        "headers": {
+          "X-RateLimit-Limit": {
+            "$ref": "#/components/headers/X-RateLimit-Limit"
+          },
+          "X-Request-Id": {
+            "$ref": "#/components/headers/X-Request-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ApiError"
+            }
+          }
+        }
+      },
+      "PostsRateLimited": {
+        "description": "`rate_limited` — per-key rate limit exhausted; honor `Retry-After`. Or `quota_exceeded` (rule `billing.posts.monthly_cap`) — the request would push the organization over its monthly post quota. `platformResponse` carries `period`, `quota`, and `resetAt`; upgrade the plan or wait for the reset.",
         "headers": {
           "X-RateLimit-Limit": {
             "$ref": "#/components/headers/X-RateLimit-Limit"
@@ -1829,7 +1919,7 @@
             "$ref": "#/components/responses/IdempotencyConflict"
           },
           "429": {
-            "$ref": "#/components/responses/RateLimited"
+            "$ref": "#/components/responses/PostsRateLimited"
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
