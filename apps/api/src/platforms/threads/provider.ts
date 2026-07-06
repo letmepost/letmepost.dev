@@ -37,7 +37,7 @@ import {
  *
  * What we persist after connect:
  *   - `token`         = long-lived 60-day access token.
- *   - `tokenMetadata` = `{ userId, grantedScopes, refreshable: true,
+ *   - `tokenMetadata` = `{ userId, metaUserId, grantedScopes, refreshable: true,
  *                          authorizeUrl?, apiBase? }`.
  *   - `tokenExpiresAt` = now + expires_in (typically 60d).
  *
@@ -75,6 +75,13 @@ const CompleteConnectInput = z.object({
 export type ThreadsTokenMetadata = {
   /** Threads user id — same value pinned as platformAccountId; cached for refresh. */
   userId?: string;
+  /**
+   * App-scoped user id Meta's data-deletion / deauth signed_request carries.
+   * For Threads this equals the Threads user id, but those callbacks match on
+   * tokenMetadata.metaUserId uniformly across the Meta family, so it's stored
+   * explicitly here (and carried through refresh).
+   */
+  metaUserId?: string;
   grantedScopes?: string[];
   /** Always true post-Phase-8; flag exists so legacy rows can opt out. */
   refreshable?: boolean;
@@ -179,6 +186,7 @@ export class ThreadsProvider implements AccountProvider {
 
     const metadata: ThreadsTokenMetadata = {
       userId: me.id,
+      metaUserId: me.id,
       grantedScopes: [...scopeSetFor(PLATFORM).write],
       refreshable: true,
     };
@@ -212,7 +220,10 @@ export class ThreadsProvider implements AccountProvider {
         [...scopeSetFor(PLATFORM).write],
       refreshable: true,
     };
-    if (cachedUserId) metadata.userId = cachedUserId;
+    if (cachedUserId) {
+      metadata.userId = cachedUserId;
+      metadata.metaUserId = cachedUserId;
+    }
     if (this.config.authorizeUrl) metadata.authorizeUrl = this.config.authorizeUrl;
     if (this.config.apiBase) metadata.apiBase = this.config.apiBase;
 

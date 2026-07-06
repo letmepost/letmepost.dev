@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { platformAccounts } from "../db/schema/index.js";
 import { parseMetaSignedRequest } from "../webhooks/meta-signed-request.js";
@@ -92,17 +92,22 @@ dataDeletion.post("/meta", async (c) => {
   const confirmationCode = `lmp_${randomUUID()}`;
 
   // Delete every platform_account row for the Meta product family that maps
-  // to this app-scoped user_id. Posts and post_attempts cascade via the
-  // schema's onDelete setup, so we don't need to touch them by hand here.
-  // If no rows match (user never connected, or already disconnected) we still
-  // return 200 — Meta's contract doesn't differentiate, and from the user's
+  // to this app-scoped user_id. The match is on tokenMetadata.metaUserId —
+  // NOT platformAccountId — because for the Meta family platformAccountId
+  // holds a per-product resource id (FB Page id / IG user id / Threads user
+  // id), none of which equals the app-scoped user_id Meta sends here. The
+  // app-scoped id is captured at connect time by each provider's
+  // completeConnect. Posts and post_attempts cascade via the schema's
+  // onDelete setup, so we don't need to touch them by hand here. If no rows
+  // match (user never connected, or already disconnected) we still return
+  // 200 — Meta's contract doesn't differentiate, and from the user's
   // perspective "no data to delete" is a successful deletion.
   const removed = await db
     .delete(platformAccounts)
     .where(
       and(
         inArray(platformAccounts.platform, META_PLATFORMS),
-        eq(platformAccounts.platformAccountId, payload.user_id),
+        sql`${platformAccounts.tokenMetadata} ->> 'metaUserId' = ${payload.user_id}`,
       ),
     )
     .returning();

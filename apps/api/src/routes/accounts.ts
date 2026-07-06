@@ -8,6 +8,7 @@ import { profiles as profilesTable } from "../db/schema/profiles.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
 import { idempotency } from "../middleware/idempotency.js";
+import { assertKeyCanAccessProfile } from "../middleware/profile-scope.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { requireSession } from "../middleware/session.js";
 import { decodeOAuthState, encodeOAuthState } from "../oauth/state.js";
@@ -412,12 +413,18 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
    *  profileId looks malformed; we just match nothing, which is safer
    *  than a 400 surfacing as a broken dashboard tab. */
   app.get("/", dual, async (c) => {
-    const { organizationId } = c.var.apiKey;
+    const { organizationId, profileId: keyProfileId } = c.var.apiKey;
     const profileIdParam = c.req.query("profileId");
-    const profileId =
+    const requestedProfileId =
       typeof profileIdParam === "string" && profileIdParam.length > 0
         ? profileIdParam
         : null;
+    // A profile-scoped key is locked to its own profile — it must never see
+    // (nor be able to narrow into) a sibling profile's accounts, so the key's
+    // scope wins over any `?profileId`. Org-wide keys and sessions
+    // (profileId === null) keep the legacy org-wide list, honoring the
+    // optional `?profileId` narrowing.
+    const profileId = keyProfileId ?? requestedProfileId;
     const repo = new DrizzlePlatformAccountsRepository(c.var.db);
     const rows = await repo.listByOrgAndProfile(organizationId, profileId);
     return c.json({ data: rows.map(publicView) });
@@ -436,6 +443,9 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
         message: "Platform account not found.",
       });
     }
+    // A profile-scoped key must not read a sibling profile's account; 404 so
+    // it can't confirm the account exists.
+    assertKeyCanAccessProfile(c.var.apiKey, account);
     return c.json(publicView(account));
   });
 
@@ -906,6 +916,10 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
         message: "Platform account not found.",
       });
     }
+    // Enforce the key's profile scope before anything else so a profile-scoped
+    // key can't act on (or even detect) a sibling profile's Pinterest account.
+    // 404 (not the platform-mismatch 400 below) to avoid leaking existence.
+    assertKeyCanAccessProfile(c.var.apiKey, account);
     if (account.platform !== "pinterest") {
       throw new LetmepostError({
         code: "validation_failed",

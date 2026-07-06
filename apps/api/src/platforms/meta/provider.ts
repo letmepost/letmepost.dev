@@ -35,7 +35,7 @@ import {
  *   - `platformAccountId` = Page id
  *   - `displayName`       = Page name
  *   - `token`             = Page Access Token (NON-EXPIRING with FBLB)
- *   - `tokenMetadata`     = `{ kind: "page", pageTasks? }`
+ *   - `tokenMetadata`     = `{ kind: "page", pageTasks?, metaUserId }`
  *
  * Refresh: Page Access Tokens derived from a long-lived User token are
  * non-expiring (Meta's documented contract). The refreshToken
@@ -67,6 +67,13 @@ export type FacebookPageMetadata = {
   kind: "page";
   /** Tasks the user has been granted on this Page (e.g. CREATE_CONTENT). */
   pageTasks?: string[];
+  /**
+   * App-scoped user id of the connecting Facebook user (`GET /me`). This is
+   * the value Meta sends in the data-deletion / deauth signed_request's
+   * `user_id` field — NOT the Page id we store as platformAccountId — so it's
+   * what those callbacks match on to remove this row.
+   */
+  metaUserId?: string;
 };
 
 /**
@@ -98,8 +105,11 @@ function expiresAtFrom(expiresInSeconds: number | undefined): Date | null {
  * IG fan-out was removed when IG got its own OAuth — see the file
  * header docstring for why.
  */
-function buildPageRecord(page: MetaPageAccount): ConnectedAccount {
-  const fbMeta: FacebookPageMetadata = { kind: "page" };
+function buildPageRecord(
+  page: MetaPageAccount,
+  metaUserId: string,
+): ConnectedAccount {
+  const fbMeta: FacebookPageMetadata = { kind: "page", metaUserId };
   if (page.tasks) fbMeta.pageTasks = page.tasks;
 
   return {
@@ -184,6 +194,12 @@ export class MetaProvider implements AccountProvider {
     const version = this.config.graphVersion ?? META_GRAPH_VERSION;
     const client = new MetaDiscoveryClient(long.access_token, graphBase, version);
 
+    // App-scoped user id of the connecting user — persisted on every Page
+    // row so the data-deletion / deauth callbacks can find and remove this
+    // user's accounts (they key off signed_request.user_id, which equals
+    // this id, not the Page id we store as platformAccountId).
+    const me = await client.getMe();
+
     const pages = await client.listPages();
     if (pages.length === 0) {
       throw new LetmepostError({
@@ -198,7 +214,7 @@ export class MetaProvider implements AccountProvider {
       });
     }
 
-    return pages.map(buildPageRecord);
+    return pages.map((page) => buildPageRecord(page, me.id));
   }
 
   async refreshToken(input: RefreshInput): Promise<RefreshResult> {

@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { platformAccounts } from "../db/schema/index.js";
 import { parseMetaSignedRequest } from "../webhooks/meta-signed-request.js";
@@ -60,12 +60,15 @@ deauth.post("/meta", async (c) => {
     return c.json({ error: "signed_request_invalid" }, 400);
   }
 
+  // Match on tokenMetadata.metaUserId (the app-scoped user_id captured at
+  // connect time), NOT platformAccountId — see data-deletion.ts for why the
+  // per-product resource id never equals the signed_request user_id.
   const removed = await c.var.db
     .delete(platformAccounts)
     .where(
       and(
         inArray(platformAccounts.platform, META_PLATFORMS),
-        eq(platformAccounts.platformAccountId, payload.user_id),
+        sql`${platformAccounts.tokenMetadata} ->> 'metaUserId' = ${payload.user_id}`,
       ),
     )
     .returning();

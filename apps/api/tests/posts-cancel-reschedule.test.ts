@@ -5,10 +5,13 @@ import {
   expect,
   it,
 } from "vitest";
+import { createHash, randomBytes } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { createApp } from "../src/app.js";
 import { seed } from "../src/db/seed.js";
+import { apiKeys } from "../src/db/schema/api_keys.js";
 import { posts as postsTable } from "../src/db/schema/posts.js";
+import type { DrizzleClient } from "../src/db/index.js";
 import type { PublishEnqueuer } from "../src/queue/enqueue.js";
 import type { WebhookDispatcher } from "../src/webhooks/dispatch.js";
 import type { PublishJobData } from "../src/queue/queues.js";
@@ -346,6 +349,165 @@ describeIfDb("DELETE /v1/posts/:id — cancel", () => {
         headers: { Authorization: `Bearer ${fixture.apiKey.plaintext}` },
       });
       expect(res.status).toBe(409);
+    });
+  });
+});
+
+/**
+ * API-key scope enforcement on the posts router. The seed key carries both
+ * posts:read and posts:write, so every other test in the suite is unaffected;
+ * these tests mint narrowly-scoped keys directly to prove the guard.
+ */
+async function createScopedKey(
+  tx: DrizzleClient,
+  organizationId: string,
+  scopes: string[],
+): Promise<string> {
+  const plaintext = `lmp_test_${randomBytes(24).toString("base64url")}`;
+  await tx.insert(apiKeys).values({
+    organizationId,
+    name: `scoped-${scopes.join("-")}`,
+    prefix: "lmp_test_",
+    hashedKey: createHash("sha256").update(plaintext).digest("hex"),
+    last4: plaintext.slice(-4),
+    scopes,
+  });
+  return plaintext;
+}
+
+describeIfDb("posts router — API-key scope enforcement", () => {
+  it("rejects POST /v1/posts from a posts:read-only key with 403 api_key.scope", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const readKey = await createScopedKey(tx, fixture.organizationId, [
+        "posts:read",
+      ]);
+      const { enqueuer } = captureEnqueuer();
+      const app = createApp({ db: tx, publishEnqueuer: enqueuer });
+
+      const res = await app.request("/v1/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${readKey}`,
+        },
+        body: JSON.stringify({
+          text: "nope",
+          targets: [{ accountId: fixture.accountId }],
+        }),
+      });
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as {
+        error: { code: string; rule?: string };
+      };
+      expect(body.error.code).toBe("unauthorized");
+      expect(body.error.rule).toBe("api_key.scope");
+    });
+  });
+
+  it("rejects DELETE /v1/posts/:id (cancel) from a posts:read-only key with 403", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const readKey = await createScopedKey(tx, fixture.organizationId, [
+        "posts:read",
+      ]);
+      const { enqueuer } = captureEnqueuer();
+      const app = createApp({ db: tx, publishEnqueuer: enqueuer });
+
+      // The write-scoped seed key schedules the post...
+      const firstAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const { rowId } = await createScheduledPost(
+        app,
+        fixture.apiKey.plaintext,
+        fixture.accountId,
+        firstAt,
+      );
+
+      // ...but a read-only key may not cancel it.
+      const res = await app.request(`/v1/posts/${rowId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${readKey}` },
+      });
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as {
+        error: { code: string; rule?: string };
+      };
+      expect(body.error.code).toBe("unauthorized");
+      expect(body.error.rule).toBe("api_key.scope");
+
+      // The guard short-circuits before the handler — the row is untouched.
+      const [row] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.id, rowId));
+      expect(row?.status).toBe("queued");
+    });
+  });
+
+  it("allows a posts:write key to publish and cancel", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const writeKey = await createScopedKey(tx, fixture.organizationId, [
+        "posts:write",
+      ]);
+      const { enqueuer } = captureEnqueuer();
+      const app = createApp({ db: tx, publishEnqueuer: enqueuer });
+
+      const firstAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      const { rowId } = await createScheduledPost(
+        app,
+        writeKey,
+        fixture.accountId,
+        firstAt,
+      );
+
+      const res = await app.request(`/v1/posts/${rowId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${writeKey}` },
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { status: string };
+      expect(body.status).toBe("canceled");
+    });
+  });
+
+  it("allows a posts:read key to GET /v1/posts", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const readKey = await createScopedKey(tx, fixture.organizationId, [
+        "posts:read",
+      ]);
+      const app = createApp({ db: tx });
+
+      const res = await app.request("/v1/posts", {
+        headers: { Authorization: `Bearer ${readKey}` },
+      });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  it("rejects GET /v1/posts from a posts:write-only key with 403 api_key.scope", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const writeKey = await createScopedKey(tx, fixture.organizationId, [
+        "posts:write",
+      ]);
+      const app = createApp({ db: tx });
+
+      const res = await app.request("/v1/posts", {
+        headers: { Authorization: `Bearer ${writeKey}` },
+      });
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as {
+        error: { code: string; rule?: string };
+      };
+      expect(body.error.code).toBe("unauthorized");
+      expect(body.error.rule).toBe("api_key.scope");
     });
   });
 });
