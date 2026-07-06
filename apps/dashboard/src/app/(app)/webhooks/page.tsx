@@ -254,8 +254,8 @@ export default function WebhooksPage() {
           </Card>
         ) : endpoints === null ? (
           <div className="space-y-2">
-            <Skeleton className="h-16" />
-            <Skeleton className="h-16" />
+            <Skeleton className="h-20" />
+            <Skeleton className="h-20" />
           </div>
         ) : endpoints.length === 0 ? (
           <p className="text-xs text-muted-foreground">No endpoints yet.</p>

@@ -257,8 +257,8 @@ export default function ApiKeysPage() {
           </Card>
         ) : keys === null ? (
           <div className="space-y-2">
-            <Skeleton className="h-14" />
-            <Skeleton className="h-14" />
+            <Skeleton className="h-[72px]" />
+            <Skeleton className="h-[72px]" />
           </div>
         ) : keys.length === 0 ? (
           <p className="text-xs text-muted-foreground">No keys yet.</p>
