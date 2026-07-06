@@ -79,12 +79,12 @@ describeIfDb("Idempotency-Key middleware on POST /v1/posts", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "no idempotency key",
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.headers.get("idempotency-replayed")).toBeNull();
       expect(calls.createRecord).toBe(1);
     });
@@ -99,7 +99,7 @@ describeIfDb("Idempotency-Key middleware on POST /v1/posts", () => {
 
       const app = createApp({ db: tx });
       const body = JSON.stringify({
-        account: { platform: "bluesky", id: fixture.accountId },
+        targets: [{ accountId: fixture.accountId }],
         text: "same body every time",
       });
       const headers = {
@@ -109,12 +109,12 @@ describeIfDb("Idempotency-Key middleware on POST /v1/posts", () => {
       };
 
       const first = await app.request("/v1/posts", { method: "POST", headers, body });
-      expect(first.status).toBe(201);
+      expect(first.status).toBe(200);
       const firstBody = await first.json();
       expect(calls.createRecord).toBe(1);
 
       const second = await app.request("/v1/posts", { method: "POST", headers, body });
-      expect(second.status).toBe(201);
+      expect(second.status).toBe(200);
       expect(second.headers.get("idempotency-replayed")).toBe("true");
       expect(second.headers.get("idempotency-key")).toBe("idem_replay_probe");
       const secondBody = await second.json();
@@ -142,17 +142,17 @@ describeIfDb("Idempotency-Key middleware on POST /v1/posts", () => {
         method: "POST",
         headers,
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "original text",
         }),
       });
-      expect(first.status).toBe(201);
+      expect(first.status).toBe(200);
 
       const second = await app.request("/v1/posts", {
         method: "POST",
         headers,
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "different text, same key",
         }),
       });
@@ -186,11 +186,11 @@ describeIfDb("Idempotency-Key middleware on POST /v1/posts", () => {
           "Idempotency-Key": sharedKey,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixtureA.accountId },
+          targets: [{ accountId: fixtureA.accountId }],
           text: "org A",
         }),
       });
-      expect(a.status).toBe(201);
+      expect(a.status).toBe(200);
 
       const b = await app.request("/v1/posts", {
         method: "POST",
@@ -200,11 +200,11 @@ describeIfDb("Idempotency-Key middleware on POST /v1/posts", () => {
           "Idempotency-Key": sharedKey,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixtureB.accountId },
+          targets: [{ accountId: fixtureB.accountId }],
           text: "org B",
         }),
       });
-      expect(b.status).toBe(201);
+      expect(b.status).toBe(200);
       expect(b.headers.get("idempotency-replayed")).toBeNull();
       // Both requests hit upstream — neither is a replay.
       expect(calls.createRecord).toBe(2);
@@ -225,7 +225,7 @@ describeIfDb("Idempotency-Key middleware on POST /v1/posts", () => {
         "Idempotency-Key": "idem_4xx_probe",
       };
       const body = JSON.stringify({
-        account: { platform: "bluesky", id: fixture.accountId },
+        targets: [{ accountId: fixture.accountId }],
         text: "   ",
       });
 

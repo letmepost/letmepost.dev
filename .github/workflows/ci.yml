@@ -33,6 +33,18 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # Redis for BullMQ. Some handlers (e.g. the LemonSqueezy webhook) enqueue
+      # jobs synchronously; without a reachable Redis those tests hang on the
+      # connection retry and time out. Mapped to 6380 to match DEFAULT_REDIS_URL.
+      redis:
+        image: redis:7
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
       # Reused across migrate + test steps. `TEST_DATABASE_URL` unlocks
       # the `canRunDbTests` flag so `describeIfDb` blocks execute instead
@@ -73,12 +85,6 @@ jobs:
 
       - name: Apply database migrations
         run: pnpm --filter @letmepost/api db:migrate
-        continue-on-error: true
 
       - name: Test
-        # Non-blocking for now — the suite needs Redis (BullMQ) and some
-        # tests have CI-only fail modes we're still working through.
-        # Tracked in a follow-up issue; typecheck + lint are the merge
-        # gate until the test step is reliable.
         run: pnpm test
-        continue-on-error: true

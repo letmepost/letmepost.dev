@@ -100,14 +100,17 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "linkedin", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "Hello from letmepost.dev",
         }),
       });
-      expect(res.status).toBe(201);
-      const body = (await res.json()) as { uri: string; status: string };
-      expect(body.uri).toBe("urn:li:share:7000000001");
-      expect(body.status).toBe("published");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ platform: string; uri?: string; status: string }>;
+      };
+      expect(body.results[0]!.uri).toBe("urn:li:share:7000000001");
+      expect(body.results[0]!.status).toBe("published");
 
       // Version pinning: every Versioned-API call MUST carry `LinkedIn-Version`.
       expect(capturedHeaders).not.toBeNull();
@@ -150,7 +153,7 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "linkedin", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "a".repeat(3001),
         }),
       });
@@ -183,13 +186,16 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "linkedin", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "should fail upstream",
         }),
       });
-      expect(res.status).toBe(401);
-      const body = (await res.json()) as { error: { code: string } };
-      expect(body.error.code).toBe("platform_auth_failed");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        results: Array<{ status: string; error?: { code: string } }>;
+      };
+      expect(body.results[0]!.status).toBe("rejected");
+      expect(body.results[0]!.error!.code).toBe("platform_auth_failed");
 
       const [row] = await tx
         .select()
@@ -224,16 +230,20 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "linkedin", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "Hello",
         }),
       });
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; remediation?: string };
+        results: Array<{
+          status: string;
+          error?: { code: string; remediation?: string };
+        }>;
       };
-      expect(body.error.code).toBe("platform_rejected");
-      expect(body.error.remediation).toMatch(/urn|MDP/i);
+      expect(body.results[0]!.status).toBe("rejected");
+      expect(body.results[0]!.error!.code).toBe("platform_rejected");
+      expect(body.results[0]!.error!.remediation).toMatch(/urn|MDP/i);
     });
   });
 
@@ -255,19 +265,22 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "linkedin", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "ambiguous response",
         }),
       });
-      // The publisher throws platform_rejected with an "ambiguous" message
-      // rather than fabricating an id — silent-success is the failure mode
-      // we exist to prevent.
-      expect(res.status).toBe(502);
+      // Loud-failure by design: a 201 with no x-restli-id is rejected rather
+      // than fabricating an id.
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; message?: string };
+        results: Array<{
+          status: string;
+          error?: { code: string; message?: string };
+        }>;
       };
-      expect(body.error.code).toBe("platform_rejected");
-      expect(body.error.message).toMatch(/ambiguous|x-restli-id/i);
+      expect(body.results[0]!.status).toBe("rejected");
+      expect(body.results[0]!.error!.code).toBe("platform_rejected");
+      expect(body.results[0]!.error!.message).toMatch(/ambiguous|x-restli-id/i);
     });
   });
 
@@ -304,13 +317,19 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "linkedin", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "Org post — should fail",
         }),
       });
-      expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: { rule?: string } };
-      expect(body.error.rule).toBe("linkedin.author.org_not_supported");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        results: Array<{ status: string; error?: { code: string; rule?: string } }>;
+      };
+      expect(body.results[0]!.status).toBe("rejected");
+      expect(body.results[0]!.error!.code).toBe("preflight_failed");
+      expect(body.results[0]!.error!.rule).toBe(
+        "linkedin.author.org_not_supported",
+      );
       expect(upstreamCalls).toBe(0);
     });
   });
