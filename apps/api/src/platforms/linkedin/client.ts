@@ -1,5 +1,6 @@
 import { authFailed, extractUpstreamMessage, rejected } from "../_shared/errors.js";
 import { platformFetch } from "../_shared/http.js";
+import { LetmepostError } from "../../errors.js";
 
 const PLATFORM = "linkedin";
 
@@ -109,7 +110,7 @@ export class LinkedInClient {
    *   - 401 / `INVALID_TOKEN` / `REVOKED_ACCESS_TOKEN` → platform_auth_failed
    *   - 403 / `INSUFFICIENT_PERMISSIONS`              → platform_rejected (scope hint)
    *   - 422 / `INVALID_AUTHOR`                        → platform_rejected (URN mismatch)
-   *   - 429                                            → platform_rejected (rate limit)
+   *   - 429                                            → platform_unavailable (rate limit, retryable)
    *   - other non-2xx                                 → platform_rejected
    */
   async createPost(input: LinkedInPostInput): Promise<LinkedInPostResult> {
@@ -193,13 +194,19 @@ export class LinkedInClient {
       });
     }
 
+    // Rate limit — RETRYABLE. Surface as platform_unavailable so the queue
+    // worker backs off and retries instead of permanently dropping the post.
     if (res.status === 429) {
-      throw rejected({
+      throw new LetmepostError({
+        code: "platform_unavailable",
+        status: 503,
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
-        upstreamMessage: upstreamMessage ?? "LinkedIn rate limit hit.",
+        message: `LinkedIn is rate limiting${
+          upstreamMessage ? `: ${upstreamMessage}` : "."
+        }`,
         remediation:
           "Back off — LinkedIn enforces both per-app and per-member quotas. Retry after the window.",
+        platformResponse: res.body ?? res.raw ?? undefined,
       });
     }
 
