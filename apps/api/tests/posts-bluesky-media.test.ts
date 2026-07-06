@@ -114,7 +114,7 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "one image",
           media: [
             { kind: "image", bytesBase64: TINY_JPEG_BASE64, altText: "a pixel" },
@@ -122,14 +122,14 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        platform: string;
-        uri?: string;
-        cid?: string;
+        status: string;
+        results: Array<{ platform: string; uri?: string; cid?: string }>;
       };
-      expect(body.platform).toBe("bluesky");
-      expect(body.cid).toBe("bafy-main");
+      expect(body.status).toBe("published");
+      expect(body.results[0]!.platform).toBe("bluesky");
+      expect(body.results[0]!.cid).toBe("bafy-main");
     });
   });
 
@@ -154,7 +154,7 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "four images",
           media: Array.from({ length: 4 }, () => ({
             kind: "image",
@@ -163,9 +163,13 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      expect(res.status).toBe(201);
-      const body = (await res.json()) as { cid?: string };
-      expect(body.cid).toBe("bafy-carousel");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ cid?: string }>;
+      };
+      expect(body.status).toBe("published");
+      expect(body.results[0]!.cid).toBe("bafy-carousel");
     });
   });
 
@@ -247,7 +251,7 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "a video",
           media: [
             {
@@ -261,9 +265,13 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      expect(res.status).toBe(201);
-      const body = (await res.json()) as { cid?: string };
-      expect(body.cid).toBe("bafy-video");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ cid?: string }>;
+      };
+      expect(body.status).toBe("published");
+      expect(body.results[0]!.cid).toBe("bafy-video");
       expect(pollCalls).toBeGreaterThanOrEqual(2);
     });
   });
@@ -323,15 +331,19 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "dedupe video",
           media: [{ kind: "video", bytesBase64: "AAAAAAAAAAA=" }],
         }),
       });
 
-      expect(res.status).toBe(201);
-      const body = (await res.json()) as { cid?: string };
-      expect(body.cid).toBe("bafy-dedupe");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ cid?: string }>;
+      };
+      expect(body.status).toBe("published");
+      expect(body.results[0]!.cid).toBe("bafy-dedupe");
       expect(jobStatusCalls).toBe(0);
     });
   });
@@ -384,18 +396,25 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "bad video",
           media: [{ kind: "video", bytesBase64: "AAAAAAAAAAA=" }],
         }),
       });
 
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; rule?: string };
+        }>;
       };
-      expect(body.error.code).toBe("platform_rejected");
-      expect(body.error.rule).toBe("bluesky.video.job_failed");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("platform_rejected");
+      expect(result.error!.rule).toBe("bluesky.video.job_failed");
     });
   });
 
@@ -429,18 +448,25 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "quota out",
           media: [{ kind: "video", bytesBase64: "AAAAAAAAAAA=" }],
         }),
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; rule?: string };
+        }>;
       };
-      expect(body.error.code).toBe("preflight_failed");
-      expect(body.error.rule).toBe("bluesky.video.quota_exhausted");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("preflight_failed");
+      expect(result.error!.rule).toBe("bluesky.video.quota_exhausted");
     });
   });
 
@@ -458,7 +484,7 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "too many",
           media: Array.from({ length: 5 }, () => ({
             kind: "image",
@@ -489,7 +515,7 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "mixed",
           media: [
             { kind: "image", bytesBase64: TINY_JPEG_BASE64 },
@@ -523,18 +549,25 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "big image",
           media: [{ kind: "image", bytesBase64: bigBase64 }],
         }),
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; rule?: string };
+        }>;
       };
-      expect(body.error.code).toBe("preflight_failed");
-      expect(body.error.rule).toBe("bluesky.media.image_size_max");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("preflight_failed");
+      expect(result.error!.rule).toBe("bluesky.media.image_size_max");
     });
   });
 
@@ -559,18 +592,25 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "huge video",
           media: [{ kind: "video", url: "https://example.test/big.mp4" }],
         }),
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; rule?: string };
+        }>;
       };
-      expect(body.error.code).toBe("preflight_failed");
-      expect(body.error.rule).toBe("bluesky.media.video_size_max");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("preflight_failed");
+      expect(result.error!.rule).toBe("bluesky.media.video_size_max");
     });
   });
 
@@ -594,18 +634,25 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "bad mime",
           media: [{ kind: "image", url: "https://example.test/bad.heic" }],
         }),
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; rule?: string };
+        }>;
       };
-      expect(body.error.code).toBe("preflight_failed");
-      expect(body.error.rule).toBe("bluesky.media.mime_allowed");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("preflight_failed");
+      expect(result.error!.rule).toBe("bluesky.media.mime_allowed");
     });
   });
 
@@ -622,7 +669,7 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "alt too long",
           media: [
             {
@@ -667,19 +714,27 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "will fail upload",
           media: [{ kind: "image", bytesBase64: TINY_JPEG_BASE64 }],
         }),
       });
 
-      expect(res.status).toBe(502);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; platform?: string; platformResponse?: unknown };
+        status: string;
+        results: Array<{
+          platform: string;
+          status: string;
+          error?: { code: string; platformResponse?: unknown };
+        }>;
       };
-      expect(body.error.code).toBe("platform_rejected");
-      expect(body.error.platform).toBe("bluesky");
-      expect(body.error.platformResponse).toMatchObject({
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.platform).toBe("bluesky");
+      expect(result.error!.code).toBe("platform_rejected");
+      expect(result.error!.platformResponse).toMatchObject({
         error: "PayloadTooLarge",
       });
     });
@@ -707,21 +762,26 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "main thread",
           firstComment: { text: "follow-up comment" },
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        cid?: string;
-        firstCommentUri?: string;
-        firstCommentCid?: string;
+        status: string;
+        results: Array<{
+          cid?: string;
+          firstCommentUri?: string;
+          firstCommentCid?: string;
+        }>;
       };
-      expect(body.cid).toBe("bafy-main");
-      expect(body.firstCommentUri).toMatch(/app\.bsky\.feed\.post\/reply/);
-      expect(body.firstCommentCid).toBe("bafy-reply");
+      expect(body.status).toBe("published");
+      const result = body.results[0]!;
+      expect(result.cid).toBe("bafy-main");
+      expect(result.firstCommentUri).toMatch(/app\.bsky\.feed\.post\/reply/);
+      expect(result.firstCommentCid).toBe("bafy-reply");
     });
   });
 
@@ -746,16 +806,20 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "photo",
           media: [{ kind: "image", bytesBase64: TINY_JPEG_BASE64 }],
           firstComment: { text: "source link in replies" },
         }),
       });
 
-      expect(res.status).toBe(201);
-      const body = (await res.json()) as { firstCommentCid?: string };
-      expect(body.firstCommentCid).toBe("bafy-r");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ firstCommentCid?: string }>;
+      };
+      expect(body.status).toBe("published");
+      expect(body.results[0]!.firstCommentCid).toBe("bafy-r");
     });
   });
 
@@ -772,18 +836,25 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "main",
           firstComment: { text: "   " },
         }),
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; rule?: string };
+        }>;
       };
-      expect(body.error.code).toBe("preflight_failed");
-      expect(body.error.rule).toBe("bluesky.first_comment.non_empty");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("preflight_failed");
+      expect(result.error!.rule).toBe("bluesky.first_comment.non_empty");
     });
   });
 
@@ -800,28 +871,31 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "main",
           firstComment: { text: "a".repeat(301) },
         }),
       });
 
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{
+          status: string;
+          error?: { code: string; rule?: string };
+        }>;
       };
-      expect(body.error.code).toBe("preflight_failed");
-      expect(body.error.rule).toBe("bluesky.first_comment.max_graphemes");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("preflight_failed");
+      expect(result.error!.rule).toBe("bluesky.first_comment.max_graphemes");
     });
   });
 
   it("returns the main post with a warning when the first-comment reply fails", async () => {
-    // Design choice: if the main post is already live on the PDS, we do NOT
-    // roll back or fail the request. The user's content is published. We
-    // surface the first-comment failure as a non-fatal warning under
-    // `warnings[].code = "first_comment_failed"` so the caller can retry the
-    // reply independently. A hard failure here would be lossy — we can't
-    // un-publish.
+    // If the main post is already live we can't un-publish, so a failed
+    // first-comment reply is surfaced as a non-fatal warning, not a failure.
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {
       const fixture = await seed(tx);
@@ -844,21 +918,28 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "main ok",
           firstComment: { text: "reply will fail" },
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        cid?: string;
-        firstCommentCid?: string;
-        warnings?: Array<{ code: string }>;
+        status: string;
+        results: Array<{
+          status: string;
+          cid?: string;
+          firstCommentCid?: string;
+          warnings?: Array<{ code: string }>;
+        }>;
       };
-      expect(body.cid).toBe("bafy-ok");
-      expect(body.firstCommentCid).toBeUndefined();
-      expect(body.warnings?.[0]?.code).toBe("first_comment_failed");
+      expect(body.status).toBe("published");
+      const result = body.results[0]!;
+      expect(result.status).toBe("published");
+      expect(result.cid).toBe("bafy-ok");
+      expect(result.firstCommentCid).toBeUndefined();
+      expect(result.warnings?.[0]?.code).toBe("first_comment_failed");
     });
   });
 });

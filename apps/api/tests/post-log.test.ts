@@ -29,6 +29,9 @@ async function seedPosts(
   },
 ) {
   const inserted: { id: string; createdAt: Date }[] = [];
+  // Postgres now() is frozen inside the test transaction, so assign explicit
+  // whole-millisecond, increasing createdAt values for the cursor to round-trip.
+  const base = new Date("2026-01-01T00:00:00.000Z").getTime();
   for (let i = 0; i < args.count; i++) {
     const overrides = args.template(i);
     const [row] = await tx
@@ -38,14 +41,12 @@ async function seedPosts(
         accountId: args.accountId,
         text: `post ${i}`,
         status: "published",
+        createdAt: new Date(base + i * 1000),
         ...overrides,
       })
       .returning();
     if (!row) throw new Error("failed to seed post");
     inserted.push({ id: row.id, createdAt: row.createdAt });
-    // Postgres timestamps default to now() with sub-millisecond precision,
-    // but tests run fast — sleep to keep the (createdAt, id) tuple monotonic.
-    await new Promise((r) => setTimeout(r, 2));
   }
   return inserted;
 }

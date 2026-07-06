@@ -130,20 +130,21 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "pinterest", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "our new product",
           media: [imageMedia],
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
         id: string;
-        platform: string;
-        status?: string;
+        status: string;
+        results: Array<{ platform: string; status: string; postId?: string }>;
       };
-      expect(body.platform).toBe("pinterest");
       expect(body.status).toBe("published");
+      expect(body.results[0]!.platform).toBe("pinterest");
+      expect(body.results[0]!.status).toBe("published");
       expect(pinBody).toMatchObject({
         board_id: "board-abc",
         link: "https://example.com/img.jpg",
@@ -157,7 +158,7 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
       const [row] = await tx
         .select()
         .from(postsTable)
-        .where(eq(postsTable.id, body.id));
+        .where(eq(postsTable.id, body.results[0]!.postId!));
       expect(row?.status).toBe("published");
 
       const ev = events.find((e) => e.type === "post.published");
@@ -190,18 +191,28 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "pinterest", id: account.id },
+          targets: [
+            {
+              accountId: account.id,
+              options: {
+                platform: "pinterest",
+                boardId: "board-other",
+                destinationUrl: "https://example.com/product",
+                title: "Click here",
+              },
+            },
+          ],
           text: "with overrides",
           media: [imageMedia],
-          pinterest: {
-            boardId: "board-other",
-            destinationUrl: "https://example.com/product",
-            title: "Click here",
-          },
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ status: string }>;
+      };
+      expect(body.results[0]!.status).toBe("published");
       expect(pinBody).toMatchObject({
         board_id: "board-other",
         link: "https://example.com/product",
@@ -211,7 +222,7 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
     });
   });
 
-  it("rejects when no media is supplied (validation_failed)", async () => {
+  it("rejects when no media is supplied (preflight_failed)", async () => {
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {
       const { fixture, account } = await seedWithPinterest(tx);
@@ -223,13 +234,13 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "pinterest", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "missing media",
         }),
       });
       expect(res.status).toBe(400);
       const body = (await res.json()) as { error: { code: string; rule?: string } };
-      expect(body.error.code).toBe("validation_failed");
+      expect(body.error.code).toBe("preflight_failed");
       expect(body.error.rule).toBe("pinterest.media.required");
     });
   });
@@ -268,22 +279,28 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "pinterest", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "no board",
           media: [imageMedia],
         }),
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: {
-          rule?: string;
-          platformResponse?: {
-            availableBoards?: { id: string; name: string }[];
+        status: string;
+        results: Array<{
+          status: string;
+          error?: {
+            rule?: string;
+            platformResponse?: {
+              availableBoards?: { id: string; name: string }[];
+            };
           };
-        };
+        }>;
       };
-      expect(body.error.rule).toBe("pinterest.board.required");
-      expect(body.error.platformResponse?.availableBoards).toEqual([
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.error!.rule).toBe("pinterest.board.required");
+      expect(result.error!.platformResponse?.availableBoards).toEqual([
         { id: "board-a", name: "Inspiration" },
         { id: "board-b", name: "Travel" },
       ]);
@@ -313,14 +330,20 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "pinterest", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "auth should fail",
           media: [imageMedia],
         }),
       });
-      expect(res.status).toBe(401);
-      const body = (await res.json()) as { error: { code: string } };
-      expect(body.error.code).toBe("platform_auth_failed");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ status: string; error?: { code: string } }>;
+      };
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("platform_auth_failed");
 
       const [row] = await tx
         .select()
@@ -351,17 +374,21 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "pinterest", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "missing image",
           media: [imageMedia],
         }),
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{ status: string; error?: { code: string; rule?: string } }>;
       };
-      expect(body.error.code).toBe("preflight_failed");
-      expect(body.error.rule).toBe("pinterest.image_url.reachable");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("preflight_failed");
+      expect(result.error!.rule).toBe("pinterest.image_url.reachable");
 
       const [row] = await tx
         .select()
@@ -453,18 +480,27 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "pinterest", id: account.id },
+          targets: [
+            {
+              accountId: account.id,
+              options: {
+                platform: "pinterest",
+                coverImageUrl: "https://example.com/cover.jpg",
+              },
+            },
+          ],
           text: "video pin",
           media: [{ kind: "video", bytesBase64: "AAAAAAAAAAA=" }],
-          pinterest: {
-            coverImageUrl: "https://example.com/cover.jpg",
-          },
         }),
       });
 
-      expect(res.status).toBe(201);
-      const body = (await res.json()) as { id: string; platform: string };
-      expect(body.platform).toBe("pinterest");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ platform: string; status: string }>;
+      };
+      expect(body.results[0]!.platform).toBe("pinterest");
+      expect(body.results[0]!.status).toBe("published");
       expect(calls.coverHead).toBeGreaterThanOrEqual(1);
       expect(calls.registerMedia).toBe(1);
       expect(calls.s3Upload).toBe(1);
@@ -494,17 +530,21 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "pinterest", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "missing cover",
           media: [{ kind: "video", bytesBase64: "AAAAAAAAAAA=" }],
         }),
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(200);
       const body = (await res.json()) as {
-        error: { code: string; rule?: string };
+        status: string;
+        results: Array<{ status: string; error?: { code: string; rule?: string } }>;
       };
-      expect(body.error.code).toBe("preflight_failed");
-      expect(body.error.rule).toBe("pinterest.video.cover_required");
+      expect(body.status).toBe("failed");
+      const result = body.results[0]!;
+      expect(result.status).toBe("rejected");
+      expect(result.error!.code).toBe("preflight_failed");
+      expect(result.error!.rule).toBe("pinterest.video.cover_required");
     });
   });
 });

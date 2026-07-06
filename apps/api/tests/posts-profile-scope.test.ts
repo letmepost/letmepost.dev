@@ -126,11 +126,18 @@ describeIfDb("API key profile scope (POST /v1/posts)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: scopedAccount.id },
+          targets: [{ accountId: scopedAccount.id }],
           text: "hello from org-wide key",
         }),
       });
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ accountId: string; status: string }>;
+      };
+      expect(body.status).toBe("published");
+      expect(body.results[0]!.accountId).toBe(scopedAccount.id);
+      expect(body.results[0]!.status).toBe("published");
     });
   });
 
@@ -153,11 +160,18 @@ describeIfDb("API key profile scope (POST /v1/posts)", () => {
           Authorization: `Bearer ${plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "hello from scoped key",
         }),
       });
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        status: string;
+        results: Array<{ accountId: string; status: string }>;
+      };
+      expect(body.status).toBe("published");
+      expect(body.results[0]!.accountId).toBe(account.id);
+      expect(body.results[0]!.status).toBe("published");
     });
   });
 
@@ -180,7 +194,7 @@ describeIfDb("API key profile scope (POST /v1/posts)", () => {
           Authorization: `Bearer ${plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: otherAccount.id },
+          targets: [{ accountId: otherAccount.id }],
           text: "should be denied",
         }),
       });
@@ -216,11 +230,11 @@ describeIfDb("API key profile scope (POST /v1/posts)", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "for the webhook",
         }),
       });
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
 
       const published = captured.find((e) => e.type === "post.published");
       expect(published).toBeDefined();
@@ -256,7 +270,7 @@ describeIfDb("API key profile scope (POST /v1/posts)", () => {
           Authorization: `Bearer ${plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: account.id },
+          targets: [{ accountId: account.id }],
           text: "post-revoke",
         }),
       });
