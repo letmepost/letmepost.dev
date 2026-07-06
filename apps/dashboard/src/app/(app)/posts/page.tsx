@@ -23,7 +23,7 @@ export default function PostsGridPage() {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-36" />
+          <Skeleton key={i} className="h-40" />
         ))}
       </div>
     );
