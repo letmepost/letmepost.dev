@@ -284,9 +284,6 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           media: [imageMedia],
         }),
       });
-      // Board resolution is a per-target deep check (it needs a network call
-      // to surface availableBoards), so the batch acks 200 with the failure
-      // captured in results[0] rather than a top-level 4xx.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -338,8 +335,6 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           media: [imageMedia],
         }),
       });
-      // Upstream auth failure is a per-target publish error — the batch acks
-      // 200 with the rejection captured in results[0].
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -384,9 +379,6 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           media: [imageMedia],
         }),
       });
-      // Image URL reachability is a per-target deep preflight inside the
-      // publisher (before any createPin call), so it surfaces in results[0]
-      // and the batch acks 200.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -543,9 +535,6 @@ describeIfDb("POST /v1/posts (pinterest)", () => {
           media: [{ kind: "video", bytesBase64: "AAAAAAAAAAA=" }],
         }),
       });
-      // Cover-required is enforced at the top of the publisher's publish()
-      // before any network I/O, so it surfaces per-target with no upstream
-      // call and the batch acks 200.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
