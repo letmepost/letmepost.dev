@@ -176,9 +176,9 @@ export default function DashboardHome() {
             transition={{ duration: 0.2 }}
             className="space-y-2"
           >
-            <Skeleton className="h-12" />
-            <Skeleton className="h-12" />
-            <Skeleton className="h-12" />
+            <Skeleton className="h-48" />
+            <Skeleton className="h-48" />
+            <Skeleton className="h-48" />
           </motion.div>
         ) : !setupComplete ? (
           <motion.div
@@ -382,7 +382,7 @@ function ApiKeyStepBody({
           {existing ? (
             masked
           ) : (
-            <Skeleton className="h-4 w-48 inline-block" />
+            <Skeleton className="h-5 w-48 inline-block" />
           )}
         </div>
         <Button
@@ -669,9 +669,9 @@ function RecentActivitySection() {
       <CardContent className="flex-1">
         {query.isLoading ? (
           <div className="space-y-2">
-            <Skeleton className="h-10" />
-            <Skeleton className="h-10" />
-            <Skeleton className="h-10" />
+            <Skeleton className="h-11" />
+            <Skeleton className="h-11" />
+            <Skeleton className="h-11" />
           </div>
         ) : posts.length === 0 ? (
           <p className="text-xs text-muted-foreground">
@@ -894,9 +894,9 @@ function PlatformBreakdownSection() {
       <CardContent className="flex-1 space-y-3">
         {query.isLoading ? (
           <div className="space-y-3">
-            <Skeleton className="h-8" />
-            <Skeleton className="h-8" />
-            <Skeleton className="h-8" />
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
           </div>
         ) : totalAll === 0 ? (
           <p className="text-xs text-muted-foreground">

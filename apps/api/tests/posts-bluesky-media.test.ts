@@ -402,9 +402,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // The transcode fails deep in the video pipeline — inside the publisher,
-      // so it lands as a per-target rejection in the 200 batch envelope, not a
-      // top-level 5xx.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -457,9 +454,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // The quota probe runs inside the video publisher (needs a network call
-      // to getUploadLimits), so it surfaces as a per-target rejection in the
-      // 200 batch envelope rather than the atomic top-level preflight.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -499,9 +493,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // Image count is a shape-level check — it runs in the atomic top-level
-      // preflight before any persistence or upstream call, so the whole batch
-      // is rejected with a top-level 400.
       expect(res.status).toBe(400);
       const body = (await res.json()) as {
         error: { code: string; rule?: string };
@@ -533,8 +524,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // image/video exclusivity is a shape-level check — atomic top-level
-      // preflight rejects the batch before persistence.
       expect(res.status).toBe(400);
       const body = (await res.json()) as {
         error: { code: string; rule?: string };
@@ -566,10 +555,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // Byte-size caps need resolved bytes, so they run inside the publisher —
-      // this is a per-target rejection in the 200 batch envelope. No upstream
-      // handlers are registered; the decode-then-size check fails before any
-      // network call.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -613,8 +598,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // URL fetch + byte-size cap run inside the publisher, so this is a
-      // per-target rejection in the 200 batch envelope.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -657,8 +640,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // MIME sniffing needs the resolved bytes, so it runs inside the publisher
-      // — per-target rejection in the 200 batch envelope.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -700,8 +681,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // Alt-text length is a shape-level check (no bytes needed), so it runs in
-      // the atomic top-level preflight and rejects the batch with a 400.
       expect(res.status).toBe(400);
       const body = (await res.json()) as {
         error: { code: string; rule?: string };
@@ -741,10 +720,6 @@ describeIfDb("POST /v1/posts (bluesky, media)", () => {
         }),
       });
 
-      // uploadBlob 413 is an upstream rejection inside the publisher — it lands
-      // as a per-target rejection in the 200 batch envelope. The target-level
-      // `platform` echoes bluesky; the raw upstream body rides in
-      // `error.platformResponse`.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -867,10 +842,6 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
         }),
       });
 
-      // First-comment validation runs inside the publisher (not in the atomic
-      // shape preflight), so an empty comment is a per-target rejection in the
-      // 200 batch envelope. It fails before the session is created, so no
-      // upstream handlers are needed.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -906,8 +877,6 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
         }),
       });
 
-      // First-comment length is validated inside the publisher, so an
-      // over-limit comment is a per-target rejection in the 200 batch envelope.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;
@@ -925,12 +894,8 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
   });
 
   it("returns the main post with a warning when the first-comment reply fails", async () => {
-    // Design choice: if the main post is already live on the PDS, we do NOT
-    // roll back or fail the request. The user's content is published. We
-    // surface the first-comment failure as a non-fatal warning under
-    // `warnings[].code = "first_comment_failed"` so the caller can retry the
-    // reply independently. A hard failure here would be lossy — we can't
-    // un-publish.
+    // If the main post is already live we can't un-publish, so a failed
+    // first-comment reply is surfaced as a non-fatal warning, not a failure.
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {
       const fixture = await seed(tx);
@@ -959,8 +924,6 @@ describeIfDb("POST /v1/posts (bluesky, first comment)", () => {
         }),
       });
 
-      // The main post is live, so the target still counts as published; the
-      // first-comment failure rides along as a non-fatal per-target warning.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         status: string;

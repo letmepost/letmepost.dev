@@ -316,10 +316,8 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
           text: "ambiguous response",
         }),
       });
-      // The publisher throws platform_rejected with an "ambiguous" message
-      // rather than fabricating an id — silent-success is the failure mode
-      // we exist to prevent. The batch envelope returns 200; the loud failure
-      // surfaces inside results[0].
+      // Loud-failure by design: a 201 with no x-restli-id is rejected rather
+      // than fabricating an id.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         results: Array<{
@@ -370,9 +368,6 @@ describeIfDb("POST /v1/posts (linkedin)", () => {
           text: "Org post — should fail",
         }),
       });
-      // Author-URN validation is a deep per-target preflight check that runs
-      // inside the publisher before any network call — so it surfaces inside
-      // results[0] on a 200 batch ack, never reaching upstream.
       expect(res.status).toBe(200);
       const body = (await res.json()) as {
         results: Array<{ status: string; error?: { code: string; rule?: string } }>;
