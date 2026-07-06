@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { WebhookEvent } from "@letmepost/schemas";
+import { assertUrlAllowed } from "../net/guarded-fetch.js";
 import { signHmac } from "./sign.js";
 
 /**
@@ -111,10 +112,19 @@ export async function deliverWebhook(
 
   const startedAt = Date.now();
   try {
+    // SSRF guard: reject non-http(s) schemes and hosts that resolve to
+    // internal / link-local / metadata addresses BEFORE any outbound request.
+    // Throwing here lands in the catch below and reports the same failure shape
+    // as a network error (status 0, errorName set) without hitting the target.
+    await assertUrlAllowed(endpoint.url);
+
     const res = await fetchImpl(endpoint.url, {
       method: "POST",
       headers,
       body,
+      // Never follow redirects: a public URL must not be able to 302 into
+      // internal space. A 3xx is handled below as a non-2xx (failed) delivery.
+      redirect: "manual",
       signal: controller.signal,
     });
 

@@ -189,6 +189,27 @@ async function assertHostAllowed(hostname: string): Promise<void> {
 }
 
 /**
+ * Validate a user-supplied URL for a single outbound request: throws
+ * {@link UnsupportedProtocolError} for non-http(s) schemes and
+ * {@link SsrfBlockedError} if the host resolves to a blocked address. Shares
+ * the resolve + {@link isBlockedAddress} check with {@link assertHostAllowed}.
+ * An unresolvable host does not throw — there is nothing to connect to.
+ *
+ * Unlike {@link guardedFetch}, this does NOT follow redirects; callers that use
+ * it directly must pass `redirect: "manual"` and treat a 3xx as a failure so a
+ * public URL can't 302 into internal space.
+ */
+export async function assertUrlAllowed(url: string): Promise<void> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new UnsupportedProtocolError(
+      `URL protocol '${parsed.protocol}' is not allowed; use http or https.`,
+    );
+  }
+  await assertHostAllowed(parsed.hostname);
+}
+
+/**
  * SSRF-hardened `fetch` for user-supplied URLs. Only http/https is allowed;
  * redirects are followed manually so every hop's host is re-validated against
  * {@link isBlockedAddress} before the request is made.
@@ -205,13 +226,7 @@ export async function guardedFetch(
 
   let current = url;
   for (let hop = 0; hop <= maxRedirects; hop += 1) {
-    const parsed = new URL(current);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      throw new UnsupportedProtocolError(
-        `URL protocol '${parsed.protocol}' is not allowed; use http or https.`,
-      );
-    }
-    await assertHostAllowed(parsed.hostname);
+    await assertUrlAllowed(current);
 
     const res = await fetch(current, { redirect: "manual", signal });
     if (res.status >= 300 && res.status < 400) {
