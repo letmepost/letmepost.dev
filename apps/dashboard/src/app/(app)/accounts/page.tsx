@@ -202,8 +202,8 @@ export default function AccountsListPage() {
         </Card>
       ) : accounts === null ? (
         <div className="grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-24" />
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
         </div>
       ) : accounts.length === 0 ? (
         <Card>
