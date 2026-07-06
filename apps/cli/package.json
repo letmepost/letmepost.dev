@@ -38,7 +38,7 @@
   },
   "devDependencies": {
     "@letmepost/config-tsconfig": "workspace:*",
-    "@types/node": "^22.10.2",
+    "@types/node": "^20.19.43",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
