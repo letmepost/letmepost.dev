@@ -29,11 +29,8 @@ async function seedPosts(
   },
 ) {
   const inserted: { id: string; createdAt: Date }[] = [];
-  // Inside a test transaction Postgres `now()` is frozen at transaction start,
-  // so the `defaultNow()` column gives every row the *same* createdAt (with
-  // sub-millisecond precision the ms-granular opaque cursor can't round-trip).
-  // Assign explicit, whole-millisecond, monotonically increasing timestamps so
-  // the (createdAt, id) keyset and its derived cursor advance cleanly.
+  // Postgres now() is frozen inside the test transaction, so assign explicit
+  // whole-millisecond, increasing createdAt values for the cursor to round-trip.
   const base = new Date("2026-01-01T00:00:00.000Z").getTime();
   for (let i = 0; i < args.count; i++) {
     const overrides = args.template(i);

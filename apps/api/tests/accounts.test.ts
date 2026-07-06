@@ -53,12 +53,8 @@ async function seedOrg(tx: Awaited<ReturnType<typeof getTestDb>>["db"]) {
   await tx
     .insert(member)
     .values({ organizationId: org!.id, userId: u!.id, role: "owner" });
-  // Mint a real org-scoped API key. The /v1/accounts read routes authenticate
-  // through `apiKeyOrSession()`, which is NOT the injected test session —
-  // it only honors a Bearer `lmp_…` token or a live better-auth cookie. The
-  // testSession short-circuit covers the session-guarded write routes only,
-  // so list/detail must present a genuine Bearer key to reach the handlers
-  // and actually exercise the cross-org isolation checks.
+  // Read routes authenticate via apiKeyOrSession(), which ignores the injected
+  // testSession — list/detail must present a real Bearer key to reach handlers.
   const apiKey = `lmp_test_${randomBytes(24).toString("base64url")}`;
   await tx.insert(apiKeys).values({
     organizationId: org!.id,
