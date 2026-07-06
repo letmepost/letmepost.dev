@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@astrojs/mdx": "^4.3.14",
-    "@astrojs/rss": "^4.0.18",
-    "@astrojs/sitemap": "^3.2.1",
+    "@astrojs/rss": "^4.0.19",
+    "@astrojs/sitemap": "^3.7.3",
     "@fontsource/commit-mono": "^5.2.5",
     "@fontsource/hanken-grotesk": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.2.7",
@@ -22,23 +22,23 @@
     "@fontsource/space-grotesk": "^5.2.10",
     "@fontsource/space-mono": "^5.2.9",
     "@iconify-json/ph": "^1.2.2",
-    "@iconify-json/simple-icons": "^1.2.83",
+    "@iconify-json/simple-icons": "^1.2.89",
     "@letmepost/schemas": "workspace:*",
     "@notionhq/client": "^5.22.0",
     "@resvg/resvg-js": "^2.6.2",
-    "@tailwindcss/vite": "^4.2.4",
+    "@tailwindcss/vite": "^4.3.2",
     "@vercel/analytics": "^2.0.1",
-    "astro": "^5.1.0",
+    "astro": "^5.18.2",
     "astro-icon": "^1.1.5",
     "notion-to-md": "^3.1.9",
-    "posthog-js": "^1.372.10",
-    "tailwindcss": "^4.2.4"
+    "posthog-js": "^1.396.6",
+    "tailwindcss": "^4.3.2"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.8",
+    "@astrojs/check": "^0.9.9",
     "@letmepost/config-tsconfig": "workspace:*",
-    "@types/node": "^25.9.1",
-    "@vercel/node": "^5.8.4",
+    "@types/node": "^20.19.43",
+    "@vercel/node": "^5.8.22",
     "typescript": "^5.7.2"
   }
 }
