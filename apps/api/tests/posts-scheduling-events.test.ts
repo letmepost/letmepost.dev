@@ -149,7 +149,6 @@ describeIfDb("POST /v1/posts — scheduled path (Approach B hybrid)", () => {
       expect(target.status).toBe("queued");
       const postId = target.postId;
 
-      // Row landed with queued status + scheduledAt.
       const [row] = await tx
         .select()
         .from(postsTable)
@@ -158,14 +157,12 @@ describeIfDb("POST /v1/posts — scheduled path (Approach B hybrid)", () => {
       expect(row?.scheduledAt?.toISOString()).toBe(future);
       expect(row?.text).toBe("scheduled hello");
 
-      // Enqueuer saw the job with a reasonable future delay.
       expect(calls).toHaveLength(1);
       expect(calls[0]!.data.postId).toBe(postId);
       expect(calls[0]!.data.organizationId).toBe(fixture.organizationId);
       expect(calls[0]!.delayMs).toBeGreaterThan(59 * 60 * 1000);
       expect(calls[0]!.delayMs).toBeLessThanOrEqual(60 * 60 * 1000);
 
-      // post.queued event dispatched with id + platform + scheduledAt.
       const queued = events.find((e) => e.type === "post.queued");
       expect(queued).toBeDefined();
       expect(queued?.organizationId).toBe(fixture.organizationId);
@@ -322,7 +319,6 @@ describeIfDb("POST /v1/posts — immediate path event dispatch", () => {
       expect(target.status).toBe("published");
       const postId = target.postId;
 
-      // Row landed as published.
       const [row] = await tx
         .select()
         .from(postsTable)
@@ -330,7 +326,6 @@ describeIfDb("POST /v1/posts — immediate path event dispatch", () => {
       expect(row?.status).toBe("published");
       expect(row?.platformCid).toBe("bafy-mock");
 
-      // post.published dispatched.
       const published = events.find((e) => e.type === "post.published");
       expect(published).toBeDefined();
       const pdata = published?.data as {
@@ -392,11 +387,9 @@ describeIfDb("POST /v1/posts — immediate path event dispatch", () => {
       expect(target.status).toBe("rejected");
       expect(target.error!.code).toBe("platform_rejected");
 
-      // post.rejected dispatched.
       const rejected = events.find((e) => e.type === "post.rejected");
       expect(rejected).toBeDefined();
 
-      // Row is rejected and captures the error envelope.
       const [row] = await tx
         .select()
         .from(postsTable)
