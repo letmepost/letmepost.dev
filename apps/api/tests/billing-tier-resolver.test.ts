@@ -162,4 +162,56 @@ describeIfDb("billing/tier — DB-backed resolution", () => {
       else process.env.BILLING_ENABLED = prev;
     }
   });
+
+  it.each(["expired", "paused"] as const)(
+    "drops a %s subscription to the free tier and quota",
+    async (status) => {
+      const prev = process.env.BILLING_ENABLED;
+      process.env.BILLING_ENABLED = "true";
+      try {
+        const { db } = await getTestDb();
+        await runInTransaction(db, async (tx) => {
+          const fixture = await seed(tx);
+          // Stale paid tier left on the row while the sub is dead/suspended.
+          await tx.insert(billingSubscriptions).values({
+            organizationId: fixture.organizationId,
+            tier: "pro",
+            status,
+          });
+          const t = await getOrgTier(tx, fixture.organizationId);
+          expect(t.tier).toBe("free");
+          expect(t.delinquent).toBe(false);
+          expect(t.quotaPerMonth).toBe(TIERS.free.quotaPerMonth);
+        });
+      } finally {
+        if (prev === undefined) delete process.env.BILLING_ENABLED;
+        else process.env.BILLING_ENABLED = prev;
+      }
+    },
+  );
+
+  it("drops a cancelled subscription to free once the paid period has ended", async () => {
+    const prev = process.env.BILLING_ENABLED;
+    process.env.BILLING_ENABLED = "true";
+    try {
+      const { db } = await getTestDb();
+      await runInTransaction(db, async (tx) => {
+        const fixture = await seed(tx);
+        const periodEnd = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        await tx.insert(billingSubscriptions).values({
+          organizationId: fixture.organizationId,
+          tier: "business",
+          status: "cancelled",
+          currentPeriodEnd: periodEnd,
+          cancelAtPeriodEnd: true,
+        });
+        const t = await getOrgTier(tx, fixture.organizationId);
+        expect(t.tier).toBe("free");
+        expect(t.quotaPerMonth).toBe(TIERS.free.quotaPerMonth);
+      });
+    } finally {
+      if (prev === undefined) delete process.env.BILLING_ENABLED;
+      else process.env.BILLING_ENABLED = prev;
+    }
+  });
 });

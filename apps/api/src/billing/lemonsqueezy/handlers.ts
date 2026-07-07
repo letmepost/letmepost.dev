@@ -6,6 +6,7 @@ import {
 } from "../../db/schema/billing_subscriptions.js";
 import type { WebhookDispatcher } from "../../webhooks/dispatch.js";
 import { invalidateOrgTier } from "../invalidate.js";
+import { isEntitledToPaidTier } from "../tier.js";
 import { tierForVariant } from "./variants.js";
 
 /**
@@ -152,7 +153,7 @@ export async function handleSubscriptionCreatedOrUpdated(
     return { organizationId: orgId, lsSubscriptionId: lsSubId, mutated: false };
   }
 
-  const tier = tierForVariant(variantId);
+  const variantTier = tierForVariant(variantId);
   const before = await loadCurrent(ctx.db, orgId);
 
   const productId = asString(a.product_id);
@@ -165,6 +166,18 @@ export async function handleSubscriptionCreatedOrUpdated(
   // dunning state set by an earlier payment_failed event.
   const status =
     mapLsStatus(a.status) ?? (cancelAtPeriodEnd ? "cancelled" : "active");
+
+  // Only reinstate the paid tier when the incoming status is genuinely
+  // entitled. A late / out-of-order subscription_updated carrying an expired
+  // or cancelled-past-period status must NOT re-grant the paid tier from the
+  // variant id and undo a prior subscription_expired — keep whatever tier the
+  // row already holds (free after an expiry) rather than upgrading.
+  const entitled = isEntitledToPaidTier({
+    status,
+    currentPeriodEnd: periodEnd,
+    now: new Date(),
+  });
+  const tier = entitled ? variantTier : (before?.tier ?? "free");
 
   await ctx.db
     .insert(billingSubscriptions)
@@ -195,26 +208,37 @@ export async function handleSubscriptionCreatedOrUpdated(
       },
     });
 
+  // Only announce activation / tier changes when we actually granted a paid
+  // tier. A non-entitled update (expired/cancelled-past-period) leaves the row
+  // downgraded and must not emit a spurious "activated" for the free tier —
+  // subscription_expired / subscription_cancelled own those notifications.
   const previousTier = before?.tier ?? null;
-  if (!before || before.tier === "free") {
-    await dispatchSafe(ctx.webhookDispatcher, orgId, "subscription.activated", {
-      tier,
-      previousTier,
-      periodStart: periodStart?.toISOString() ?? null,
-      periodEnd: periodEnd?.toISOString() ?? null,
-    });
-  } else if (previousTier !== tier) {
-    await dispatchSafe(
-      ctx.webhookDispatcher,
-      orgId,
-      "subscription.tier_changed",
-      {
-        previousTier,
-        tier,
-        periodStart: periodStart?.toISOString() ?? null,
-        periodEnd: periodEnd?.toISOString() ?? null,
-      },
-    );
+  if (entitled) {
+    if (!before || before.tier === "free") {
+      await dispatchSafe(
+        ctx.webhookDispatcher,
+        orgId,
+        "subscription.activated",
+        {
+          tier,
+          previousTier,
+          periodStart: periodStart?.toISOString() ?? null,
+          periodEnd: periodEnd?.toISOString() ?? null,
+        },
+      );
+    } else if (previousTier !== tier) {
+      await dispatchSafe(
+        ctx.webhookDispatcher,
+        orgId,
+        "subscription.tier_changed",
+        {
+          previousTier,
+          tier,
+          periodStart: periodStart?.toISOString() ?? null,
+          periodEnd: periodEnd?.toISOString() ?? null,
+        },
+      );
+    }
   }
 
   return {

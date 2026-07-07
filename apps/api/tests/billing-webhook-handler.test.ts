@@ -338,4 +338,252 @@ describeIfDb("POST /v1/lemonsqueezy/webhook", () => {
       else process.env.LMSQ_VARIANT_PRO = prev.pro;
     }
   });
+
+  it.each(["expired", "cancelled"] as const)(
+    "subscription_updated carrying a %s status does not reinstate the paid tier after an expiry",
+    async (lsStatus) => {
+      const prev = {
+        secret: process.env.LMSQ_WEBHOOK_SECRET,
+        pro: process.env.LMSQ_VARIANT_PRO,
+      };
+      process.env.LMSQ_WEBHOOK_SECRET = "test-secret";
+      process.env.LMSQ_VARIANT_PRO = "v_pro_123";
+      try {
+        const { db } = await getTestDb();
+        await runInTransaction(db, async (tx) => {
+          const fixture = await seed(tx);
+          // subscription_expired already ran: tier/status wiped to free.
+          await tx.insert(billingSubscriptions).values({
+            organizationId: fixture.organizationId,
+            tier: "free",
+            status: "free",
+          });
+          // A late/out-of-order subscription_updated arrives still carrying the
+          // paid variant id but a terminal status.
+          const body = JSON.stringify({
+            meta: {
+              event_name: "subscription_updated",
+              custom_data: { organization_id: fixture.organizationId },
+            },
+            data: {
+              id: "sub_reinstate",
+              type: "subscriptions",
+              attributes: {
+                variant_id: "v_pro_123",
+                status: lsStatus,
+                cancelled: lsStatus === "cancelled",
+              },
+            },
+          });
+          const sig = signPayload(body, "test-secret");
+          const app = createApp({ db: tx });
+          const res = await app.request("/v1/lemonsqueezy/webhook", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Signature": sig,
+              "X-Event-Name": "subscription_updated",
+            },
+            body,
+          });
+          expect(res.status).toBe(200);
+
+          const [row] = await tx
+            .select()
+            .from(billingSubscriptions)
+            .where(
+              eq(billingSubscriptions.organizationId, fixture.organizationId),
+            );
+          // Variant id must NOT re-grant the paid tier — the row stays free.
+          expect(row?.tier).toBe("free");
+          expect(row?.status).toBe(lsStatus);
+        });
+      } finally {
+        if (prev.secret === undefined) delete process.env.LMSQ_WEBHOOK_SECRET;
+        else process.env.LMSQ_WEBHOOK_SECRET = prev.secret;
+        if (prev.pro === undefined) delete process.env.LMSQ_VARIANT_PRO;
+        else process.env.LMSQ_VARIANT_PRO = prev.pro;
+      }
+    },
+  );
+
+  it("re-processes a failed event on retry until billing state converges", async () => {
+    const prev = {
+      secret: process.env.LMSQ_WEBHOOK_SECRET,
+      pro: process.env.LMSQ_VARIANT_PRO,
+      biz: process.env.LMSQ_VARIANT_BUSINESS,
+    };
+    process.env.LMSQ_WEBHOOK_SECRET = "test-secret";
+    // First delivery lands while the variant→tier mapping is misconfigured, so
+    // the handler throws. The event must NOT be marked processed, and Lemon
+    // Squeezy's retry of the SAME event must be allowed to re-run and converge.
+    delete process.env.LMSQ_VARIANT_PRO;
+    delete process.env.LMSQ_VARIANT_BUSINESS;
+    try {
+      const { db } = await getTestDb();
+      await runInTransaction(db, async (tx) => {
+        const fixture = await seed(tx);
+        const body = JSON.stringify({
+          meta: {
+            event_name: "subscription_created",
+            custom_data: { organization_id: fixture.organizationId },
+          },
+          data: {
+            id: "sub_converge_1",
+            type: "subscriptions",
+            attributes: { variant_id: "v_pro_converge", customer_id: "cust_c" },
+          },
+        });
+        const sig = signPayload(body, "test-secret");
+        const app = createApp({ db: tx });
+        const headers = {
+          "Content-Type": "application/json",
+          "X-Signature": sig,
+          "X-Event-Name": "subscription_created",
+        };
+
+        // First attempt: handler throws (unknown variant) → non-2xx, no
+        // subscription row, and the audit row is left un-processed.
+        const first = await app.request("/v1/lemonsqueezy/webhook", {
+          method: "POST",
+          headers,
+          body,
+        });
+        expect(first.status).toBe(500);
+
+        const afterFail = await tx
+          .select()
+          .from(billingEvents)
+          .where(
+            eq(billingEvents.organizationId, fixture.organizationId),
+          );
+        expect(afterFail.length).toBe(1);
+        expect(afterFail[0]?.processedAt).toBeNull();
+        expect(afterFail[0]?.processingError).toMatch(/Unknown/);
+
+        const noSub = await tx
+          .select()
+          .from(billingSubscriptions)
+          .where(
+            eq(billingSubscriptions.organizationId, fixture.organizationId),
+          );
+        expect(noSub.length).toBe(0);
+
+        // Fix the mapping and let Lemon Squeezy retry the SAME event. The prior
+        // failed row must NOT dedup this away.
+        process.env.LMSQ_VARIANT_PRO = "v_pro_converge";
+        const retry = await app.request("/v1/lemonsqueezy/webhook", {
+          method: "POST",
+          headers,
+          body,
+        });
+        expect(retry.status).toBe(200);
+        expect(await retry.json()).toEqual({ ok: true, handled: true });
+
+        // Same audit row, now finalized with the stale error cleared.
+        const afterRetry = await tx
+          .select()
+          .from(billingEvents)
+          .where(
+            eq(billingEvents.organizationId, fixture.organizationId),
+          );
+        expect(afterRetry.length).toBe(1);
+        expect(afterRetry[0]?.processedAt).not.toBeNull();
+        expect(afterRetry[0]?.processingError).toBeNull();
+
+        // Billing state converged: subscription now exists at the mapped tier.
+        const [sub] = await tx
+          .select()
+          .from(billingSubscriptions)
+          .where(
+            eq(billingSubscriptions.organizationId, fixture.organizationId),
+          );
+        expect(sub?.tier).toBe("pro");
+        expect(sub?.status).toBe("active");
+        expect(sub?.lsSubscriptionId).toBe("sub_converge_1");
+      });
+    } finally {
+      const restore = (name: string, val: string | undefined) => {
+        if (val === undefined) delete process.env[name];
+        else process.env[name] = val;
+      };
+      restore("LMSQ_WEBHOOK_SECRET", prev.secret);
+      restore("LMSQ_VARIANT_PRO", prev.pro);
+      restore("LMSQ_VARIANT_BUSINESS", prev.biz);
+    }
+  });
+
+  it("skips a genuine duplicate of an already-succeeded event (no double-apply)", async () => {
+    const prev = {
+      secret: process.env.LMSQ_WEBHOOK_SECRET,
+      pro: process.env.LMSQ_VARIANT_PRO,
+    };
+    process.env.LMSQ_WEBHOOK_SECRET = "test-secret";
+    process.env.LMSQ_VARIANT_PRO = "v_pro_dup";
+    try {
+      const { db } = await getTestDb();
+      await runInTransaction(db, async (tx) => {
+        const fixture = await seed(tx);
+        const body = JSON.stringify({
+          meta: {
+            event_name: "subscription_created",
+            custom_data: { organization_id: fixture.organizationId },
+          },
+          data: {
+            id: "sub_dup_1",
+            type: "subscriptions",
+            attributes: { variant_id: "v_pro_dup", customer_id: "cust_d" },
+          },
+        });
+        const sig = signPayload(body, "test-secret");
+        const app = createApp({ db: tx });
+        const headers = {
+          "Content-Type": "application/json",
+          "X-Signature": sig,
+          "X-Event-Name": "subscription_created",
+        };
+
+        const firstRes = await app.request("/v1/lemonsqueezy/webhook", {
+          method: "POST",
+          headers,
+          body,
+        });
+        expect(firstRes.status).toBe(200);
+        expect(await firstRes.json()).toEqual({ ok: true, handled: true });
+
+        // Exact replay of an already-processed event: skipped, not re-applied.
+        const dup = await app.request("/v1/lemonsqueezy/webhook", {
+          method: "POST",
+          headers,
+          body,
+        });
+        expect(dup.status).toBe(200);
+        expect(await dup.json()).toEqual({ ok: true, deduped: true });
+
+        // One audit row, one subscription row — the handler did not run twice.
+        const events = await tx
+          .select()
+          .from(billingEvents)
+          .where(
+            eq(billingEvents.organizationId, fixture.organizationId),
+          );
+        expect(events.length).toBe(1);
+        expect(events[0]?.processedAt).not.toBeNull();
+
+        const subs = await tx
+          .select()
+          .from(billingSubscriptions)
+          .where(
+            eq(billingSubscriptions.organizationId, fixture.organizationId),
+          );
+        expect(subs.length).toBe(1);
+        expect(subs[0]?.tier).toBe("pro");
+      });
+    } finally {
+      if (prev.secret === undefined) delete process.env.LMSQ_WEBHOOK_SECRET;
+      else process.env.LMSQ_WEBHOOK_SECRET = prev.secret;
+      if (prev.pro === undefined) delete process.env.LMSQ_VARIANT_PRO;
+      else process.env.LMSQ_VARIANT_PRO = prev.pro;
+    }
+  });
 });
