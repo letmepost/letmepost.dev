@@ -19,8 +19,21 @@ describe("countTwitterWeightedGraphemes", () => {
     expect(countTwitterWeightedGraphemes("hello world")).toBe(11);
   });
 
-  it("treats a compound emoji as one grapheme", () => {
-    expect(countTwitterWeightedGraphemes("👨‍👩‍👧‍👦")).toBe(1);
+  it("weighs a compound (ZWJ) emoji as a single weight-2 unit", () => {
+    // A family emoji is one grapheme cluster but weighs 2 on X, not 1.
+    expect(countTwitterWeightedGraphemes("👨‍👩‍👧‍👦")).toBe(2);
+  });
+
+  it("weighs a single emoji as 2", () => {
+    expect(countTwitterWeightedGraphemes("😀")).toBe(2);
+  });
+
+  it("weighs a CJK code point as 2", () => {
+    expect(countTwitterWeightedGraphemes("中")).toBe(2);
+  });
+
+  it("keeps Latin text at weight 1 per grapheme", () => {
+    expect(countTwitterWeightedGraphemes("café résumé")).toBe(11);
   });
 
   it("wraps a URL to t.co weight regardless of real length", () => {
@@ -80,9 +93,41 @@ describe("validateTwitterText", () => {
     expect(() => validateTwitterText(tweet)).toThrow(LetmepostError);
   });
 
-  it("uses grapheme count for emoji-heavy text", () => {
-    // 140 family emojis = 140 graphemes, well under 280.
+  it("accepts 140 emoji (280 weight — exactly at the limit)", () => {
+    // Each emoji weighs 2 on X → 140 × 2 = 280, right at the budget.
     const text = "👨‍👩‍👧‍👦".repeat(140);
+    expect(countTwitterWeightedGraphemes(text)).toBe(280);
+    expect(() => validateTwitterText(text)).not.toThrow();
+  });
+
+  it("rejects 141 emoji (282 weight — over the limit)", () => {
+    // 141 × 2 = 282 > 280. Preflight must catch what X would reject.
+    const text = "👨‍👩‍👧‍👦".repeat(141);
+    expect(countTwitterWeightedGraphemes(text)).toBe(282);
+    try {
+      validateTwitterText(text);
+      throw new Error("should have thrown");
+    } catch (err) {
+      expect(err).toBeInstanceOf(LetmepostError);
+      expect((err as LetmepostError).rule).toBe("twitter.text.max_graphemes");
+    }
+  });
+
+  it("accepts 140 CJK characters (280 weight — exactly at the limit)", () => {
+    const text = "中".repeat(140);
+    expect(countTwitterWeightedGraphemes(text)).toBe(280);
+    expect(() => validateTwitterText(text)).not.toThrow();
+  });
+
+  it("rejects 141 CJK characters (282 weight — over the limit)", () => {
+    const text = "中".repeat(141);
+    expect(countTwitterWeightedGraphemes(text)).toBe(282);
+    expect(() => validateTwitterText(text)).toThrow(LetmepostError);
+  });
+
+  it("counts Latin (weight-1) text unchanged — 280 accepted", () => {
+    const text = "a".repeat(280);
+    expect(countTwitterWeightedGraphemes(text)).toBe(280);
     expect(() => validateTwitterText(text)).not.toThrow();
   });
 });

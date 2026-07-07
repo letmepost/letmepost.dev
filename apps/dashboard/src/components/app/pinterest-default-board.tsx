@@ -64,7 +64,7 @@ export function PinterestDefaultBoard({ accountId }: { accountId: string }) {
         `/v1/accounts/${accountId}/pinterest/default-board`,
         {
           method: "PATCH",
-          body: JSON.stringify({ boardId }),
+          body: { boardId },
         },
       ),
     onSuccess: (data) => {
@@ -192,11 +192,11 @@ function CreateBoardDialog({
         `/v1/accounts/${accountId}/pinterest/boards`,
         {
           method: "POST",
-          body: JSON.stringify({
+          body: {
             name: name.trim(),
             privacy,
             setAsDefault: autoSetAsDefault,
-          }),
+          },
         },
       ),
     onSuccess: (created) => {

@@ -111,11 +111,18 @@ export async function runPost(text: string, options: PostOptions): Promise<void>
         .filter(Boolean)
     : [];
 
+  // Resolve the profile scope once, up front, so the media uploads and the
+  // publish land in the SAME profile. `POST /v1/media` scopes an org-wide key's
+  // upload to the org "default" profile unless `?profileId=` is passed; if the
+  // publish then targets a non-default profile the mediaId won't resolve there
+  // (404). Threading the same id through both calls keeps them aligned.
+  const profileId = resolveProfileId(options.profile);
+
   // Upload local media up front so the failure surface is "file not found"
   // before we touch the publish endpoint. Each upload reuses the same auth.
   const media: MediaInput[] = [];
   for (const path of mediaPaths) {
-    media.push(await uploadMedia(path));
+    media.push(await uploadMedia(path, profileId));
   }
 
   const body: Record<string, unknown> = {
@@ -129,7 +136,6 @@ export async function runPost(text: string, options: PostOptions): Promise<void>
   // The API support for it ships in parallel; if the route doesn't know the
   // field yet the request fails with `validation_failed rule: unknown_field`,
   // which the structured error renderer surfaces cleanly.
-  const profileId = resolveProfileId(options.profile);
   if (profileId) body["profileId"] = profileId;
 
   const result = await apiFetch<CreatePostResponse>("/v1/posts", {
@@ -141,7 +147,10 @@ export async function runPost(text: string, options: PostOptions): Promise<void>
   renderBatchResult(result.body);
 }
 
-async function uploadMedia(path: string): Promise<MediaInput> {
+async function uploadMedia(
+  path: string,
+  profileId: string | null,
+): Promise<MediaInput> {
   const absolute = resolve(path);
   let bytes: Buffer;
   try {
@@ -175,7 +184,14 @@ async function uploadMedia(path: string): Promise<MediaInput> {
   const blob = new Blob([view], { type: contentType });
   form.append("file", blob, basename(absolute));
 
-  const res = await fetch(`${auth.baseUrl}/v1/media`, {
+  // Scope the upload to the publish target's profile. The media route reads
+  // `?profileId=` (query param), mirroring GET /v1/media and the accounts
+  // routes; without it an org-wide key drops the upload into the default
+  // profile and a non-default publish target 404s on the mediaId.
+  const uploadUrl = profileId
+    ? `${auth.baseUrl}/v1/media?${new URLSearchParams({ profileId }).toString()}`
+    : `${auth.baseUrl}/v1/media`;
+  const res = await fetch(uploadUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${auth.token}`,

@@ -24,15 +24,57 @@ const ALLOWED_GIF_MIMES = new Set<string>(["image/gif"]);
 const ALLOWED_VIDEO_MIMES = new Set<string>(["video/mp4"]);
 
 /**
- * URL-shortening-aware grapheme count. t.co wraps every URL — regardless of
+ * twitter-text v3 weighted ranges that count as 1 unit. Every code point
+ * OUTSIDE these ranges (CJK, most non-Latin scripts, emoji, variation
+ * selectors, regional indicators, …) weighs 2 against the 280 budget.
+ * See https://github.com/twitter/twitter-text (config/v3.json).
+ */
+const WEIGHT_ONE_RANGES: ReadonlyArray<readonly [number, number]> = [
+  [0x0000, 0x10ff],
+  [0x2000, 0x200d],
+  [0x2010, 0x201f],
+  [0x2032, 0x2037],
+];
+
+function isWeightOneCodePoint(cp: number): boolean {
+  for (const [lo, hi] of WEIGHT_ONE_RANGES) {
+    if (cp >= lo && cp <= hi) return true;
+  }
+  return false;
+}
+
+/**
+ * X's weighted length: iterate by grapheme cluster so a multi-code-point
+ * emoji (including ZWJ sequences like 👨‍👩‍👧‍👦) counts as a single unit rather
+ * than per code point. A cluster weighs 2 if any of its code points falls
+ * outside the weight-1 ranges — that captures emoji, CJK, and other
+ * non-Latin text; otherwise it weighs 1.
+ */
+function countWeightedUnits(text: string): number {
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+  let total = 0;
+  for (const { segment } of segmenter.segment(text)) {
+    let weight = 1;
+    for (const ch of segment) {
+      if (!isWeightOneCodePoint(ch.codePointAt(0)!)) {
+        weight = 2;
+        break;
+      }
+    }
+    total += weight;
+  }
+  return total;
+}
+
+/**
+ * URL-shortening-aware weighted length. t.co wraps every URL — regardless of
  * the real length — to a fixed character count. Our counter subtracts the
- * raw URL length and adds {@link TWITTER_TCO_URL_LENGTH}, so a 300-char
+ * URL's weighted units and adds {@link TWITTER_TCO_URL_LENGTH}, so a 300-char
  * shortlink costs the same 23 characters as a 30-char one.
  *
- * Matches X's real counter as documented at
- * https://developer.x.com/en/docs/counting-characters — good enough for MVP;
- * RFC-3987 IRIs and weird unicode-normalised hosts are the edge case we
- * consciously defer.
+ * Non-URL text is weighted per X's twitter-text v3 counter: weight-1 for the
+ * ranges in {@link WEIGHT_ONE_RANGES}, weight-2 for everything else. RFC-3987
+ * IRIs and unicode-normalised hosts are the edge case we consciously defer.
  */
 export function countTwitterWeightedGraphemes(text: string): number {
   // Naive URL match covering http:// and https://. This is intentionally
@@ -41,12 +83,12 @@ export function countTwitterWeightedGraphemes(text: string): number {
   // codepoints are inside vs outside the 23-char block. Net weight is still
   // correct.
   const URL_RE = /https?:\/\/[^\s]+/gi;
-  let total = countGraphemes(text);
+  let total = countWeightedUnits(text);
   const matches = text.match(URL_RE);
   if (!matches) return total;
   for (const url of matches) {
-    // Subtract the raw grapheme count of the URL, add the t.co weight.
-    total -= countGraphemes(url);
+    // Subtract the URL's weighted units, add the fixed t.co weight.
+    total -= countWeightedUnits(url);
     total += TWITTER_TCO_URL_LENGTH;
   }
   return total;

@@ -8,7 +8,12 @@ import {
 } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
-import { listPosts, type PostListItem } from "@/lib/posts";
+import {
+  listPosts,
+  type ListPostsFilters,
+  type PostListItem,
+  type PostListResponse,
+} from "@/lib/posts";
 import { queryKeys } from "@/lib/query-keys";
 import { useActiveProfile } from "@/lib/profiles";
 import { Button } from "@/components/ui/button";
@@ -41,24 +46,30 @@ export default function PostsCalendarPage() {
   } | null>(null);
   const { activeProfile } = useActiveProfile();
 
-  const { firstDay, lastDay, leading, days } = useMemo(
-    () => buildMonth(cursor),
-    [cursor],
-  );
+  const { leading, days } = useMemo(() => buildMonth(cursor), [cursor]);
 
-  const filters = useMemo(
-    () => ({
-      after: firstDay.toISOString(),
-      before: lastDay.toISOString(),
+  // The posts API only filters/paginates by `createdAt` (via `after`/`before`,
+  // ordered createdAt DESC); it has no `scheduledAt` filter. The calendar,
+  // however, buckets by `scheduledAt` (see `postsByDay`), so filtering the fetch
+  // by a createdAt window silently dropped posts created in one month but
+  // scheduled into another. Since `scheduledAt`/`publishedAt` are always
+  // >= `createdAt`, every post that belongs to a month was created no later than
+  // that month's end. We therefore over-fetch on createdAt with no lower bound
+  // and an upper bound just past the month end (a day of slack absorbs
+  // local↔UTC boundary skew) and let `postsByDay` bucket by `scheduledAt`,
+  // keeping the fetch window and the display axis consistent.
+  const filters = useMemo(() => {
+    const before = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 2);
+    return {
+      before: before.toISOString(),
       limit: 200,
       ...(activeProfile ? { profileId: activeProfile.id } : {}),
-    }),
-    [firstDay, lastDay, activeProfile],
-  );
+    };
+  }, [cursor, activeProfile]);
 
   const query = useQuery({
     queryKey: queryKeys.posts.list(filters),
-    queryFn: () => listPosts(filters),
+    queryFn: () => fetchPostsForMonth(filters),
   });
 
   const postsByDay = useMemo(() => {
@@ -320,6 +331,28 @@ function DayPostsSheet({
       </SheetContent>
     </Sheet>
   );
+}
+
+/**
+ * Walk every createdAt-descending page inside the month window (up to a safety
+ * cap) so a large post history can't hide posts scheduled into this month.
+ * Typical profiles fit in one page (nextCursor === null), so pagination is a
+ * no-op there.
+ */
+const MAX_PAGES = 25;
+
+async function fetchPostsForMonth(
+  base: ListPostsFilters,
+): Promise<PostListResponse> {
+  const data: PostListItem[] = [];
+  let cursor: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const res = await listPosts(cursor ? { ...base, cursor } : base);
+    data.push(...res.data);
+    if (!res.nextCursor) return { data, nextCursor: null };
+    cursor = res.nextCursor;
+  }
+  return { data, nextCursor: cursor ?? null };
 }
 
 function buildMonth(cursor: Date) {
