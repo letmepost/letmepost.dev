@@ -107,12 +107,21 @@ export function ComposePostSheet({
 
   const accounts = accountsQuery.data ?? [];
 
+  // Reconcile selection against the active profile's accounts: drop any IDs
+  // that don't belong to the current profile so a stale selection can't publish
+  // to the previous profile after a profile switch. Default to selecting all of
+  // the current profile's accounts when nothing valid remains.
   useEffect(() => {
-    if (accounts.length > 0 && selectedAccountIds.size === 0) {
-      setSelectedAccountIds(new Set(accounts.map((a) => a.id)));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountsQuery.data?.length]);
+    const current = accountsQuery.data ?? [];
+    const valid = new Set(current.map((a) => a.id));
+    setSelectedAccountIds((prev) => {
+      const kept = new Set([...prev].filter((id) => valid.has(id)));
+      if (kept.size === 0 && current.length > 0) {
+        return new Set(current.map((a) => a.id));
+      }
+      return kept;
+    });
+  }, [accountsQuery.data]);
 
   const uploadMedia = useMutation({
     mutationFn: async (file: File) => {

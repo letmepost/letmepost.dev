@@ -109,6 +109,19 @@ export class HttpClient {
       try {
         res = await this.fetchImpl(url, init);
       } catch (err) {
+        // A caller-triggered abort is not a transient failure: stop immediately,
+        // don't retry, and surface the abort instead of masking it as a network
+        // / internal error. `fetch` rejects with a DOMException named
+        // "AbortError"; we also honor the signal's own `aborted` flag.
+        if (isAbortError(err) || opts.signal?.aborted === true) {
+          throw isAbortError(err)
+            ? err
+            : new LetmepostError({
+                status: 0,
+                code: "aborted",
+                message: "letmepost: request aborted by caller",
+              });
+        }
         // Network / DNS / TLS failure. Retry within budget; otherwise surface.
         if (attempt < maxRetries) {
           await sleep(this.backoffMs(attempt));
@@ -192,6 +205,17 @@ export class HttpClient {
     }
     return this.backoffMs(attempt);
   }
+}
+
+function isAbortError(err: unknown): boolean {
+  if (
+    typeof DOMException !== "undefined" &&
+    err instanceof DOMException &&
+    err.name === "AbortError"
+  ) {
+    return true;
+  }
+  return err instanceof Error && err.name === "AbortError";
 }
 
 function parseJson(text: string): unknown {

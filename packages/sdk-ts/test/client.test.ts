@@ -173,6 +173,38 @@ test("429 retries up to budget then throws RateLimitedError", async () => {
   assert.equal(rec.calls.length, 2);
 });
 
+test("aborted request rejects with an abort error and is not retried", async () => {
+  let calls = 0;
+  const abortingFetch: typeof fetch = async (_input, init) => {
+    calls += 1;
+    // Mimic fetch: when the caller's signal fires, reject with an AbortError.
+    if ((init?.signal as AbortSignal | undefined)?.aborted) {
+      throw new DOMException("The operation was aborted.", "AbortError");
+    }
+    return jsonResponse({ data: [] });
+  };
+  const lmp = new Letmepost({
+    apiKey: "lmp_test_abc",
+    fetch: abortingFetch,
+    // A generous retry budget: if the abort were (wrongly) treated as a
+    // transient network failure, `calls` would climb past 1.
+    retries: 3,
+    retryBaseMs: 1,
+  });
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(
+    () => lmp.posts.list({}, { signal: controller.signal }),
+    (err: unknown) => {
+      assert.equal((err as Error).name, "AbortError");
+      // Must NOT be mapped onto the SDK's network/internal error envelope.
+      assert.ok(!(err instanceof LetmepostError));
+      return true;
+    },
+  );
+  assert.equal(calls, 1);
+});
+
 test("verifyWebhook accepts valid sha256= signature and returns parsed JSON", () => {
   const secret = "whsec_test";
   const body = JSON.stringify({ id: "evt_1", type: "post.published", data: {} });
