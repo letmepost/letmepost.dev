@@ -71,6 +71,13 @@
       "when": 1779949603720,
       "tag": "0009_strong_ender_wiggin",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1783404854097,
+      "tag": "0010_bored_miracleman",
+      "breakpoints": true
     }
   ]
 }

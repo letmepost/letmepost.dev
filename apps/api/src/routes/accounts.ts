@@ -1,9 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono, type MiddlewareHandler } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { Platform } from "@letmepost/schemas";
 import { auth } from "../auth.js";
+import { posts as postsTable } from "../db/schema/posts.js";
 import { profiles as profilesTable } from "../db/schema/profiles.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
@@ -463,6 +464,22 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
         message: "Platform account not found.",
       });
     }
+
+    // Cancel non-terminal posts BEFORE deleting the account. The FK is ON
+    // DELETE SET NULL, so an accountless queued post can never publish — it
+    // would linger forever. Terminal posts (published/failed/rejected/canceled)
+    // are left as-is; the FK nulls their account_id, preserving history. Any
+    // BullMQ job already enqueued for a canceled post is a no-op: the worker
+    // short-circuits on status="canceled".
+    await c.var.db
+      .update(postsTable)
+      .set({ status: "canceled" })
+      .where(
+        and(
+          eq(postsTable.accountId, id),
+          inArray(postsTable.status, ["queued", "validated", "publishing"]),
+        ),
+      );
 
     const deleted = await repo.delete(id);
     if (!deleted) {

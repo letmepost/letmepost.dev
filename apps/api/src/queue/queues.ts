@@ -223,6 +223,49 @@ export function tiktokPublishStatusPollDelayMs(attempt: number): number {
 export const TIKTOK_PUBLISH_STATUS_POLL_DEADLINE_MS = 30 * 60_000;
 
 /**
+ * What the immediate-publish route hands the poller after TikTok accepts an
+ * upload. The enqueuer fills in the attempt / deadline / backoff bookkeeping
+ * so the route mirrors the scheduled path (publish-processor.ts) without
+ * re-implementing the schedule math.
+ */
+export interface TikTokPollEnqueueInput {
+  postId: string;
+  publishId: string;
+  platformAccountId: string;
+  organizationId: string;
+  requestId?: string;
+}
+
+/**
+ * Thin wrapper around the tiktok-publish-status-poll queue so the immediate
+ * publish path can enqueue the first status poll and tests can inject a
+ * capturing stub without a running Redis — mirrors PublishEnqueuer.
+ */
+export interface TikTokPollEnqueuer {
+  enqueue(input: TikTokPollEnqueueInput): Promise<void>;
+}
+
+export function createDefaultTikTokPollEnqueuer(): TikTokPollEnqueuer {
+  return {
+    async enqueue(input) {
+      await getTikTokPublishStatusPollQueue().add(
+        `${input.postId}:0`,
+        {
+          postId: input.postId,
+          publishId: input.publishId,
+          platformAccountId: input.platformAccountId,
+          organizationId: input.organizationId,
+          attempt: 0,
+          deadlineAt: Date.now() + TIKTOK_PUBLISH_STATUS_POLL_DEADLINE_MS,
+          ...(input.requestId ? { requestId: input.requestId } : {}),
+        },
+        { delay: tiktokPublishStatusPollDelayMs(0) },
+      );
+    },
+  };
+}
+
+/**
  * Retry policy for webhook delivery — see `src/webhooks/deliver.ts` for the
  * rationale. 8 attempts with exponential backoff starting at 5s. After the
  * final attempt BullMQ moves the job to its "failed" set, which is our DLQ.

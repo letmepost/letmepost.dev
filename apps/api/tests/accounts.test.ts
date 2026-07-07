@@ -9,9 +9,11 @@ import {
 import { createHash, randomBytes } from "node:crypto";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
+import { eq } from "drizzle-orm";
 import { createApp } from "../src/app.js";
 import { apiKeys } from "../src/db/schema/api_keys.js";
 import { member, organization, user } from "../src/db/schema/auth.js";
+import { posts as postsTable } from "../src/db/schema/posts.js";
 import { DrizzlePlatformAccountsRepository } from "../src/repositories/platform-accounts.js";
 import { DrizzleProfilesRepository } from "../src/repositories/profiles.js";
 import {
@@ -418,6 +420,123 @@ describeIfDb("/v1/accounts (connect + CRUD)", () => {
         headers: { Authorization: `Bearer ${apiKey}` },
       });
       expect(after.status).toBe(404);
+    });
+  });
+
+  it("DELETE /:id preserves post history (account_id nulled) and cancels queued posts", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const { userId, organizationId, apiKey } = await seedOrg(tx);
+      server.use(
+        http.post(
+          "https://bsky.social/xrpc/com.atproto.server.createSession",
+          () =>
+            HttpResponse.json({
+              accessJwt: buildMockAccessJwt(),
+              refreshJwt: "r",
+              did: "did:plc:alice",
+              handle: "alice.bsky.social",
+            }),
+        ),
+      );
+      const app = createApp({
+        db: tx,
+        testSession: { userId, organizationId },
+        refreshEnqueuer: { async enqueue() {} },
+      });
+
+      const created = await app.request(
+        "/v1/accounts/connect/bluesky/complete",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            identifier: "alice.bsky.social",
+            appPassword: "abcd-efgh-ijkl-mnop",
+          }),
+        },
+      );
+      const { id: accountId } = (await created.json()) as { id: string };
+
+      // A published post (terminal — this is the history we must preserve) and
+      // a queued post (non-terminal — un-publishable once the account is gone).
+      const [published] = await tx
+        .insert(postsTable)
+        .values({
+          organizationId,
+          accountId,
+          text: "shipped it",
+          status: "published",
+          platformUri: "at://did:plc:alice/app.bsky.feed.post/xyz",
+          platformCid: "bafycid",
+          publishedAt: new Date(),
+        })
+        .returning();
+      const [queued] = await tx
+        .insert(postsTable)
+        .values({
+          organizationId,
+          accountId,
+          text: "scheduled for later",
+          status: "queued",
+          scheduledAt: new Date(Date.now() + 60_000),
+        })
+        .returning();
+
+      const del = await app.request(`/v1/accounts/${accountId}`, {
+        method: "DELETE",
+      });
+      expect(del.status).toBe(200);
+
+      // (a) Published history SURVIVES the cascade, with account_id nulled and
+      // every platform/status field intact.
+      const [pubAfter] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.id, published!.id));
+      expect(pubAfter).toBeDefined();
+      expect(pubAfter!.accountId).toBeNull();
+      expect(pubAfter!.status).toBe("published");
+      expect(pubAfter!.platformUri).toBe(
+        "at://did:plc:alice/app.bsky.feed.post/xyz",
+      );
+      expect(pubAfter!.platformCid).toBe("bafycid");
+      expect(pubAfter!.publishedAt).not.toBeNull();
+
+      // (b) Queued post is CANCELED (not left dangling, not cascade-deleted).
+      const [queuedAfter] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.id, queued!.id));
+      expect(queuedAfter).toBeDefined();
+      expect(queuedAfter!.status).toBe("canceled");
+      expect(queuedAfter!.accountId).toBeNull();
+
+      // GET /v1/posts still serializes the historical post (account fields null).
+      const list = await app.request("/v1/posts", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      expect(list.status).toBe(200);
+      const body = (await list.json()) as {
+        data: {
+          id: string;
+          accountId: string | null;
+          platform: string | null;
+          account: { id: string | null; platform: string | null };
+        }[];
+      };
+      const pubRow = body.data.find((p) => p.id === published!.id);
+      expect(pubRow).toBeDefined();
+      expect(pubRow!.accountId).toBeNull();
+      expect(pubRow!.platform).toBeNull();
+      expect(pubRow!.account.id).toBeNull();
+      expect(pubRow!.account.platform).toBeNull();
+
+      // GET /v1/posts/:id (detail) also serializes without crashing.
+      const detail = await app.request(`/v1/posts/${published!.id}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      expect(detail.status).toBe(200);
     });
   });
 

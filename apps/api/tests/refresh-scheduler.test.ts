@@ -5,19 +5,37 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { createApp } from "../src/app.js";
 import { member, organization, user } from "../src/db/schema/auth.js";
 import { computeRefreshDelayMs } from "../src/platforms/_shared/refresh.js";
-import type { TokenRefreshEnqueuer } from "../src/queue/refresh-enqueue.js";
+import {
+  createDefaultTokenRefreshEnqueuer,
+  jobIdFor,
+  type TokenRefreshEnqueuer,
+} from "../src/queue/refresh-enqueue.js";
 import {
   canRunDbTests,
   closeTestDb,
   getTestDb,
   runInTransaction,
 } from "./db/support.js";
+
+// Capture what the default enqueuer hands to BullMQ's `queue.add` without a
+// running Redis. Only `getRefreshTokenQueue` is stubbed; every other export
+// (types, other queue getters) keeps its real implementation.
+const addSpy = vi.hoisted(() => vi.fn());
+vi.mock("../src/queue/queues.js", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../src/queue/queues.js")>();
+  return {
+    ...actual,
+    getRefreshTokenQueue: () => ({ add: addSpy }),
+  };
+});
 
 describe("computeRefreshDelayMs", () => {
   it("returns null when tokenExpiresAt is missing (no clock-driven refresh)", () => {
@@ -52,6 +70,87 @@ describe("computeRefreshDelayMs", () => {
     expect(
       computeRefreshDelayMs({ tokenExpiresAt: expired }, 30 * 60_000, now),
     ).toBe(0);
+  });
+});
+
+describe("jobIdFor", () => {
+  it("gives consecutive refresh occurrences distinct ids", () => {
+    // Occurrence N (fires 13:30) then schedules N+1 (fires 15:00). Distinct
+    // fire times MUST yield distinct ids — otherwise BullMQ dedups the
+    // re-enqueue against the just-completed job and the chain dies.
+    const acct = "acct-1";
+    const fireN = Date.UTC(2026, 3, 25, 13, 30, 0);
+    const fireNext = fireN + 90 * 60_000;
+    expect(jobIdFor(acct, fireN)).not.toBe(jobIdFor(acct, fireNext));
+  });
+
+  it("collapses schedules targeting the same second to one id", () => {
+    // A genuine duplicate of the SAME occurrence (same wake-up, differing only
+    // by sub-second scheduling latency) must still dedup.
+    const acct = "acct-1";
+    const target = Date.UTC(2026, 3, 25, 13, 30, 0);
+    expect(jobIdFor(acct, target + 250)).toBe(jobIdFor(acct, target + 700));
+  });
+
+  it("scopes the id to the account so different accounts never collide", () => {
+    const target = Date.UTC(2026, 3, 25, 13, 30, 0);
+    expect(jobIdFor("acct-a", target)).not.toBe(jobIdFor("acct-b", target));
+  });
+
+  it("never contains ':' (reserved by BullMQ as a key separator)", () => {
+    expect(jobIdFor("acct-1", Date.UTC(2026, 3, 25, 13, 30, 0))).not.toContain(
+      ":",
+    );
+  });
+});
+
+describe("createDefaultTokenRefreshEnqueuer: refresh-chain job ids", () => {
+  const data = { platformAccountId: "acct-1", organizationId: "org-1" };
+
+  afterEach(() => {
+    addSpy.mockReset();
+    vi.useRealTimers();
+  });
+
+  it("gives two consecutive re-enqueues for the same account distinct job ids", async () => {
+    const enqueuer = createDefaultTokenRefreshEnqueuer();
+    vi.useFakeTimers();
+
+    // Occurrence N: scheduled now, fires ~90 min out.
+    vi.setSystemTime(new Date("2026-04-25T12:00:00.000Z"));
+    await enqueuer.enqueue(data, { delayMs: 90 * 60_000 });
+
+    // Occurrence N+1: scheduled from inside N once it runs (~90 min later),
+    // with its own ~90-min delay. A stable per-account id would collide with
+    // the still-present completed job from N and be silently dropped.
+    vi.setSystemTime(new Date("2026-04-25T13:30:00.000Z"));
+    await enqueuer.enqueue(data, { delayMs: 90 * 60_000 });
+
+    const ids = addSpy.mock.calls.map(
+      (call) => (call[2] as { jobId: string }).jobId,
+    );
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it("dedups a genuine duplicate of the same occurrence (same fire time)", async () => {
+    const enqueuer = createDefaultTokenRefreshEnqueuer();
+    vi.useFakeTimers();
+
+    // Two schedulers compute the delay from the SAME expiry at slightly
+    // different `now`s. `now + delay` reduces to the same absolute fire time,
+    // so both resolve to one id and the occurrence isn't double-booked.
+    vi.setSystemTime(new Date("2026-04-25T12:00:00.000Z"));
+    await enqueuer.enqueue(data, { delayMs: 90 * 60_000 }); // fires 13:30:00.000
+
+    vi.setSystemTime(new Date("2026-04-25T12:00:00.300Z"));
+    await enqueuer.enqueue(data, { delayMs: 90 * 60_000 - 300 }); // fires 13:30:00.000
+
+    const ids = addSpy.mock.calls.map(
+      (call) => (call[2] as { jobId: string }).jobId,
+    );
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe(ids[1]);
   });
 });
 
