@@ -2,6 +2,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { LetmepostError } from "../../errors.js";
 import { encodeOAuthState } from "../../oauth/state.js";
+import { authFailed } from "../_shared/errors.js";
+import { platformFetch } from "../_shared/http.js";
 import type {
   AccountProvider,
   ConnectContext,
@@ -14,6 +16,7 @@ import { scopeSetFor } from "../_shared/scopes.js";
 import {
   exchangeTwitterCode,
   refreshTwitterToken,
+  TWITTER_API_BASE,
   TWITTER_OAUTH_AUTHORIZE_URL,
   type TwitterTokenResponse,
 } from "./client.js";
@@ -42,6 +45,8 @@ export type TwitterProviderConfig = {
   authorizeUrl?: string;
   /** Override the token URL for tests. */
   tokenUrl?: string;
+  /** Override the API base (for `GET /2/users/me`) in tests. */
+  apiBase?: string;
 };
 
 const CompleteConnectInput = z.object({
@@ -93,6 +98,37 @@ function readRefreshToken(
   if (!tokenMetadata) return null;
   const rt = (tokenMetadata as TwitterTokenMetadata).refreshToken;
   return typeof rt === "string" && rt.length > 0 ? rt : null;
+}
+
+type TwitterUser = { id: string; username?: string; name?: string };
+
+/**
+ * Resolve the authenticated user via `GET /2/users/me`. Its `data.id` is the
+ * stable, upstream Twitter user id we pin as `platformAccountId` — so a
+ * reconnect UPSERTs the same row instead of minting a duplicate. Requires the
+ * `users.read` scope, which the connect flow always requests.
+ */
+async function fetchAuthenticatedUser(
+  accessToken: string,
+  apiBase: string,
+): Promise<TwitterUser> {
+  const res = await platformFetch<{ data?: TwitterUser }>({
+    method: "GET",
+    url: `${apiBase}/users/me`,
+    headers: { Authorization: `Bearer ${accessToken}` },
+    platform: PLATFORM,
+  });
+  const user = res.body?.data;
+  if (!res.ok || !user?.id) {
+    throw authFailed({
+      platform: PLATFORM,
+      platformResponse: res.body ?? res.raw ?? undefined,
+      message: "Could not resolve the authenticated X user (GET /2/users/me).",
+      remediation:
+        "Ensure the connect grant includes the users.read scope, then re-connect the X account.",
+    });
+  }
+  return user;
 }
 
 export class TwitterProvider implements AccountProvider {
@@ -173,11 +209,14 @@ export class TwitterProvider implements AccountProvider {
     if (this.config.tokenUrl) exchangeArgs.tokenUrl = this.config.tokenUrl;
     const tokens = await exchangeTwitterCode(exchangeArgs);
 
+    const user = await fetchAuthenticatedUser(
+      tokens.access_token,
+      this.config.apiBase ?? TWITTER_API_BASE,
+    );
+
     return {
-      // TODO(phase-8): call `GET /2/users/me` to resolve the real user id +
-      // username. Synthetic id preserves the unique-index invariant per-org.
-      platformAccountId: `twitter-${randomUUID()}`,
-      displayName: null,
+      platformAccountId: user.id,
+      displayName: user.username ?? user.name ?? null,
       token: tokens.access_token,
       tokenMetadata: toMetadata(tokens, this.config),
       tokenExpiresAt: expiresAtFrom(tokens),

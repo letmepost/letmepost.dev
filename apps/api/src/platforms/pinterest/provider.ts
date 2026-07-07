@@ -208,9 +208,16 @@ export class PinterestProvider implements AccountProvider {
     };
     if (this.config.tokenUrl) refreshArgs.tokenUrl = this.config.tokenUrl;
     const tokens = await refreshPinterestToken(refreshArgs);
+    // Merge fresh token fields over the persisted metadata rather than
+    // replacing it: preserve defaultBoardId/defaultBoardName (and any other
+    // non-token fields), and keep the existing refresh token when Pinterest's
+    // response omits a new one (it doesn't always rotate it). `toMetadata`
+    // only emits keys the response actually carried, so this spread never
+    // clobbers a preserved field with undefined.
+    const existing = (input.tokenMetadata ?? {}) as PinterestTokenMetadata;
     return {
       token: tokens.access_token,
-      tokenMetadata: toMetadata(tokens, this.config),
+      tokenMetadata: { ...existing, ...toMetadata(tokens, this.config) },
       tokenExpiresAt: expiresAtFrom(tokens),
     };
   }

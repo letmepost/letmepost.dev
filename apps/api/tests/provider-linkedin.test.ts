@@ -2,6 +2,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { LinkedInProvider } from "../src/platforms/linkedin/provider.js";
+import {
+  LinkedInClient,
+  escapeLittleTextFormat,
+} from "../src/platforms/linkedin/client.js";
 
 const server = setupServer();
 beforeAll(() => {
@@ -174,5 +178,55 @@ describe("LinkedInProvider", () => {
       code: "platform_auth_failed",
       platform: "linkedin",
     });
+  });
+});
+
+describe("LinkedInClient createPost — Little Text Format escaping", () => {
+  const client = new LinkedInClient("li-access", API_BASE, "202605");
+
+  async function captureCommentary(text: string): Promise<string> {
+    let captured: string | undefined;
+    server.use(
+      http.post(`${API_BASE}/rest/posts`, async ({ request }) => {
+        const body = (await request.json()) as { commentary?: string };
+        captured = body.commentary;
+        return new HttpResponse(null, {
+          status: 201,
+          headers: { "x-restli-id": "urn:li:share:1" },
+        });
+      }),
+    );
+    await client.createPost({ authorUrn: "urn:li:person:X", text });
+    if (captured === undefined) throw new Error("commentary not captured");
+    return captured;
+  }
+
+  it("backslash-escapes LTF reserved characters in commentary", async () => {
+    const commentary = await captureCommentary(
+      "Check (this) [out] @ 50% off — a_b*c",
+    );
+    // Every reserved char present gets a leading backslash; non-reserved chars
+    // (space, digits, %, em-dash, letters) are untouched.
+    expect(commentary).toBe(
+      "Check \\(this\\) \\[out\\] \\@ 50% off — a\\_b\\*c",
+    );
+  });
+
+  it("escapes the full canonical reserved set once each", async () => {
+    const commentary = await captureCommentary("\\|{}@[]()<>#*_~");
+    expect(commentary).toBe(
+      "\\\\\\|\\{\\}\\@\\[\\]\\(\\)\\<\\>\\#\\*\\_\\~",
+    );
+  });
+
+  it("leaves plain text unchanged", async () => {
+    const commentary = await captureCommentary(
+      "Hello world 123 — no reserved chars here.",
+    );
+    expect(commentary).toBe("Hello world 123 — no reserved chars here.");
+  });
+
+  it("escapes a literal backslash exactly once (no double-escaping)", () => {
+    expect(escapeLittleTextFormat("a\\b")).toBe("a\\\\b");
   });
 });

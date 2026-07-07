@@ -186,6 +186,74 @@ describe("PinterestProvider", () => {
     expect(result.tokenExpiresAt).toBeInstanceOf(Date);
   });
 
+  it("refreshToken preserves the persisted default board and updates access token + expiry", async () => {
+    server.use(
+      http.post(TOKEN_URL, () =>
+        HttpResponse.json({
+          access_token: "new-access",
+          refresh_token: "rotated-refresh",
+          token_type: "Bearer",
+          expires_in: 2_592_000,
+          scope: "boards:read boards:write pins:read pins:write user_accounts:read",
+        }),
+      ),
+    );
+    const p = new PinterestProvider({
+      clientId: "cid",
+      clientSecret: "cs",
+      tokenUrl: TOKEN_URL,
+    });
+    const before = Date.now();
+    const result = await p.refreshToken({
+      token: "old-access",
+      tokenMetadata: {
+        refreshToken: "stored-refresh",
+        defaultBoardId: "board-first",
+        defaultBoardName: "Pins to share",
+      },
+    });
+    expect(result.token).toBe("new-access");
+    expect(result.tokenMetadata).toMatchObject({
+      refreshToken: "rotated-refresh",
+      defaultBoardId: "board-first",
+      defaultBoardName: "Pins to share",
+    });
+    expect(result.tokenExpiresAt).toBeInstanceOf(Date);
+    expect(result.tokenExpiresAt?.getTime()).toBeGreaterThan(before);
+  });
+
+  it("refreshToken retains the existing refresh token when Pinterest omits a new one", async () => {
+    server.use(
+      http.post(TOKEN_URL, () =>
+        HttpResponse.json({
+          access_token: "new-access",
+          token_type: "Bearer",
+          expires_in: 2_592_000,
+          scope: "boards:read boards:write pins:read pins:write user_accounts:read",
+        }),
+      ),
+    );
+    const p = new PinterestProvider({
+      clientId: "cid",
+      clientSecret: "cs",
+      tokenUrl: TOKEN_URL,
+    });
+    const result = await p.refreshToken({
+      token: "old-access",
+      tokenMetadata: {
+        refreshToken: "stored-refresh",
+        defaultBoardId: "board-first",
+        defaultBoardName: "Pins to share",
+      },
+    });
+    expect(result.token).toBe("new-access");
+    expect(result.tokenMetadata).toMatchObject({
+      refreshToken: "stored-refresh",
+      defaultBoardId: "board-first",
+      defaultBoardName: "Pins to share",
+    });
+  });
+
   it("refreshToken throws platform_auth_failed when no refresh token is present", async () => {
     const p = new PinterestProvider({ tokenUrl: TOKEN_URL });
     await expect(
