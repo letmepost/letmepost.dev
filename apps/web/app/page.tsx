@@ -8,6 +8,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { Reveal } from "@/components/Reveal";
 import { buttonClass } from "@/components/ui/button";
 import { FinalCta, finalButtonClass } from "@/components/ui/final-cta";
+import { faqPageSchema } from "@/lib/seo";
 import { highlight } from "@/lib/highlight";
 import { getPublishedPosts } from "@/lib/notion";
 
@@ -80,17 +81,6 @@ const faqs = [
     a: 'Yes. Native MCP server at <code class="inl">api.letmepost.dev/mcp</code> and a stdio binary on npm. See the <a href="/agents">agents landing</a> for the full tool surface.',
   },
 ];
-
-const stripHtml = (html: string) => html.replace(/<[^>]+>/g, "");
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: faqs.map((f) => ({
-    "@type": "Question",
-    name: f.q,
-    acceptedAnswer: { "@type": "Answer", text: stripHtml(f.a) },
-  })),
-};
 
 const curlSample = `curl -X POST https://api.letmepost.dev/v1/posts \\
   -H "Authorization: Bearer $LMP_KEY" \\
@@ -177,7 +167,7 @@ export default async function Home() {
 
   return (
     <>
-      <JsonLd graphs={[faqJsonLd]} />
+      <JsonLd graphs={[faqPageSchema(faqs)]} />
 
       <Reveal>
         <header

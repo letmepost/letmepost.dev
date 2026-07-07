@@ -20,7 +20,18 @@ export async function GET(request: Request) {
     );
   }
 
-  const response = await fetch(hookUrl, { method: "POST" });
+  let response: Response;
+  try {
+    response = await fetch(hookUrl, {
+      method: "POST",
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (e) {
+    return Response.json(
+      { error: "deploy hook request failed", detail: String(e) },
+      { status: 502 },
+    );
+  }
   if (!response.ok) {
     return Response.json(
       { error: "deploy hook failed", status: response.status },

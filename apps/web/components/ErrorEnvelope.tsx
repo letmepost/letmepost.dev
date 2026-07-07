@@ -144,7 +144,8 @@ export function ErrorEnvelope() {
   const [platform, setPlatform] = useState<DemoPlatform>("bluesky");
   const [text, setText] = useState(demoFailureText);
 
-  const graphemes = countGraphemes(text);
+  const graphemes =
+    platform === "tiktok" ? text.length : countGraphemes(text);
   const limit = limits[platform];
   const envelope: DemoEnvelope =
     graphemes > limit

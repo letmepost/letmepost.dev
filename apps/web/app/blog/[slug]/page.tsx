@@ -37,6 +37,7 @@ export async function generateMetadata({
       description: post.description,
       ...(post.heroImage ? { images: [{ url: post.heroImage }] } : {}),
     },
+    ...(post.heroImage ? { twitter: { images: [post.heroImage] } } : {}),
   };
 }
 

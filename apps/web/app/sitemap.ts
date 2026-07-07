@@ -50,6 +50,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const posts = await getPublishedPosts();
   const blogPaths = posts.map((p) => `/blog/${p.id}`);
+  const blogLastMod = new Map<string, Date>(
+    posts.map((p) => [`/blog/${p.id}`, p.updatedDate ?? p.pubDate]),
+  );
 
   const staticPaths = [
     "/",
@@ -72,7 +75,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const w = classify(path);
     return {
       url: path === "/" ? `${SITE}/` : `${SITE}${path}/`,
-      lastModified: now,
+      lastModified: blogLastMod.get(path) ?? now,
       changeFrequency: w.changeFrequency,
       priority: w.priority,
     };

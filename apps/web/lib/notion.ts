@@ -219,6 +219,7 @@ async function loadAllPosts(): Promise<BlogPost[]> {
 
   const posts: BlogPost[] = [];
   for (const page of pages) {
+    try {
     const props = page.properties;
     const slug = plainText(props["slug"]);
     if (!slug) continue;
@@ -253,6 +254,9 @@ async function loadAllPosts(): Promise<BlogPost[]> {
       html,
       headings,
     });
+    } catch (err) {
+      console.warn(`[notion] skipped page ${page.id}:`, err);
+    }
   }
 
   posts.sort((a, b) => b.pubDate.valueOf() - a.pubDate.valueOf());
@@ -262,7 +266,12 @@ async function loadAllPosts(): Promise<BlogPost[]> {
 let postsPromise: Promise<BlogPost[]> | null = null;
 
 export function getAllPosts(): Promise<BlogPost[]> {
-  if (!postsPromise) postsPromise = loadAllPosts();
+  if (!postsPromise) {
+    postsPromise = loadAllPosts().catch((err) => {
+      postsPromise = null;
+      throw err;
+    });
+  }
   return postsPromise;
 }
 

@@ -137,7 +137,12 @@ export function ClarityHeader() {
               </Link>
             ),
           )}
-          <a className={buttonClass({ variant: "pri", className: "mt-[14px]" })} href={DASHBOARD}>
+          <a
+            className={buttonClass({ variant: "pri", className: "mt-[14px]" })}
+            href={DASHBOARD}
+            data-analytics-event="cta.clicked"
+            data-analytics-props='{"location":"nav","target":"dashboard","label":"Start for free"}'
+          >
             Start for free →
           </a>
         </div>

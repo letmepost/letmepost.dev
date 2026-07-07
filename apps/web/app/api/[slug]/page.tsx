@@ -76,7 +76,7 @@ export default async function ApiDetail({
   const allSurfaces = APIS.map((s) => ({
     slug: s.slug,
     name: s.name,
-    badge: surfaceBadges[s.slug] ?? content.badge,
+    badge: surfaceBadges[s.slug] ?? API_CONTENT[s.slug]?.badge ?? content.badge,
     blurb: surfaceBlurbs[s.slug] ?? s.tagline,
     current: s.slug === api.slug,
   }));
