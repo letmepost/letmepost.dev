@@ -179,7 +179,16 @@ async function finalizePublish(
   creationId: string,
 ): Promise<PublishResult> {
   const published = await client.publishContainer(creationId);
-  const permalink = await client.getPermalink(published.id);
+  // Permalink fetch is best-effort: the post is already live once
+  // publishContainer resolves. getPermalink returns null on non-2xx, but
+  // platformFetch THROWS on network error / timeout — swallow that too so a
+  // transient blip on this cosmetic read never fails an already-published post.
+  let permalink: string | null = null;
+  try {
+    permalink = await client.getPermalink(published.id);
+  } catch {
+    permalink = null;
+  }
   const response: PublishResult = {
     id: published.id,
     platform: "instagram",

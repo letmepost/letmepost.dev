@@ -337,19 +337,22 @@ export class TikTokClient {
       });
     }
 
-    // Rate limit.
+    // Rate limit — RETRYABLE. Surface as platform_unavailable so the queue
+    // worker backs off and retries instead of permanently dropping the post.
     if (
       res.status === 429 ||
       lowerCode.includes("rate_limit") ||
       lowerCode.includes("daily_quota")
     ) {
-      throw rejected({
+      throw new LetmepostError({
+        code: "platform_unavailable",
+        status: 503,
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
-        upstreamMessage: errMsg || "Rate limited by TikTok.",
+        message: `TikTok is rate limiting${errMsg ? `: ${errMsg}` : "."}`,
         rule: "tiktok.rate_limited",
         remediation:
           "Back off and retry. TikTok enforces per-app and per-user posting quotas.",
+        platformResponse: res.body ?? res.raw ?? undefined,
       });
     }
 

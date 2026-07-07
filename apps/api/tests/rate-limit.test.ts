@@ -72,12 +72,12 @@ describeIfDb("rate limit middleware on POST /v1/posts", () => {
           Authorization: `Bearer ${fixture.apiKey.plaintext}`,
         },
         body: JSON.stringify({
-          account: { platform: "bluesky", id: fixture.accountId },
+          targets: [{ accountId: fixture.accountId }],
           text: "hello",
         }),
       });
 
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
       expect(res.headers.get("ratelimit-limit")).toBe("3");
       expect(res.headers.get("ratelimit-remaining")).toBe("2");
       expect(res.headers.get("ratelimit-reset")).toBeTruthy();
@@ -96,13 +96,13 @@ describeIfDb("rate limit middleware on POST /v1/posts", () => {
         Authorization: `Bearer ${fixture.apiKey.plaintext}`,
       };
       const body = JSON.stringify({
-        account: { platform: "bluesky", id: fixture.accountId },
+        targets: [{ accountId: fixture.accountId }],
         text: "hello",
       });
 
       for (let i = 0; i < 3; i += 1) {
         const ok = await app.request("/v1/posts", { method: "POST", headers, body });
-        expect(ok.status).toBe(201);
+        expect(ok.status).toBe(200);
       }
 
       const blocked = await app.request("/v1/posts", { method: "POST", headers, body });
@@ -123,11 +123,11 @@ describeIfDb("rate limit middleware on POST /v1/posts", () => {
 
       const app = createApp({ db: tx });
       const bodyA = JSON.stringify({
-        account: { platform: "bluesky", id: fixtureA.accountId },
+        targets: [{ accountId: fixtureA.accountId }],
         text: "A",
       });
       const bodyB = JSON.stringify({
-        account: { platform: "bluesky", id: fixtureB.accountId },
+        targets: [{ accountId: fixtureB.accountId }],
         text: "B",
       });
 
@@ -141,7 +141,7 @@ describeIfDb("rate limit middleware on POST /v1/posts", () => {
           },
           body: bodyA,
         });
-        expect(ok.status).toBe(201);
+        expect(ok.status).toBe(200);
       }
       const blockedA = await app.request("/v1/posts", {
         method: "POST",
@@ -162,7 +162,7 @@ describeIfDb("rate limit middleware on POST /v1/posts", () => {
         },
         body: bodyB,
       });
-      expect(okB.status).toBe(201);
+      expect(okB.status).toBe(200);
       expect(okB.headers.get("ratelimit-remaining")).toBe("2");
     });
   });

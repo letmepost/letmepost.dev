@@ -1,6 +1,16 @@
 import { createHmac } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/app.js";
+import type { DrizzleClient } from "../src/db/index.js";
+import { organization } from "../src/db/schema/auth.js";
+import { DrizzlePlatformAccountsRepository } from "../src/repositories/platform-accounts.js";
+import { DrizzleProfilesRepository } from "../src/repositories/profiles.js";
+import {
+  canRunDbTests,
+  closeTestDb,
+  getTestDb,
+  runInTransaction,
+} from "./db/support.js";
 
 const SECRET = "fb_app_secret_test_for_callback";
 
@@ -141,5 +151,141 @@ describe("GET /data-deletion/status", () => {
     const body = await res.text();
     expect(body).not.toContain("<script>alert(1)</script>");
     expect(body).toContain("&lt;script&gt;");
+  });
+});
+
+const describeIfDb = canRunDbTests ? describe : describe.skip;
+
+/**
+ * Regression coverage for the compliance no-op: the callback must delete the
+ * platform_accounts rows whose stored app-scoped Meta user id (tokenMetadata
+ * .metaUserId) equals the signed_request `user_id`. Matching against
+ * platformAccountId — which holds a per-product resource id (Page id, IG user
+ * id, Threads user id), never the app-scoped user id — silently deleted
+ * nothing while still returning a 200 confirmation.
+ */
+describeIfDb("POST /data-deletion/meta — row removal (integration)", () => {
+  let savedSecret: string | undefined;
+
+  beforeEach(() => {
+    savedSecret = process.env.META_APP_SECRET;
+    process.env.META_APP_SECRET = SECRET;
+  });
+  afterEach(() => {
+    if (savedSecret === undefined) delete process.env.META_APP_SECRET;
+    else process.env.META_APP_SECRET = savedSecret;
+  });
+  afterAll(async () => {
+    await closeTestDb();
+  });
+
+  async function seedOrgAndProfile(tx: DrizzleClient) {
+    const [org] = await tx
+      .insert(organization)
+      .values({ name: "Acme", slug: `acme-${Date.now()}-${Math.random()}` })
+      .returning();
+    const profile = await new DrizzleProfilesRepository(tx).create({
+      organizationId: org!.id,
+      name: "Default",
+      slug: "default",
+    });
+    return { organizationId: org!.id, profileId: profile.id };
+  }
+
+  async function seedAccount(
+    tx: DrizzleClient,
+    opts: {
+      organizationId: string;
+      profileId: string;
+      platform: "facebook" | "instagram" | "threads";
+      platformAccountId: string;
+      metaUserId: string;
+    },
+  ) {
+    return new DrizzlePlatformAccountsRepository(tx).create({
+      organizationId: opts.organizationId,
+      profileId: opts.profileId,
+      platform: opts.platform,
+      platformAccountId: opts.platformAccountId,
+      token: "tok",
+      tokenMetadata: { metaUserId: opts.metaUserId },
+    });
+  }
+
+  function post(app: ReturnType<typeof createApp>, userId: string) {
+    const sr = makeSignedRequest({ algorithm: "HMAC-SHA256", user_id: userId });
+    return app.request("/data-deletion/meta", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ signed_request: sr }).toString(),
+    });
+  }
+
+  it("deletes every Meta-family row for the matching app-scoped user, sparing others", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const { organizationId, profileId } = await seedOrgAndProfile(tx);
+
+      // Same real user across all three Meta products — the per-product
+      // platformAccountId differs, but metaUserId is identical.
+      const fb = await seedAccount(tx, {
+        organizationId,
+        profileId,
+        platform: "facebook",
+        platformAccountId: "page-1",
+        metaUserId: "meta_user_1",
+      });
+      const ig = await seedAccount(tx, {
+        organizationId,
+        profileId,
+        platform: "instagram",
+        platformAccountId: "ig-scoped-1",
+        metaUserId: "meta_user_1",
+      });
+      const th = await seedAccount(tx, {
+        organizationId,
+        profileId,
+        platform: "threads",
+        platformAccountId: "threads-1",
+        metaUserId: "meta_user_1",
+      });
+      // A different Meta user — must survive.
+      const other = await seedAccount(tx, {
+        organizationId,
+        profileId,
+        platform: "facebook",
+        platformAccountId: "page-2",
+        metaUserId: "meta_user_2",
+      });
+
+      const res = await post(createApp({ db: tx }), "meta_user_1");
+      expect(res.status).toBe(200);
+
+      const repo = new DrizzlePlatformAccountsRepository(tx);
+      expect(await repo.findById(fb.id)).toBeNull();
+      expect(await repo.findById(ig.id)).toBeNull();
+      expect(await repo.findById(th.id)).toBeNull();
+      expect(await repo.findById(other.id)).not.toBeNull();
+    });
+  });
+
+  it("deletes nothing when no stored metaUserId matches", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const { organizationId, profileId } = await seedOrgAndProfile(tx);
+      const fb = await seedAccount(tx, {
+        organizationId,
+        profileId,
+        platform: "facebook",
+        platformAccountId: "page-1",
+        metaUserId: "meta_user_1",
+      });
+
+      const res = await post(createApp({ db: tx }), "not_this_user");
+      expect(res.status).toBe(200);
+
+      const repo = new DrizzlePlatformAccountsRepository(tx);
+      expect(await repo.findById(fb.id)).not.toBeNull();
+    });
   });
 });

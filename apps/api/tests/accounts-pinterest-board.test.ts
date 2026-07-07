@@ -6,11 +6,14 @@ import {
   expect,
   it,
 } from "vitest";
+import { createHash, randomBytes } from "node:crypto";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { createApp } from "../src/app.js";
+import { apiKeys } from "../src/db/schema/api_keys.js";
 import { seed } from "../src/db/seed.js";
 import { DrizzlePlatformAccountsRepository } from "../src/repositories/platform-accounts.js";
+import { DrizzleProfilesRepository } from "../src/repositories/profiles.js";
 import {
   canRunDbTests,
   closeTestDb,
@@ -514,6 +517,123 @@ describeIfDb("Pinterest default-board picker endpoints", () => {
         error: { rule?: string };
       };
       expect(body.error.rule).toBe("platform.mismatch");
+    });
+  });
+
+  /**
+   * Create a sibling profile owning a Pinterest account, and mint a key
+   * scoped to the seed's default profile. The scoped key must not be able to
+   * act on (or even detect) the sibling's Pinterest account.
+   */
+  async function seedSiblingPinterest(
+    tx: Awaited<ReturnType<typeof getTestDb>>["db"],
+    fixture: Awaited<ReturnType<typeof seed>>,
+  ) {
+    const profileRepo = new DrizzleProfilesRepository(tx);
+    const sibling = await profileRepo.create({
+      organizationId: fixture.organizationId,
+      name: "Sibling",
+      slug: `sibling-${randomBytes(4).toString("hex")}`,
+    });
+    const accountRepo = new DrizzlePlatformAccountsRepository(tx);
+    const siblingAccount = await accountRepo.create({
+      organizationId: fixture.organizationId,
+      profileId: sibling.id,
+      platform: "pinterest",
+      platformAccountId: "pin-sibling",
+      token: "pin-access-token",
+      tokenMetadata: { defaultBoardId: "board-a", defaultBoardName: "Default" },
+    });
+
+    // Key scoped to the DEFAULT profile (the one seed() owns), not the sibling.
+    const scopedPlaintext = `lmp_test_${randomBytes(24).toString("base64url")}`;
+    await tx.insert(apiKeys).values({
+      organizationId: fixture.organizationId,
+      profileId: fixture.profileId,
+      name: "scoped-default",
+      prefix: "lmp_test_",
+      hashedKey: createHash("sha256").update(scopedPlaintext).digest("hex"),
+      last4: scopedPlaintext.slice(-4),
+      scopes: ["posts:read", "posts:write"],
+    });
+
+    return { siblingAccount, scopedPlaintext };
+  }
+
+  it("GET /:id/pinterest/boards 404s for a profile-scoped key on a sibling profile's account (no leak)", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const { siblingAccount, scopedPlaintext } = await seedSiblingPinterest(
+        tx,
+        fixture,
+      );
+
+      // No boards handler registered — a leak would reach Pinterest and MSW's
+      // onUnhandledRequest:"error" would surface it; the 404 short-circuits.
+      const app = createApp({ db: tx });
+      const res = await app.request(
+        `/v1/accounts/${siblingAccount.id}/pinterest/boards`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${scopedPlaintext}` },
+        },
+      );
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as {
+        error: { code: string; rule?: string };
+      };
+      expect(body.error.code).toBe("not_found");
+      expect(body.error.rule).toBe("api_key.profile_scope");
+    });
+  });
+
+  it("PATCH /:id/pinterest/default-board 404s for a profile-scoped key on a sibling profile's account", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const { siblingAccount, scopedPlaintext } = await seedSiblingPinterest(
+        tx,
+        fixture,
+      );
+
+      const app = createApp({ db: tx });
+      const res = await app.request(
+        `/v1/accounts/${siblingAccount.id}/pinterest/default-board`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${scopedPlaintext}`,
+          },
+          body: JSON.stringify({ boardId: "board-a" }),
+        },
+      );
+      expect(res.status).toBe(404);
+      const body = (await res.json()) as { error: { rule?: string } };
+      expect(body.error.rule).toBe("api_key.profile_scope");
+    });
+  });
+
+  it("GET /:id/pinterest/boards succeeds for an org-wide key on any profile's account", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const { siblingAccount } = await seedSiblingPinterest(tx, fixture);
+      server.use(boardsHandler([{ id: "board-a", name: "Default" }]));
+
+      // fixture.apiKey is org-wide (profileId NULL) → reaches the sibling.
+      const app = createApp({ db: tx });
+      const res = await app.request(
+        `/v1/accounts/${siblingAccount.id}/pinterest/boards`,
+        {
+          method: "GET",
+          headers: { Authorization: `Bearer ${fixture.apiKey.plaintext}` },
+        },
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { data: { id: string }[] };
+      expect(body.data.map((b) => b.id)).toEqual(["board-a"]);
     });
   });
 });

@@ -1,3 +1,5 @@
+import { serializeJsonLd } from "@/lib/seo";
+
 export function JsonLd({ graphs }: { graphs: Record<string, unknown>[] }) {
   return (
     <>
@@ -5,7 +7,7 @@ export function JsonLd({ graphs }: { graphs: Record<string, unknown>[] }) {
         <script
           key={i}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(g) }}
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(g) }}
         />
       ))}
     </>

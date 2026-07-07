@@ -29,10 +29,10 @@ export const PLATFORM_STATE: Record<Platform, PlatformState> = {
   pinterest: "live",
   twitter: "live",
   linkedin: "live",
-  // In platform review — publisher built + tested, awaiting approval.
-  facebook: "pending",
-  instagram: "pending",
-  threads: "pending",
+  facebook: "live",
+  instagram: "live",
+  threads: "live",
+  // Publisher built + tested; connect stays gated until App Review clears.
   tiktok: "pending",
 };
 

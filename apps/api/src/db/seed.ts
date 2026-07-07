@@ -87,7 +87,7 @@ export async function seed(
       prefix,
       hashedKey: hashApiKey(plaintext),
       last4,
-      scopes: ["posts:write"],
+      scopes: ["posts:read", "posts:write"],
     })
     .returning();
   if (!apiKey) throw new Error("seed: failed to insert api key");

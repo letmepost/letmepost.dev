@@ -1,6 +1,6 @@
 ---
 title: Errors
-description: The twelve error codes, the response shape, and what to do about each one.
+description: The thirteen error codes, the response shape, and what to do about each one.
 icon: circle-exclamation
 ---
 
@@ -25,7 +25,7 @@ Every failure response from the API uses the same envelope:
 
 | field              | always set | meaning                                                  |
 |--------------------|------------|----------------------------------------------------------|
-| `code`             | yes        | one of the twelve values below                           |
+| `code`             | yes        | one of the thirteen values below                         |
 | `message`          | yes        | human-readable explanation                               |
 | `rule`             | when known | preflight rule id or validation field path               |
 | `platform`         | when known | which upstream platform was involved                     |
@@ -39,7 +39,7 @@ Every failure response from the API uses the same envelope:
 
 The shape never collapses to `{ body: {}, message: "" }`. If the upstream platform returned nothing meaningful, we still attach a `code`, `message`, and `requestId`.
 
-## The twelve codes
+## The thirteen codes
 
 | code | typical HTTP | what it means |
 |------|--------------|---------------|
@@ -48,12 +48,14 @@ The shape never collapses to `{ body: {}, message: "" }`. If the upstream platfo
 | [`platform_auth_failed`](/errors/platform_auth_failed) | 401, 403 | The connected account's token is missing, expired, or revoked. |
 | [`platform_rejected`](/errors/platform_rejected) | 4xx (502 if mapped from an upstream 5xx) | Upstream rejected the call after preflight passed. |
 | [`platform_unavailable`](/errors/platform_unavailable) | 502, 503 | Upstream is down or rate-limited; safe to retry later. |
+| [`platform_not_enabled`](/errors/platform_not_enabled) | 403 | Platform is approval-gated upstream and not yet connectable for your org. |
 | [`internal_error`](/errors/internal_error) | 500 | Unexpected server-side issue. Includes a `requestId` to file. |
 | [`unauthenticated`](/errors/unauthenticated) | 401 | Bearer header missing, malformed, or key revoked. |
 | [`unauthorized`](/errors/unauthorized) | 403 | Authenticated, but not allowed to perform this action. |
 | [`not_found`](/errors/not_found) | 404 | Resource doesn't exist or is out of scope. |
 | [`idempotency_conflict`](/errors/idempotency_conflict) | 409 | Same `Idempotency-Key` reused with a different body. |
 | [`rate_limited`](/errors/rate_limited) | 429 | Per-key rate limit exhausted. Honor `Retry-After`. |
+| [`quota_exceeded`](/errors/quota_exceeded) | 429 | Monthly plan post quota reached. Upgrade the plan or wait for the reset. |
 
 ## Reading errors in code
 

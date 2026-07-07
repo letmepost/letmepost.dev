@@ -3,10 +3,12 @@ import { Hono, type MiddlewareHandler } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { Platform } from "@letmepost/schemas";
+import { auth } from "../auth.js";
 import { profiles as profilesTable } from "../db/schema/profiles.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
 import { idempotency } from "../middleware/idempotency.js";
+import { assertKeyCanAccessProfile } from "../middleware/profile-scope.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { requireSession } from "../middleware/session.js";
 import { decodeOAuthState, encodeOAuthState } from "../oauth/state.js";
@@ -105,6 +107,16 @@ export type AccountRoutesOptions = {
   /** Test-only session middleware override (matches webhook-endpoints pattern). */
   sessionMiddleware?: MiddlewareHandler;
   /**
+   * Test-only seam for re-verifying the browser session at the OAuth
+   * callback. Defaults to better-auth's `getSession`; tests stub it to
+   * simulate the presence/absence/org of the session cookie that rides the
+   * top-level callback navigation. Returns the caller's active org, or null
+   * when there's no authenticated session with an active org.
+   */
+  resolveCallbackSession?: (
+    headers: Headers,
+  ) => Promise<{ organizationId: string } | null>;
+  /**
    * Public base URL used by providers to build OAuth redirect URIs. Defaults
    * to `PUBLIC_API_BASE_URL` env or `http://localhost:3000` for local dev.
    */
@@ -170,6 +182,18 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
   // consumers can list accounts to find an id to publish against.
   const session = options.sessionMiddleware ?? requireSession();
   const dual = apiKeyOrSession();
+  // Re-verify the better-auth session at the callback. Mirrors requireSession's
+  // extraction of the active org so the callback's CSRF gate accepts exactly
+  // the sessions the connect route did.
+  const resolveCallbackSession =
+    options.resolveCallbackSession ??
+    (async (headers: Headers) => {
+      const result = await auth.api.getSession({ headers });
+      if (result?.session && result.session.activeOrganizationId) {
+        return { organizationId: result.session.activeOrganizationId };
+      }
+      return null;
+    });
   app.use("*", rateLimit());
   app.use("*", idempotency());
 
@@ -389,12 +413,18 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
    *  profileId looks malformed; we just match nothing, which is safer
    *  than a 400 surfacing as a broken dashboard tab. */
   app.get("/", dual, async (c) => {
-    const { organizationId } = c.var.apiKey;
+    const { organizationId, profileId: keyProfileId } = c.var.apiKey;
     const profileIdParam = c.req.query("profileId");
-    const profileId =
+    const requestedProfileId =
       typeof profileIdParam === "string" && profileIdParam.length > 0
         ? profileIdParam
         : null;
+    // A profile-scoped key is locked to its own profile — it must never see
+    // (nor be able to narrow into) a sibling profile's accounts, so the key's
+    // scope wins over any `?profileId`. Org-wide keys and sessions
+    // (profileId === null) keep the legacy org-wide list, honoring the
+    // optional `?profileId` narrowing.
+    const profileId = keyProfileId ?? requestedProfileId;
     const repo = new DrizzlePlatformAccountsRepository(c.var.db);
     const rows = await repo.listByOrgAndProfile(organizationId, profileId);
     return c.json({ data: rows.map(publicView) });
@@ -413,6 +443,9 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
         message: "Platform account not found.",
       });
     }
+    // A profile-scoped key must not read a sibling profile's account; 404 so
+    // it can't confirm the account exists.
+    assertKeyCanAccessProfile(c.var.apiKey, account);
     return c.json(publicView(account));
   });
 
@@ -703,6 +736,24 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
       // previous env (different DASHBOARD_URL) can't redirect off-allowlist.
       const validatedReturnTo = returnTo ? validateReturnTo(returnTo) : null;
       if (validatedReturnTo) redirectBase = validatedReturnTo;
+
+      // CSRF gate: the callback is a top-level browser navigation, so the
+      // better-auth session cookie rides along (Domain=.letmepost.dev;
+      // SameSite=None;Secure in prod, same-origin Lax in dev). Re-verify it
+      // and require it to match the org the signed state was minted for.
+      // Without this an attacker mints state for THEIR org, hands the victim
+      // the authorize URL, and the victim's publish-capable token lands under
+      // the attacker's org. This runs before any token exchange or DB write,
+      // so a mismatched/absent session performs NO provider call and NO
+      // persistence. The generic reason avoids leaking which org mismatched.
+      const callbackSession = await resolveCallbackSession(c.req.raw.headers);
+      if (
+        !callbackSession ||
+        callbackSession.organizationId !== organizationId
+      ) {
+        return redirect(`connect_error=session_mismatch&platform=${platform}`);
+      }
+
       const provider = getProvider(platform);
       const redirectUri = new URL(
         `/v1/accounts/oauth/${platform}/callback`,
@@ -865,6 +916,10 @@ export function createAccountRoutes(options: AccountRoutesOptions = {}) {
         message: "Platform account not found.",
       });
     }
+    // Enforce the key's profile scope before anything else so a profile-scoped
+    // key can't act on (or even detect) a sibling profile's Pinterest account.
+    // 404 (not the platform-mismatch 400 below) to avoid leaking existence.
+    assertKeyCanAccessProfile(c.var.apiKey, account);
     if (account.platform !== "pinterest") {
       throw new LetmepostError({
         code: "validation_failed",

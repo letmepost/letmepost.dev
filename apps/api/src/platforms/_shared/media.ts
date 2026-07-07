@@ -6,6 +6,7 @@ import {
   getPublicBaseUrl,
 } from "../../media/s3.js";
 import { DrizzleMediaRepository } from "../../repositories/media.js";
+import { guardedFetch, isDisallowedUrlError } from "../../net/guarded-fetch.js";
 
 /**
  * A `MediaInput` resolved to actual bytes + a definite mime type. Preflight
@@ -96,8 +97,19 @@ export async function loadMediaItem(
 
   let res: Response;
   try {
-    res = await fetch(item.url);
-  } catch {
+    res = await guardedFetch(item.url);
+  } catch (err) {
+    if (isDisallowedUrlError(err)) {
+      throw new LetmepostError({
+        code: "validation_failed",
+        status: 400,
+        message: "The media URL is not allowed.",
+        rule: "media.url.disallowed",
+        ...(opts.platform ? { platform: opts.platform } : {}),
+        remediation:
+          "Provide a publicly reachable https URL, or inline the media via bytesBase64.",
+      });
+    }
     throw new LetmepostError({
       code: "platform_unavailable",
       status: 503,

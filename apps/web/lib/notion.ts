@@ -5,6 +5,7 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeSlug from "rehype-slug";
 import rehypeStringify from "rehype-stringify";
 import { visit } from "unist-util-visit";
@@ -120,13 +121,29 @@ function demoteHeadings(markdown: string): string {
     .join("\n");
 }
 
+const blogSanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    span: [...(defaultSchema.attributes?.span ?? []), "style", "className"],
+    code: [...(defaultSchema.attributes?.code ?? []), "style"],
+    pre: [
+      ...(defaultSchema.attributes?.pre ?? []),
+      "style",
+      "className",
+      "tabindex",
+    ],
+  },
+};
+
 const processor = unified()
   .use(remarkParse)
   .use(remarkGfm)
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeRaw)
+  .use(rehypeSanitize, blogSanitizeSchema)
   .use(rehypeSlug)
-  .use(rehypeStringify, { allowDangerousHtml: true });
+  .use(rehypeStringify);
 
 async function renderMarkdown(body: string): Promise<string> {
   const file = await processor.process(body);

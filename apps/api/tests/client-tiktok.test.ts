@@ -63,7 +63,7 @@ describe("TikTokClient.getUserInfo", () => {
     });
   });
 
-  it("maps 429 to platform_rejected with rate-limited rule", async () => {
+  it("maps 429 to platform_unavailable (retryable) with rate-limited rule", async () => {
     server.use(
       http.get(
         `${API_BASE}/v2/user/info/`,
@@ -76,7 +76,8 @@ describe("TikTokClient.getUserInfo", () => {
     );
     const client = new TikTokClient("tok", API_BASE);
     await expect(client.getUserInfo()).rejects.toMatchObject({
-      code: "platform_rejected",
+      code: "platform_unavailable",
+      status: 503,
       rule: "tiktok.rate_limited",
     });
   });

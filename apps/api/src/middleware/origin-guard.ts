@@ -1,14 +1,62 @@
-import type { MiddlewareHandler } from "hono";
+import type { Context, MiddlewareHandler } from "hono";
 import { LetmepostError } from "../errors.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+// Origins we accept on credentialed cross-site mutations. Mirrors the list
+// better-auth trusts for its own routes: the dashboard (DASHBOARD_URL, or
+// localhost:3001 in dev) plus anything in TRUSTED_ORIGINS. Recomputed per call
+// so tests / deploys that flip the env vars are picked up without a restart.
 function loadTrustedOrigins(): Set<string> {
   const fromEnv = (process.env.TRUSTED_ORIGINS ?? "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  return new Set(["http://localhost:3001", ...fromEnv]);
+  const dashboard = process.env.DASHBOARD_URL ?? "http://localhost:3001";
+  return new Set([dashboard, "http://localhost:3001", ...fromEnv]);
+}
+
+// Resolve the site the request came from: Origin header first, Referer's
+// origin as a fallback. Returns null when neither is present or parseable.
+function requestSource(c: Context): string | null {
+  const origin = c.req.header("Origin") ?? null;
+  if (origin) return origin;
+  const referer = c.req.header("Referer") ?? null;
+  if (referer) {
+    try {
+      return new URL(referer).origin;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** True when `origin` is a non-null, trusted origin. */
+export function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  return loadTrustedOrigins().has(origin);
+}
+
+// CSRF gate for a single request. Throws 403 when the Origin/Referer is
+// missing or not trusted. Shared by originGuard() and the session-cookie
+// branch of apiKeyOrSession() so both surfaces reject identically.
+export function assertTrustedOrigin(c: Context): void {
+  const source = requestSource(c);
+  if (!source) {
+    throw new LetmepostError({
+      code: "unauthorized",
+      status: 403,
+      message: "Missing Origin or Referer on cross-origin mutation.",
+    });
+  }
+  if (!isAllowedOrigin(source)) {
+    throw new LetmepostError({
+      code: "unauthorized",
+      status: 403,
+      message: "Request origin is not trusted.",
+    });
+  }
 }
 
 // CSRF defense for session-authenticated mutating routes. In production the
@@ -22,35 +70,7 @@ export function originGuard(): MiddlewareHandler {
       await next();
       return;
     }
-
-    const origin = c.req.header("Origin") ?? null;
-    const referer = c.req.header("Referer") ?? null;
-    let source = origin;
-    if (!source && referer) {
-      try {
-        source = new URL(referer).origin;
-      } catch {
-        source = null;
-      }
-    }
-
-    if (!source) {
-      throw new LetmepostError({
-        code: "unauthorized",
-        status: 403,
-        message: "Missing Origin or Referer on cross-origin mutation.",
-      });
-    }
-
-    const trusted = loadTrustedOrigins();
-    if (!trusted.has(source)) {
-      throw new LetmepostError({
-        code: "unauthorized",
-        status: 403,
-        message: "Request origin is not trusted.",
-      });
-    }
-
+    assertTrustedOrigin(c);
     await next();
   };
 }

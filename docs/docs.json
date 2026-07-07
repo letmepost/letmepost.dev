@@ -137,7 +137,8 @@
               "errors/unauthorized",
               "errors/not_found",
               "errors/idempotency_conflict",
-              "errors/rate_limited"
+              "errors/rate_limited",
+              "errors/quota_exceeded"
             ]
           },
           {

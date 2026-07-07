@@ -83,9 +83,9 @@ export default function PostDetailPage() {
         </Card>
       ) : post === null ? (
         <div className="space-y-3">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-32" />
-          <Skeleton className="h-48" />
+          <Skeleton className="h-20 w-48" />
+          <Skeleton className="h-64" />
+          <Skeleton className="h-52" />
         </div>
       ) : (
         <>

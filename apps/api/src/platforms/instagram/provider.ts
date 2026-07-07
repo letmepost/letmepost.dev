@@ -54,6 +54,13 @@ export type InstagramAccountMetadataIgLogin = {
   accountType?: string;
   /** Comma-joined string of granted permissions (Meta echoes back what user actually granted). */
   grantedScopes?: string;
+  /**
+   * App-scoped user id (the `user_id` from token exchange / `GET /me`), which
+   * differs from the IG-scoped `id` we store as platformAccountId. This is the
+   * value Meta's data-deletion / deauth signed_request carries in `user_id`,
+   * so those callbacks match on it to remove this row.
+   */
+  metaUserId?: string;
 };
 
 export type InstagramProviderConfig = {
@@ -152,6 +159,7 @@ export class InstagramProvider implements AccountProvider {
 
     const shortLived = tokenRes.body.access_token;
     const grantedScopes = tokenRes.body.permissions;
+    const tokenExchangeUserId = tokenRes.body.user_id;
 
     // 2. Swap short-lived (1h) → long-lived (60d).
     const longUrl = new URL(
@@ -216,6 +224,12 @@ export class InstagramProvider implements AccountProvider {
     const igScopedUserId = meRes.body.id;
     const username = meRes.body?.username;
     const accountType = meRes.body?.account_type;
+    // App-scoped user id — Meta's deletion/deauth callbacks key off this,
+    // not the IG-scoped id we persist as platformAccountId. Prefer /me's
+    // user_id; fall back to the token-exchange user_id.
+    const metaUserId =
+      meRes.body?.user_id ??
+      (tokenExchangeUserId != null ? String(tokenExchangeUserId) : undefined);
 
     if (accountType === "PERSONAL") {
       throw new LetmepostError({
@@ -235,6 +249,7 @@ export class InstagramProvider implements AccountProvider {
     if (username) metadata.username = username;
     if (accountType) metadata.accountType = accountType;
     if (grantedScopes) metadata.grantedScopes = grantedScopes;
+    if (metaUserId) metadata.metaUserId = metaUserId;
 
     return [
       {

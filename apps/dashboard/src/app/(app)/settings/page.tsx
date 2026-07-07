@@ -77,7 +77,7 @@ function UsageTab() {
   const { profiles } = useActiveProfile();
 
   if (sub.isLoading || usage.isLoading) {
-    return <Skeleton className="h-32 w-full" />;
+    return <Skeleton className="h-56 w-full" />;
   }
   if (!sub.data || !usage.data) {
     return (
@@ -195,7 +195,7 @@ function MeterTile({
 function ProfileTab() {
   const session = authClient.useSession();
   if (session.isPending) {
-    return <Skeleton className="h-32 w-full" />;
+    return <Skeleton className="h-56 w-full" />;
   }
   const user = session.data?.user;
   if (!user) {

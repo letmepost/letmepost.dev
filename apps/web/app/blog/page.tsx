@@ -21,10 +21,26 @@ function fmtDate(d: Date): string {
   });
 }
 
+function safeHeroUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return undefined;
+  }
+  if (/["'()\\\s]/.test(url)) return undefined;
+  return url;
+}
+
 export default async function Blog() {
   const posts = await getPublishedPosts();
   const featured: BlogPost | undefined = posts[0];
   const rest = posts.slice(1);
+  const featuredBg = featured ? safeHeroUrl(featured.heroImage) : undefined;
 
   return (
     <>
@@ -63,14 +79,14 @@ export default async function Blog() {
           >
             <div
               className="flex min-h-[280px] items-center justify-center border-r border-line bg-[repeating-linear-gradient(135deg,var(--color-panel-2)_0_14px,var(--color-bg)_14px_28px)] bg-cover bg-center data-[has-image=1]:bg-no-repeat max-[860px]:min-h-[180px] max-[860px]:border-r-0 max-[860px]:border-b"
-              data-has-image={featured.heroImage ? "1" : "0"}
+              data-has-image={featuredBg ? "1" : "0"}
               style={
-                featured.heroImage
-                  ? { backgroundImage: `url(${featured.heroImage})` }
+                featuredBg
+                  ? { backgroundImage: `url("${featuredBg}")` }
                   : undefined
               }
             >
-              {!featured.heroImage && (
+              {!featuredBg && (
                 <span className="font-mono text-xs uppercase tracking-[0.04em] text-faint">
                   [ {featured.category} ]
                 </span>

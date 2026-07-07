@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
+import type { MiddlewareHandler } from "hono";
 import { z } from "zod";
 import {
   CreatePostRequest,
@@ -50,6 +51,28 @@ export const posts = new Hono();
 // in its own lane.
 
 /**
+ * API-key scope guard. Runs after apiKeyOrSession() has populated
+ * c.var.apiKey, so it reads the resolved actor's grants. Dashboard sessions
+ * are minted with both posts:read and posts:write (see api-key-or-session.ts),
+ * so they always pass; a programmatic key missing the required scope is
+ * rejected with a 403 before the handler runs.
+ */
+function requireScope(scope: "posts:read" | "posts:write"): MiddlewareHandler {
+  return async (c, next) => {
+    if (!c.var.apiKey.scopes.includes(scope)) {
+      throw new LetmepostError({
+        code: "unauthorized",
+        status: 403,
+        message: `This API key is missing the required "${scope}" scope.`,
+        rule: "api_key.scope",
+        remediation: `Use an API key that includes the "${scope}" scope.`,
+      });
+    }
+    await next();
+  };
+}
+
+/**
  * Minimum future-delay before we accept a scheduled post, to avoid races
  * where the job fires before this transaction commits.
  */
@@ -77,6 +100,7 @@ const MIN_FUTURE_DELAY_MS = 1_000;
 posts.post(
   "/",
   apiKeyOrSession(),
+  requireScope("posts:write"),
   rateLimit(),
   idempotency(),
   async (c) => {
@@ -760,7 +784,7 @@ function readArrayQuery(
   return flat.length > 0 ? flat : undefined;
 }
 
-posts.get("/", apiKeyOrSession(), async (c) => {
+posts.get("/", apiKeyOrSession(), requireScope("posts:read"), async (c) => {
   const rawQuery = {
     profileId: c.req.query("profileId"),
     platform: readArrayQuery(c, "platform"),
@@ -823,7 +847,7 @@ posts.get("/", apiKeyOrSession(), async (c) => {
   });
 });
 
-posts.get("/:id", apiKeyOrSession(), async (c) => {
+posts.get("/:id", apiKeyOrSession(), requireScope("posts:read"), async (c) => {
   const id = c.req.param("id");
   const { organizationId } = c.var.apiKey;
   const repo = new DrizzlePostsReadRepository(c.var.db);
@@ -910,7 +934,7 @@ async function loadModifiableScheduled(
   return post;
 }
 
-posts.patch("/:id", apiKeyOrSession(), async (c) => {
+posts.patch("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) => {
   const raw = await c.req.json().catch(() => null);
   const parsed = PatchPostBody.safeParse(raw);
   if (!parsed.success) {
@@ -973,7 +997,7 @@ posts.patch("/:id", apiKeyOrSession(), async (c) => {
   });
 });
 
-posts.delete("/:id", apiKeyOrSession(), async (c) => {
+posts.delete("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) => {
   const post = await loadModifiableScheduled(c);
 
   await c.var.publishEnqueuer.remove(post.id);
