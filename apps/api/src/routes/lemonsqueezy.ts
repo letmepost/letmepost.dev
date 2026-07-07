@@ -70,10 +70,36 @@ lemonSqueezy.post("/webhook", async (c) => {
     .onConflictDoNothing({ target: billingEvents.lsEventId })
     .returning();
 
-  if (inserted.length === 0) {
-    return c.json({ ok: true, deduped: true });
+  // Dedupe only against a PRIOR SUCCESS. An event is "already processed" iff a
+  // previous attempt set `processed_at`; a row left behind by a FAILED attempt
+  // (`processed_at` null, e.g. the handler threw and we returned a non-2xx so
+  // Lemon Squeezy retries) MUST be allowed to re-process. Otherwise the retry
+  // collapses into the failed row here and the event is dropped forever, so
+  // billing state never converges.
+  let rowId: string;
+  if (inserted.length > 0) {
+    rowId = inserted[0]!.id;
+  } else {
+    const [existing] = await c.var.db
+      .select()
+      .from(billingEvents)
+      .where(eq(billingEvents.lsEventId, eventId))
+      .limit(1);
+    if (existing?.processedAt) {
+      return c.json({ ok: true, deduped: true });
+    }
+    if (!existing) {
+      // Conflict but no row: should be impossible. Fail loudly so LS retries
+      // rather than silently swallowing the event.
+      throw new LetmepostError({
+        code: "internal_error",
+        status: 500,
+        message: "billing_events row missing after insert conflict.",
+      });
+    }
+    // Prior attempt failed: reuse its audit row and re-run the handler below.
+    rowId = existing.id;
   }
-  const rowId = inserted[0]!.id;
 
   const handler = EVENT_HANDLERS[eventName];
   if (!handler) {
@@ -109,7 +135,9 @@ lemonSqueezy.post("/webhook", async (c) => {
       .update(billingEvents)
       .set({
         processedAt: new Date(),
-        ...(processingError ? { processingError } : {}),
+        // Always write the column (null when clean) so a retry that finally
+        // succeeds clears any stale error left by the earlier failed attempt.
+        processingError,
         ...(result.organizationId
           ? { organizationId: result.organizationId }
           : {}),

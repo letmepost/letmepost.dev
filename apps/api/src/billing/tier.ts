@@ -29,6 +29,41 @@ function computeGrandfatheredUntil(orgCreatedAt: Date | null): Date | null {
 
 export type BillingStatus = BillingSubscription["status"];
 
+export type EntitlementInput = {
+  status: BillingStatus;
+  currentPeriodEnd: Date | null;
+  now: Date;
+};
+
+/**
+ * Single source of truth for "does this subscription state grant the paid
+ * tier?". Only genuinely-entitled states keep paid quota:
+ *   - active   (LS active / on_trial)
+ *   - past_due (LS dunning grace — payment is still being retried)
+ *   - cancelled, but only while the already-paid period is still running
+ * Everything else is a dead or suspended subscription and drops to free:
+ *   - expired, paused, delinquent (LS unpaid / past-grace), free, and
+ *     cancelled once currentPeriodEnd has passed.
+ * Reused by the tier resolver (BUG 1) and the webhook upsert (BUG 2) so a
+ * non-active subscription can never be resolved or re-instated as paid.
+ */
+export function isEntitledToPaidTier(input: EntitlementInput): boolean {
+  switch (input.status) {
+    case "active":
+    case "past_due":
+      return true;
+    case "cancelled":
+      return input.currentPeriodEnd != null && input.currentPeriodEnd > input.now;
+    case "free":
+    case "delinquent":
+    case "expired":
+    case "paused":
+      return false;
+    default:
+      return false;
+  }
+}
+
 export type ResolvedTier = {
   tier: BillingTier;
   status: BillingStatus;
@@ -187,11 +222,17 @@ async function resolveFromDb(
     };
   }
 
-  // Cancelled but still inside the paid period: keep paid tier.
+  // Only genuinely-entitled subscriptions keep their paid tier: active (incl.
+  // on_trial), past_due (inside LS's dunning-retry grace), and cancelled while
+  // the already-paid period is still running. Expired, paused, and
+  // cancelled-past-period are dead subscriptions — resolve them to the free
+  // tier so a stale paid `row.tier` never grants paid quota.
   if (
-    row.status === "cancelled" &&
-    row.currentPeriodEnd &&
-    row.currentPeriodEnd > now
+    isEntitledToPaidTier({
+      status: row.status,
+      currentPeriodEnd: row.currentPeriodEnd ?? null,
+      now,
+    })
   ) {
     return {
       tier,
@@ -200,19 +241,19 @@ async function resolveFromDb(
       logRetentionDays: constants.logRetentionDays,
       grandfathered: false,
       delinquent: false,
-      source: "subscription",
+      source: row.tier === "free" ? "default_free" : "subscription",
       ...common,
     };
   }
 
   return {
-    tier,
+    tier: "free",
     status: row.status,
-    quotaPerMonth: constants.quotaPerMonth,
-    logRetentionDays: constants.logRetentionDays,
+    quotaPerMonth: TIERS.free.quotaPerMonth,
+    logRetentionDays: TIERS.free.logRetentionDays,
     grandfathered: false,
     delinquent: false,
-    source: row.tier === "free" ? "default_free" : "subscription",
+    source: "default_free",
     ...common,
   };
 }

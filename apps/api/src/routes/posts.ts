@@ -15,7 +15,7 @@ import {
   type PublishResult,
   type WebhookEventType,
 } from "@letmepost/schemas";
-import { checkAndIncrementQuota } from "../billing/quota.js";
+import { checkAndIncrementQuota, decrementQuota } from "../billing/quota.js";
 import { posts as postsTable, type Post } from "../db/schema/posts.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
@@ -233,17 +233,6 @@ posts.post(
       preflightForAccount(account, input);
     }
 
-    // ─── Billing quota gate ─────────────────────────────────────────────────
-    // Idempotent replays never reach this code path. The idempotency
-    // middleware short-circuits with the stored response before the handler
-    // runs, so a retried key cannot double-charge the counter.
-    //
-    // Cost is one slot per target. Infinity quotas (self_host, grandfather,
-    // enterprise) skip the cap entirely inside checkAndIncrementQuota.
-    await checkAndIncrementQuota(c.var.db, organizationId, resolved.length, {
-      webhookDispatcher: c.var.webhookDispatcher,
-    });
-
     // ─── Scheduled path ──────────────────────────────────────────────────────
     if (multi.scheduledAt) {
       const when = new Date(multi.scheduledAt);
@@ -282,6 +271,18 @@ posts.post(
           });
         }
       }
+
+      // ─── Billing quota gate (scheduled) ───────────────────────────────────
+      // Charged only after every request-level validation above has passed, so
+      // an invalid request consumes ZERO quota. One slot per queued target —
+      // accepting the batch reserves the slots; the worker owns any refund if a
+      // send later fails at fire time. Idempotent replays never reach here (the
+      // idempotency middleware short-circuits with the stored response), so a
+      // retried key cannot double-charge. Infinity quotas (self_host,
+      // grandfather, enterprise) skip the cap inside checkAndIncrementQuota.
+      await checkAndIncrementQuota(c.var.db, organizationId, resolved.length, {
+        webhookDispatcher: c.var.webhookDispatcher,
+      });
 
       const batchId = randomUUID();
       const results: PostTargetResult[] = [];
@@ -346,6 +347,19 @@ posts.post(
       };
       return c.json(body, 202);
     }
+
+    // ─── Billing quota gate (immediate) ──────────────────────────────────────
+    // Charged only after every request-level validation + preflight above has
+    // passed, so an invalid request consumes ZERO quota. One slot per target is
+    // reserved up front; targets that fail at publish (rejected/failed) are
+    // refunded below so quota reflects only sends that actually went out.
+    // Idempotent replays never reach here (the idempotency middleware
+    // short-circuits with the stored response), so a retried key cannot
+    // double-charge. Infinity quotas (self_host, grandfather, enterprise) skip
+    // the cap inside checkAndIncrementQuota.
+    await checkAndIncrementQuota(c.var.db, organizationId, resolved.length, {
+      webhookDispatcher: c.var.webhookDispatcher,
+    });
 
     // ─── Immediate path — fan out across targets ────────────────────────────
     // Persist a `publishing` row per target up front so the post log shows
@@ -460,6 +474,13 @@ posts.post(
 
         results.push(buildFailureResult(account, rowId, status, err));
       }
+    }
+
+    // Refund the slots reserved for targets that never published. Quota should
+    // bill only sends that actually went out, so a fully-failed batch nets to
+    // zero and a partial failure keeps only the successful targets charged.
+    if (failCount > 0) {
+      await decrementQuota(c.var.db, organizationId, failCount);
     }
 
     const batchStatus: CreatePostResponse["status"] =

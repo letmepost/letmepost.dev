@@ -119,6 +119,32 @@ export async function checkAndIncrementQuota(
   return { newCount, quota, period, resetAt };
 }
 
+// Refund previously-charged slots. Used when work that consumed quota at
+// request time never completes — a target that fails at publish. Clamped at
+// zero via GREATEST so a refund can never drive the counter negative, and
+// scoped to the current period (immediate publishes refund within the same
+// period they charged). A no-op when no usage row exists yet.
+export async function decrementQuota(
+  db: DrizzleClient,
+  orgId: string,
+  cost: number,
+): Promise<void> {
+  if (cost <= 0) return;
+  const period = periodFor();
+  await db
+    .update(billingUsage)
+    .set({
+      postsCount: sql`GREATEST(${billingUsage.postsCount} - ${cost}, 0)`,
+      updatedAt: sql`now()`,
+    })
+    .where(
+      and(
+        eq(billingUsage.organizationId, orgId),
+        eq(billingUsage.period, period),
+      ),
+    );
+}
+
 // Conditional atomic UPSERT. On conflict we add the cost only when the
 // total stays under the quota. Returns null when the cap was hit.
 async function tryIncrement(

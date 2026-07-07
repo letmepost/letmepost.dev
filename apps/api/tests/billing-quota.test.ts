@@ -7,6 +7,7 @@ import {
   expect,
   it,
 } from "vitest";
+import { randomUUID } from "node:crypto";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { and, eq } from "drizzle-orm";
@@ -18,6 +19,7 @@ import { billingSubscriptions } from "../src/db/schema/billing_subscriptions.js"
 import { billingUsage } from "../src/db/schema/billing_usage.js";
 import { LetmepostError } from "../src/errors.js";
 import { seed } from "../src/db/seed.js";
+import { DrizzlePlatformAccountsRepository } from "../src/repositories/platform-accounts.js";
 import type { WebhookDispatcher } from "../src/webhooks/dispatch.js";
 import {
   canRunDbTests,
@@ -370,6 +372,316 @@ describeIfDbInteg(
         if (prev === undefined) delete process.env.BILLING_ENABLED;
         else process.env.BILLING_ENABLED = prev;
       }
+    });
+  },
+);
+
+describeIfDbInteg(
+  "billing/quota — POST /v1/posts charges only accepted, published work",
+  () => {
+    async function currentCount(
+      db: import("../src/db/index.js").DrizzleClient,
+      organizationId: string,
+    ): Promise<number> {
+      const [row] = await db
+        .select()
+        .from(billingUsage)
+        .where(
+          and(
+            eq(billingUsage.organizationId, organizationId),
+            eq(billingUsage.period, periodFor()),
+          ),
+        );
+      return row?.postsCount ?? 0;
+    }
+
+    function withBillingEnabled<T>(fn: () => Promise<T>): Promise<T> {
+      const prev = process.env.BILLING_ENABLED;
+      process.env.BILLING_ENABLED = "true";
+      return fn().finally(() => {
+        if (prev === undefined) delete process.env.BILLING_ENABLED;
+        else process.env.BILLING_ENABLED = prev;
+      });
+    }
+
+    // createSession returns a DID derived from the identifier; createRecord
+    // succeeds unless the record targets `rejectDid`, letting one target in a
+    // batch fail at publish while its batch-mate succeeds.
+    function blueskyDidHandlers(rejectDid?: string) {
+      return [
+        http.post(
+          "https://bsky.social/xrpc/com.atproto.server.createSession",
+          async ({ request }) => {
+            const body = (await request.json()) as { identifier: string };
+            const did = `did:plc:${body.identifier.split(".")[0]}`;
+            return HttpResponse.json({
+              accessJwt: "a",
+              refreshJwt: "r",
+              did,
+              handle: body.identifier,
+            });
+          },
+        ),
+        http.post(
+          "https://bsky.social/xrpc/com.atproto.repo.createRecord",
+          async ({ request }) => {
+            const body = (await request.json()) as { repo: string };
+            if (rejectDid && body.repo === rejectDid) {
+              return HttpResponse.json(
+                { error: "InvalidRequest", message: "Record validation failed" },
+                { status: 400 },
+              );
+            }
+            return HttpResponse.json({
+              uri: `at://${body.repo}/app.bsky.feed.post/x`,
+              cid: "bafy-mock",
+            });
+          },
+        ),
+      ];
+    }
+
+    it("a request that fails request-level validation consumes zero quota", async () => {
+      await withBillingEnabled(async () => {
+        const { db } = await getTestDb();
+        await runInTransaction(db, async (tx) => {
+          const fixture = await seed(tx);
+          await tx.insert(billingSubscriptions).values({
+            organizationId: fixture.organizationId,
+            tier: "free",
+            status: "free",
+          });
+
+          const app = createApp({ db: tx });
+          // scheduledAt in the past → validation_failed (scheduledAt.future),
+          // which is checked before the quota is ever consumed.
+          const res = await app.request("/v1/posts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+            },
+            body: JSON.stringify({
+              targets: [{ accountId: fixture.accountId }],
+              text: "should never publish",
+              scheduledAt: new Date(Date.now() - 3600_000).toISOString(),
+            }),
+          });
+
+          expect(res.status).toBe(400);
+          const body = (await res.json()) as { error: { code: string } };
+          expect(body.error.code).toBe("validation_failed");
+          expect(await currentCount(tx, fixture.organizationId)).toBe(0);
+        });
+      });
+    });
+
+    it("a batch with one target rejected pre-publish charges nothing (all-or-nothing)", async () => {
+      await withBillingEnabled(async () => {
+        const { db } = await getTestDb();
+        await runInTransaction(db, async (tx) => {
+          const fixture = await seed(tx);
+          await tx.insert(billingSubscriptions).values({
+            organizationId: fixture.organizationId,
+            tier: "free",
+            status: "free",
+          });
+
+          const app = createApp({ db: tx });
+          // One valid target + one unknown accountId. Resolution 404s the whole
+          // batch before the quota gate, so the valid target is NOT charged.
+          const res = await app.request("/v1/posts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+            },
+            body: JSON.stringify({
+              targets: [
+                { accountId: fixture.accountId },
+                { accountId: randomUUID() },
+              ],
+              text: "half-invalid batch",
+            }),
+          });
+
+          expect(res.status).toBe(404);
+          expect(await currentCount(tx, fixture.organizationId)).toBe(0);
+        });
+      });
+    });
+
+    it("a successful publish is counted exactly once", async () => {
+      await withBillingEnabled(async () => {
+        const { db } = await getTestDb();
+        await runInTransaction(db, async (tx) => {
+          const fixture = await seed(tx);
+          await tx.insert(billingSubscriptions).values({
+            organizationId: fixture.organizationId,
+            tier: "free",
+            status: "free",
+          });
+
+          server.use(...blueskyDidHandlers());
+          const app = createApp({ db: tx });
+          const res = await app.request("/v1/posts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+            },
+            body: JSON.stringify({
+              targets: [{ accountId: fixture.accountId }],
+              text: "hello world",
+            }),
+          });
+
+          expect(res.status).toBe(200);
+          const body = (await res.json()) as { status: string };
+          expect(body.status).toBe("published");
+          expect(await currentCount(tx, fixture.organizationId)).toBe(1);
+        });
+      });
+    });
+
+    it("a publish that fails at the platform is refunded (net zero)", async () => {
+      await withBillingEnabled(async () => {
+        const { db } = await getTestDb();
+        await runInTransaction(db, async (tx) => {
+          const fixture = await seed(tx);
+          await tx.insert(billingSubscriptions).values({
+            organizationId: fixture.organizationId,
+            tier: "free",
+            status: "free",
+          });
+
+          const repo = new DrizzlePlatformAccountsRepository(tx);
+          const account = await repo.findById(fixture.accountId);
+          const rejectDid = `did:plc:${account!.platformAccountId.split(".")[0]}`;
+          server.use(...blueskyDidHandlers(rejectDid));
+
+          const app = createApp({ db: tx });
+          const res = await app.request("/v1/posts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+            },
+            body: JSON.stringify({
+              targets: [{ accountId: fixture.accountId }],
+              text: "will be rejected",
+            }),
+          });
+
+          expect(res.status).toBe(200);
+          const body = (await res.json()) as { status: string };
+          expect(body.status).toBe("failed");
+          // Charged one slot up front, refunded when the send never went out.
+          expect(await currentCount(tx, fixture.organizationId)).toBe(0);
+        });
+      });
+    });
+
+    it("in a batch, only the target that actually published is charged", async () => {
+      await withBillingEnabled(async () => {
+        const { db } = await getTestDb();
+        await runInTransaction(db, async (tx) => {
+          const fixture = await seed(tx);
+          await tx.insert(billingSubscriptions).values({
+            organizationId: fixture.organizationId,
+            tier: "free",
+            status: "free",
+          });
+
+          const repo = new DrizzlePlatformAccountsRepository(tx);
+          const accountA = await repo.create({
+            organizationId: fixture.organizationId,
+            profileId: fixture.profileId,
+            platform: "bluesky",
+            platformAccountId: "accta.bsky.social",
+            displayName: "acct a",
+            token: "pw-a",
+            tokenMetadata: { handle: "accta.bsky.social" },
+          });
+          const accountB = await repo.create({
+            organizationId: fixture.organizationId,
+            profileId: fixture.profileId,
+            platform: "bluesky",
+            platformAccountId: "acctb.bsky.social",
+            displayName: "acct b",
+            token: "pw-b",
+            tokenMetadata: { handle: "acctb.bsky.social" },
+          });
+
+          // B's publish is rejected; A's succeeds.
+          server.use(...blueskyDidHandlers("did:plc:acctb"));
+
+          const app = createApp({ db: tx });
+          const res = await app.request("/v1/posts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+            },
+            body: JSON.stringify({
+              targets: [{ accountId: accountA.id }, { accountId: accountB.id }],
+              text: "one lands, one fails",
+            }),
+          });
+
+          expect(res.status).toBe(200);
+          const body = (await res.json()) as {
+            status: string;
+            results: Array<{ status: string }>;
+          };
+          expect(body.status).toBe("partial_failed");
+          expect(body.results[0]!.status).toBe("published");
+          expect(body.results[1]!.status).toBe("rejected");
+          // Charged 2 up front, refunded the 1 that failed → only the published
+          // target is billed.
+          expect(await currentCount(tx, fixture.organizationId)).toBe(1);
+        });
+      });
+    });
+
+    it("still returns 429 quota_exceeded when genuinely over the cap", async () => {
+      await withBillingEnabled(async () => {
+        const { db } = await getTestDb();
+        await runInTransaction(db, async (tx) => {
+          const fixture = await seed(tx);
+          await tx.insert(billingSubscriptions).values({
+            organizationId: fixture.organizationId,
+            tier: "free",
+            status: "free",
+          });
+          // Free cap is 50; pre-fill to the cap so the next slot is refused.
+          await tx.insert(billingUsage).values({
+            organizationId: fixture.organizationId,
+            period: periodFor(),
+            postsCount: 50,
+          });
+
+          server.use(...blueskyDidHandlers());
+          const app = createApp({ db: tx });
+          const res = await app.request("/v1/posts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+            },
+            body: JSON.stringify({
+              targets: [{ accountId: fixture.accountId }],
+              text: "over the cap",
+            }),
+          });
+
+          expect(res.status).toBe(429);
+          const body = (await res.json()) as { error: { code: string } };
+          expect(body.error.code).toBe("quota_exceeded");
+          // Counter untouched — the gate refuses before persisting.
+          expect(await currentCount(tx, fixture.organizationId)).toBe(50);
+        });
+      });
     });
   },
 );
