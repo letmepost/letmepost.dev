@@ -601,6 +601,29 @@ export async function refreshTwitterToken(params: {
   });
 
   if (!res.ok || !res.body?.access_token) {
+    // Transient upstream failures (429 rate-limit, 5xx) must NOT be mistaken
+    // for a revoked grant. Mapping them to platform_auth_failed kills the
+    // refresh chain and forces the user to re-auth over a temporary blip.
+    // Surface them as retryable platform_unavailable so the refresh backs off
+    // and retries; the account is left connected. (Network errors/timeouts
+    // already surface as platform_unavailable from platformFetch.)
+    if (res.status === 429 || res.status >= 500) {
+      throw new LetmepostError({
+        code: "platform_unavailable",
+        status: 503,
+        platform: PLATFORM,
+        message:
+          res.status === 429
+            ? "X is rate limiting the token-refresh endpoint."
+            : `X token-refresh endpoint returned ${res.status}.`,
+        remediation:
+          "Transient upstream failure during token refresh; retry shortly — the account is not revoked.",
+        platformResponse: res.body ?? res.raw ?? undefined,
+      });
+    }
+
+    // Everything else (400 invalid_grant, 401, invalid_token, ...) is a
+    // genuine auth failure: the refresh token is expired or revoked.
     throw authFailed({
       platform: PLATFORM,
       platformResponse: res.body ?? res.raw ?? undefined,

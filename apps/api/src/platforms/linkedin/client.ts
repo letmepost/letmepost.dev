@@ -116,7 +116,7 @@ export class LinkedInClient {
   async createPost(input: LinkedInPostInput): Promise<LinkedInPostResult> {
     const body = {
       author: input.authorUrn,
-      commentary: input.text,
+      commentary: escapeLittleTextFormat(input.text),
       visibility: input.visibility ?? "PUBLIC",
       distribution: {
         feedDistribution: "MAIN_FEED",
@@ -216,6 +216,22 @@ export class LinkedInClient {
       ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
     });
   }
+}
+
+/**
+ * LinkedIn "Little Text Format" (LTF) reserved characters. When any of these
+ * appear literally in a Posts-API `commentary`, LinkedIn requires them to be
+ * backslash-escaped, otherwise the post is rejected or mis-rendered. Canonical
+ * set: \ | { } @ [ ] ( ) < > # * _ ~
+ *
+ * The backslash is part of the class, so a single pass matches every reserved
+ * character exactly once — including literal backslashes in the source text —
+ * which escapes the backslash "first" without any double-escaping.
+ */
+const LTF_RESERVED = /[\\|{}@[\]()<>#*_~]/g;
+
+export function escapeLittleTextFormat(text: string): string {
+  return text.replace(LTF_RESERVED, (ch) => `\\${ch}`);
 }
 
 function pickErrorCode(body: unknown): string | undefined {
