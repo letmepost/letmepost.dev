@@ -87,7 +87,9 @@ export async function processPublishJob(
   }
 
   const repo = new DrizzlePlatformAccountsRepository(db);
-  const account = await repo.findById(post.accountId);
+  const account = post.accountId
+    ? await repo.findById(post.accountId)
+    : null;
   if (!account) {
     const err = new LetmepostError({
       code: "internal_error",

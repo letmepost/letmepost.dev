@@ -400,12 +400,43 @@ posts.post(
 
     const results: PostTargetResult[] = [];
     let successCount = 0;
+    let acceptedCount = 0;
     let failCount = 0;
     for (let i = 0; i < persisted.length; i++) {
       const { account, rowId } = persisted[i]!;
       const outcome = settled[i]!;
       if (outcome.status === "fulfilled") {
         const result = outcome.value;
+
+        // TikTok publishes asynchronously (init → upload → PUBLISH →
+        // status polling). The publisher returns `publishing` with the
+        // publish_id stamped on `cid`; the upload is only ACCEPTED, not
+        // live. Do NOT mark the row published on accept — leave it
+        // `publishing`, stamp the publish_id, and enqueue the status-poll
+        // job so the worker reconciles to the true terminal state
+        // (published / failed / rejected) and fires the correct webhook.
+        // This mirrors the scheduled path (queue/publish-processor.ts);
+        // the interim `publishing` status keeps a post TikTok later fails
+        // from showing as `published`.
+        if (result.status === "publishing" && account.platform === "tiktok") {
+          acceptedCount++;
+          await c.var.db
+            .update(postsTable)
+            .set({ platformCid: result.cid ?? null })
+            .where(eq(postsTable.id, rowId));
+
+          await c.var.tiktokPollEnqueuer.enqueue({
+            postId: rowId,
+            publishId: result.cid ?? result.id,
+            platformAccountId: account.id,
+            organizationId,
+            ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+          });
+
+          results.push(buildPublishingResult(account, rowId, result));
+          continue;
+        }
+
         successCount++;
         const publishedAt = new Date();
         await c.var.db
@@ -483,10 +514,15 @@ posts.post(
       await decrementQuota(c.var.db, organizationId, failCount);
     }
 
+    // Accepted-but-pending TikTok targets count as non-failures for the batch
+    // envelope (the per-target result carries the honest `publishing` state;
+    // the worker reconciles the terminal status + fires the lifecycle webhook
+    // later). A batch is only "failed" when nothing published AND nothing was
+    // accepted for async processing.
     const batchStatus: CreatePostResponse["status"] =
       failCount === 0
         ? "published"
-        : successCount === 0
+        : successCount + acceptedCount === 0
           ? "failed"
           : "partial_failed";
 
@@ -710,6 +746,29 @@ function buildSuccessResult(
   if (result.firstCommentCid !== undefined) {
     out.firstCommentCid = result.firstCommentCid;
   }
+  if (result.warnings !== undefined) out.warnings = result.warnings;
+  return out;
+}
+
+/**
+ * Result for an async-accepted target (TikTok): the upload was accepted but
+ * TikTok has not reached a terminal state yet. Status is `publishing`; the
+ * status-poll worker flips the row + fires the lifecycle webhook later. The
+ * publish_id rides on `cid` so a caller can correlate with the eventual
+ * post.published / post.failed event.
+ */
+function buildPublishingResult(
+  account: DecryptedPlatformAccount,
+  postId: string,
+  result: PublishResult,
+): PostTargetResult {
+  const out: PostTargetResult = {
+    accountId: account.id,
+    platform: account.platform,
+    postId,
+    status: "publishing",
+  };
+  if (result.cid !== undefined) out.cid = result.cid;
   if (result.warnings !== undefined) out.warnings = result.warnings;
   return out;
 }

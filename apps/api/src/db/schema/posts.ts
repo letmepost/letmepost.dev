@@ -28,9 +28,9 @@ export const posts = pgTable(
     organizationId: uuid("organization_id")
       .notNull()
       .references(() => organization.id, { onDelete: "cascade" }),
-    accountId: uuid("account_id")
-      .notNull()
-      .references(() => platformAccounts.id, { onDelete: "cascade" }),
+    accountId: uuid("account_id").references(() => platformAccounts.id, {
+      onDelete: "set null",
+    }),
     status: postStatus("status").notNull().default("queued"),
     text: text("text").notNull(),
     mediaRefs: jsonb("media_refs").$type<unknown[]>().notNull().default([]),

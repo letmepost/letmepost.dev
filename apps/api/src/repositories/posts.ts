@@ -151,6 +151,35 @@ export type PostListResult = {
   nextCursor: string | null;
 };
 
+/** Account columns as they come back from a LEFT JOIN — every field is nullable
+ *  because a post whose platform account was deleted (FK ON DELETE SET NULL) has
+ *  no matching account row. */
+type JoinedAccount = {
+  id: string | null;
+  profileId: string | null;
+  platform: string | null;
+  platformAccountId: string | null;
+  displayName: string | null;
+};
+
+/**
+ * Normalize a left-joined account into the public summary. History must
+ * survive account deletion, so an orphaned post (account_id = NULL) still
+ * serializes — its account fields come back null. The cast is deliberate: the
+ * public summary declares non-null strings, which the Post Log response mapping
+ * depends on, and an org-wide key reads these posts fine while a profile-scoped
+ * key can't attribute an accountless post and 404s on it.
+ */
+function toPostAccount(account: JoinedAccount | null): PostAccountSummary {
+  return {
+    id: account?.id ?? null,
+    profileId: account?.profileId ?? null,
+    platform: account?.platform ?? null,
+    platformAccountId: account?.platformAccountId ?? null,
+    displayName: account?.displayName ?? null,
+  } as PostAccountSummary;
+}
+
 /**
  * Cursor codec — opaque to callers. The boundary `createdAt` is carried at FULL
  * Postgres precision (ISO-8601 with 6-digit microseconds) rather than epoch
@@ -283,7 +312,7 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
         cursorTs: sql<string>`to_char(${posts.createdAt} AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
       })
       .from(posts)
-      .innerJoin(platformAccounts, eq(posts.accountId, platformAccounts.id))
+      .leftJoin(platformAccounts, eq(posts.accountId, platformAccounts.id))
       .where(and(...conditions))
       .orderBy(desc(posts.createdAt), desc(posts.id))
       .limit(fetchLimit);
@@ -296,7 +325,10 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
       hasMore && last ? encodeCursor(last.cursorTs, last.post.id) : null;
 
     return {
-      data: page.map((row) => ({ ...row.post, account: row.account })),
+      data: page.map((row) => ({
+        ...row.post,
+        account: toPostAccount(row.account),
+      })),
       nextCursor,
     };
   }
@@ -314,12 +346,12 @@ export class DrizzlePostsReadRepository implements PostsReadRepository {
         },
       })
       .from(posts)
-      .innerJoin(platformAccounts, eq(posts.accountId, platformAccounts.id))
+      .leftJoin(platformAccounts, eq(posts.accountId, platformAccounts.id))
       .where(eq(posts.id, id))
       .limit(1);
     const row = rows[0];
     if (!row) return null;
-    return { ...row.post, account: row.account };
+    return { ...row.post, account: toPostAccount(row.account) };
   }
 
   async attemptsFor(postId: string): Promise<PostAttempt[]> {
