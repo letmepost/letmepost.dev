@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FinalCta, finalButtonClass } from "@/components/ui/final-cta";
-import { getPublishedPosts, type BlogPost } from "@/lib/notion";
+import { getPublishedPosts, type PostSummary } from "@/lib/notion";
+
+export const revalidate = 86400;
 
 export const metadata: Metadata = {
   title: "Engineering blog: social media API deep-dives",
@@ -38,7 +40,7 @@ function safeHeroUrl(url?: string): string | undefined {
 
 export default async function Blog() {
   const posts = await getPublishedPosts();
-  const featured: BlogPost | undefined = posts[0];
+  const featured: PostSummary | undefined = posts[0];
   const rest = posts.slice(1);
   const featuredBg = featured ? safeHeroUrl(featured.heroImage) : undefined;
 
@@ -94,8 +96,7 @@ export default async function Blog() {
             </div>
             <div className="flex flex-col justify-center p-10">
               <div className="mb-4 font-mono text-xs text-faint">
-                {fmtDate(featured.pubDate)} · {featured.author} ·{" "}
-                {featured.readingTime} min read
+                {fmtDate(featured.pubDate)} · {featured.author}
               </div>
               <h2 className="mb-[14px] font-disp text-[30px] font-semibold leading-[1.12] tracking-[-0.02em]">
                 {featured.title}

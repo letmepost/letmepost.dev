@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { Client, isFullPage } from "@notionhq/client";
 import { NotionToMarkdown } from "notion-to-md";
 import { unified } from "unified";
@@ -14,8 +15,9 @@ import GithubSlugger from "github-slugger";
 
 export type BlogHeading = { slug: string; text: string; depth: number };
 
-export type BlogPost = {
+export type PostSummary = {
   id: string;
+  pageId: string;
   title: string;
   description: string;
   pubDate: Date;
@@ -24,9 +26,11 @@ export type BlogPost = {
   tags: string[];
   category: "engineering" | "philosophy" | "release-notes";
   heroImage?: string;
-  readingTime: number;
   draft: boolean;
-  canonicalUrl?: string;
+};
+
+export type BlogPost = PostSummary & {
+  readingTime: number;
   body: string;
   html: string;
   headings: BlogHeading[];
@@ -170,21 +174,21 @@ function readingMinutes(body: string): number {
   return Math.max(1, Math.round(words / 200));
 }
 
-async function loadAllPosts(): Promise<BlogPost[]> {
+function notionClient(): Client | null {
   const token = process.env.NOTION_TOKEN ?? "";
+  if (!token) return null;
+  return new Client({ auth: token });
+}
+
+async function loadSummaries(): Promise<PostSummary[]> {
   const databaseId = process.env.NOTION_BLOG_DATABASE_ID ?? "";
-  if (!token || !databaseId) {
+  const notion = notionClient();
+  if (!notion || !databaseId) {
     console.warn(
       "[notion] NOTION_TOKEN / NOTION_BLOG_DATABASE_ID are not set — blog will be empty.",
     );
     return [];
   }
-
-  const notion = new Client({ auth: token });
-  const n2m = new NotionToMarkdown({
-    notionClient: notion,
-    config: { parseChildPages: false },
-  });
 
   const dbResp = (await notion.databases.retrieve({
     database_id: databaseId,
@@ -217,9 +221,8 @@ async function loadAllPosts(): Promise<BlogPost[]> {
     cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
   } while (cursor);
 
-  const posts: BlogPost[] = [];
+  const summaries: PostSummary[] = [];
   for (const page of pages) {
-    try {
     const props = page.properties;
     const slug = plainText(props["slug"]);
     if (!slug) continue;
@@ -228,61 +231,71 @@ async function loadAllPosts(): Promise<BlogPost[]> {
     const pubDateRaw = dateStart(props["Publish Date"]);
     if (!title || !description || !pubDateRaw) continue;
 
-    const mdBlocks = await n2m.pageToMarkdown(page.id);
-    const mdResult = n2m.toMarkdownString(mdBlocks);
-    const cleaned = stripInlineToc(mdResult.parent ?? "");
-    const noAttribution = stripOutrankAttribution(cleaned);
-    const demoted = demoteHeadings(noAttribution);
-    const body = addImageAlts(demoted, title);
-    if (!body.trim()) continue;
-
-    const html = await renderMarkdown(body);
-    const headings = extractHeadings(body);
-
-    posts.push({
+    summaries.push({
       id: slug,
+      pageId: page.id,
       title,
       description,
       pubDate: new Date(pubDateRaw),
+      updatedDate: page.lastEdited ? new Date(page.lastEdited) : undefined,
       author: "letmepost.dev",
       tags: [],
       category: "engineering",
       draft: false,
-      readingTime: readingMinutes(body),
       ...(coverUrl(page.cover) ? { heroImage: coverUrl(page.cover) } : {}),
-      body,
-      html,
-      headings,
-    });
-    } catch (err) {
-      console.warn(`[notion] skipped page ${page.id}:`, err);
-    }
-  }
-
-  posts.sort((a, b) => b.pubDate.valueOf() - a.pubDate.valueOf());
-  return posts;
-}
-
-let postsPromise: Promise<BlogPost[]> | null = null;
-
-export function getAllPosts(): Promise<BlogPost[]> {
-  if (!postsPromise) {
-    postsPromise = loadAllPosts().catch((err) => {
-      postsPromise = null;
-      throw err;
     });
   }
-  return postsPromise;
+
+  summaries.sort((a, b) => b.pubDate.valueOf() - a.pubDate.valueOf());
+  return summaries;
 }
 
-export async function getPost(slug: string): Promise<BlogPost | undefined> {
-  const posts = await getAllPosts();
-  return posts.find((p) => p.id === slug);
-}
+const getSummaries = cache(async (): Promise<PostSummary[]> => {
+  try {
+    return await loadSummaries();
+  } catch (err) {
+    console.error("[notion] failed to load post summaries:", err);
+    return [];
+  }
+});
 
-export async function getPublishedPosts(): Promise<BlogPost[]> {
-  const posts = await getAllPosts();
+export const getPublishedPosts = cache(async (): Promise<PostSummary[]> => {
+  const summaries = await getSummaries();
   return process.env.NODE_ENV === "production"
-    ? posts.filter((p) => p.draft !== true)
-    : posts;
-}
+    ? summaries.filter((p) => p.draft !== true)
+    : summaries;
+});
+
+export const getPost = cache(
+  async (slug: string): Promise<BlogPost | undefined> => {
+    const summaries = await getSummaries();
+    const summary = summaries.find((p) => p.id === slug);
+    if (!summary) return undefined;
+    if (process.env.NODE_ENV === "production" && summary.draft === true) {
+      return undefined;
+    }
+
+    const notion = notionClient();
+    if (!notion) return undefined;
+    const n2m = new NotionToMarkdown({
+      notionClient: notion,
+      config: { parseChildPages: false },
+    });
+
+    const mdBlocks = await n2m.pageToMarkdown(summary.pageId);
+    const mdResult = n2m.toMarkdownString(mdBlocks);
+    const cleaned = stripInlineToc(mdResult.parent ?? "");
+    const noAttribution = stripOutrankAttribution(cleaned);
+    const demoted = demoteHeadings(noAttribution);
+    const body = addImageAlts(demoted, summary.title);
+    if (!body.trim()) return undefined;
+
+    return {
+      ...summary,
+      readingTime: readingMinutes(body),
+      body,
+      html: await renderMarkdown(body),
+      headings: extractHeadings(body),
+    };
+  },
+);

@@ -7,17 +7,12 @@ import { breadcrumbSchema, ROSE_PERSON_SCHEMA } from "@/lib/seo";
 import { getPublishedPosts, getPost } from "@/lib/notion";
 import { cn } from "@/lib/utils";
 
-export const dynamicParams = false;
+export const revalidate = 86400;
 
 const SITE = "https://letmepost.dev";
 
 const NAV_CARD =
   "flex flex-col gap-1.5 rounded-[14px] border border-line px-5 py-[18px] text-inherit no-underline transition-colors duration-[140ms] hover:border-acc";
-
-export async function generateStaticParams() {
-  const posts = await getPublishedPosts();
-  return posts.map((post) => ({ slug: post.id }));
-}
 
 export async function generateMetadata({
   params,
