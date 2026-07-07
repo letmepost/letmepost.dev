@@ -1,45 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
   "crons": [
     {
       "path": "/api/cron/rebuild-blog",
       "schedule": "30 2 * * *"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/_ph/static/:path*",
-      "destination": "https://us-assets.i.posthog.com/static/:path*"
-    },
-    {
-      "source": "/_ph/:path+/",
-      "destination": "https://us.i.posthog.com/:path+/"
-    },
-    {
-      "source": "/_ph/:path*",
-      "destination": "https://us.i.posthog.com/:path*"
-    }
-  ],
-  "redirects": [
-    {
-      "source": "/docs",
-      "destination": "https://docs.letmepost.dev",
-      "permanent": true
-    },
-    {
-      "source": "/docs/:path*",
-      "destination": "https://docs.letmepost.dev/:path*",
-      "permanent": true
-    },
-    {
-      "source": "/tools",
-      "destination": "/",
-      "permanent": true
-    },
-    {
-      "source": "/tools/:path*",
-      "destination": "/",
-      "permanent": true
     }
   ]
 }

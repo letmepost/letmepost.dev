@@ -1,0 +1,301 @@
+import { cache } from "react";
+import { Client, isFullPage } from "@notionhq/client";
+import { NotionToMarkdown } from "notion-to-md";
+import { unified } from "unified";
+import remarkParse from "remark-parse";
+import remarkGfm from "remark-gfm";
+import remarkRehype from "remark-rehype";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeSlug from "rehype-slug";
+import rehypeStringify from "rehype-stringify";
+import { visit } from "unist-util-visit";
+import { toString as mdastToString } from "mdast-util-to-string";
+import GithubSlugger from "github-slugger";
+
+export type BlogHeading = { slug: string; text: string; depth: number };
+
+export type PostSummary = {
+  id: string;
+  pageId: string;
+  title: string;
+  description: string;
+  pubDate: Date;
+  updatedDate?: Date;
+  author: string;
+  tags: string[];
+  category: "engineering" | "philosophy" | "release-notes";
+  heroImage?: string;
+  draft: boolean;
+};
+
+export type BlogPost = PostSummary & {
+  readingTime: number;
+  body: string;
+  html: string;
+  headings: BlogHeading[];
+};
+
+type RichText = { plain_text: string };
+type NotionCover =
+  | { type: "external"; external: { url: string } }
+  | { type: "file"; file: { url: string } }
+  | null;
+type NotionPage = {
+  id: string;
+  properties: Record<string, unknown>;
+  cover: NotionCover;
+  lastEdited: string;
+};
+
+function plainText(prop: unknown): string | undefined {
+  if (!prop || typeof prop !== "object") return undefined;
+  const p = prop as {
+    type?: string;
+    title?: RichText[];
+    rich_text?: RichText[];
+  };
+  const arr = p.type === "title" ? p.title : p.rich_text;
+  if (!arr || arr.length === 0) return undefined;
+  return (
+    arr
+      .map((t) => t.plain_text)
+      .join("")
+      .trim() || undefined
+  );
+}
+
+function dateStart(prop: unknown): string | undefined {
+  if (!prop || typeof prop !== "object") return undefined;
+  const p = prop as { date?: { start?: string } };
+  return p.date?.start;
+}
+
+function coverUrl(cover: NotionCover): string | undefined {
+  if (!cover) return undefined;
+  if (cover.type === "external") return cover.external.url;
+  if (cover.type === "file") return cover.file.url;
+  return undefined;
+}
+
+function stripInlineToc(markdown: string): string {
+  return markdown.replace(
+    /^[\s>*_]*\*?\*?Table of Contents\*?\*?[\s>*_]*$/gim,
+    "",
+  );
+}
+
+function addImageAlts(markdown: string, fallback: string): string {
+  let currentHeading = fallback;
+  return markdown
+    .split("\n")
+    .map((line) => {
+      const heading = line.match(/^#{1,6}\s+(.+?)\s*$/);
+      if (heading) {
+        currentHeading = heading[1].trim();
+        return line;
+      }
+      return line.replace(
+        /!\[\]\((https?:\/\/[^\s)]+)\)/g,
+        (_, url) => `![Figure: ${currentHeading}](${url})`,
+      );
+    })
+    .join("\n");
+}
+
+function stripOutrankAttribution(markdown: string): string {
+  return markdown.replace(
+    /\n?\*Built with \*\[\*the Outrank app\*\]\([^)]+\)\s*$/i,
+    "",
+  );
+}
+
+function demoteHeadings(markdown: string): string {
+  let inFence = false;
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (/^\s*```/.test(line)) {
+        inFence = !inFence;
+        return line;
+      }
+      if (inFence) return line;
+      return line.replace(/^(#{1,5})(\s+)/, "#$1$2");
+    })
+    .join("\n");
+}
+
+const blogSanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    span: [...(defaultSchema.attributes?.span ?? []), "style", "className"],
+    code: [...(defaultSchema.attributes?.code ?? []), "style"],
+    pre: [
+      ...(defaultSchema.attributes?.pre ?? []),
+      "style",
+      "className",
+      "tabindex",
+    ],
+  },
+};
+
+const processor = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkRehype, { allowDangerousHtml: true })
+  .use(rehypeRaw)
+  .use(rehypeSanitize, blogSanitizeSchema)
+  .use(rehypeSlug)
+  .use(rehypeStringify);
+
+async function renderMarkdown(body: string): Promise<string> {
+  const file = await processor.process(body);
+  return String(file);
+}
+
+function extractHeadings(body: string): BlogHeading[] {
+  const tree = unified().use(remarkParse).use(remarkGfm).parse(body);
+  const slugger = new GithubSlugger();
+  const headings: BlogHeading[] = [];
+  visit(tree, "heading", (node) => {
+    const text = mdastToString(node).trim();
+    const slug = slugger.slug(text);
+    if (node.depth === 2 || node.depth === 3) {
+      if (/^table of contents$/i.test(text)) return;
+      headings.push({ slug, text, depth: node.depth });
+    }
+  });
+  return headings;
+}
+
+function readingMinutes(body: string): number {
+  const words = body.trim().split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+function notionClient(): Client | null {
+  const token = process.env.NOTION_TOKEN ?? "";
+  if (!token) return null;
+  return new Client({ auth: token });
+}
+
+async function loadSummaries(): Promise<PostSummary[]> {
+  const databaseId = process.env.NOTION_BLOG_DATABASE_ID ?? "";
+  const notion = notionClient();
+  if (!notion || !databaseId) {
+    console.warn(
+      "[notion] NOTION_TOKEN / NOTION_BLOG_DATABASE_ID are not set — blog will be empty.",
+    );
+    return [];
+  }
+
+  const dbResp = (await notion.databases.retrieve({
+    database_id: databaseId,
+  })) as { data_sources?: { id: string }[] };
+  const dataSourceId = dbResp.data_sources?.[0]?.id;
+  if (!dataSourceId) {
+    throw new Error(
+      `Notion database ${databaseId} has no data sources — cannot query blog posts.`,
+    );
+  }
+
+  const pages: NotionPage[] = [];
+  let cursor: string | undefined;
+  do {
+    const res = await notion.dataSources.query({
+      data_source_id: dataSourceId,
+      start_cursor: cursor,
+      page_size: 100,
+    });
+    for (const r of res.results) {
+      if (isFullPage(r)) {
+        pages.push({
+          id: r.id,
+          properties: r.properties,
+          cover: r.cover as NotionCover,
+          lastEdited: r.last_edited_time,
+        });
+      }
+    }
+    cursor = res.has_more ? (res.next_cursor ?? undefined) : undefined;
+  } while (cursor);
+
+  const summaries: PostSummary[] = [];
+  for (const page of pages) {
+    const props = page.properties;
+    const slug = plainText(props["slug"]);
+    if (!slug) continue;
+    const title = plainText(props["Title"]) ?? plainText(props["Name"]);
+    const description = plainText(props["Meta Description"]);
+    const pubDateRaw = dateStart(props["Publish Date"]);
+    if (!title || !description || !pubDateRaw) continue;
+
+    summaries.push({
+      id: slug,
+      pageId: page.id,
+      title,
+      description,
+      pubDate: new Date(pubDateRaw),
+      updatedDate: page.lastEdited ? new Date(page.lastEdited) : undefined,
+      author: "letmepost.dev",
+      tags: [],
+      category: "engineering",
+      draft: false,
+      ...(coverUrl(page.cover) ? { heroImage: coverUrl(page.cover) } : {}),
+    });
+  }
+
+  summaries.sort((a, b) => b.pubDate.valueOf() - a.pubDate.valueOf());
+  return summaries;
+}
+
+const getSummaries = cache(async (): Promise<PostSummary[]> => {
+  try {
+    return await loadSummaries();
+  } catch (err) {
+    console.error("[notion] failed to load post summaries:", err);
+    return [];
+  }
+});
+
+export const getPublishedPosts = cache(async (): Promise<PostSummary[]> => {
+  const summaries = await getSummaries();
+  return process.env.NODE_ENV === "production"
+    ? summaries.filter((p) => p.draft !== true)
+    : summaries;
+});
+
+export const getPost = cache(
+  async (slug: string): Promise<BlogPost | undefined> => {
+    const summaries = await getSummaries();
+    const summary = summaries.find((p) => p.id === slug);
+    if (!summary) return undefined;
+    if (process.env.NODE_ENV === "production" && summary.draft === true) {
+      return undefined;
+    }
+
+    const notion = notionClient();
+    if (!notion) return undefined;
+    const n2m = new NotionToMarkdown({
+      notionClient: notion,
+      config: { parseChildPages: false },
+    });
+
+    const mdBlocks = await n2m.pageToMarkdown(summary.pageId);
+    const mdResult = n2m.toMarkdownString(mdBlocks);
+    const cleaned = stripInlineToc(mdResult.parent ?? "");
+    const noAttribution = stripOutrankAttribution(cleaned);
+    const demoted = demoteHeadings(noAttribution);
+    const body = addImageAlts(demoted, summary.title);
+    if (!body.trim()) return undefined;
+
+    return {
+      ...summary,
+      readingTime: readingMinutes(body),
+      body,
+      html: await renderMarkdown(body),
+      headings: extractHeadings(body),
+    };
+  },
+);

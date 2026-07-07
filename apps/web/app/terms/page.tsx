@@ -1,0 +1,117 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+const updated = "2026-04-27";
+
+export const metadata: Metadata = {
+  title: "Terms of Service: using letmepost.dev",
+  description: "Terms governing use of letmepost.dev.",
+  alternates: { canonical: "/terms/" },
+};
+
+const wrap =
+  "mx-auto max-w-[1080px] px-16 max-[1040px]:px-10 max-[560px]:px-[22px]";
+
+export default function Terms() {
+  return (
+    <>
+      <header className={`${wrap} pt-16 pb-2`}>
+        <p className="mb-[18px] font-mono text-xs tracking-[0.06em] text-faint [&_a]:text-acc [&_a]:hover:underline">
+          <Link href="/">letmepost</Link> / terms
+        </p>
+        <p className="mb-[22px] font-mono text-xs uppercase tracking-[0.18em] text-acc">
+          Legal
+        </p>
+        <h1 className="mb-[26px] max-w-[14ch] font-disp text-[64px] font-semibold leading-[1.04] tracking-[-0.03em] text-balance max-[860px]:text-[46px] max-[560px]:text-[36px]">
+          Terms of service.
+        </h1>
+        <p className="mt-5 font-mono text-[12.5px] text-faint [&_a]:text-acc [&_a]:hover:underline">
+          Last updated: {updated}
+        </p>
+      </header>
+
+      <section className={`${wrap} pt-7 pb-[72px] max-[860px]:pb-16`}>
+        <div className="prose">
+          <p>
+            These terms govern your use of letmepost.dev. By using the service, you agree to
+            them. If you don't agree, don't use the service. If you use the service on behalf
+            of an organisation, you agree on its behalf.
+          </p>
+
+          <h2>1. The service</h2>
+          <p>
+            letmepost.dev is an API for publishing content to third-party social platforms
+            that you control or are authorised to post to. It is operated by M/S Rose Creator
+            (trading as letmepost.dev), a sole proprietorship based in India. It is provided
+            "as is", without warranty of any kind. The core code is open source under the
+            Apache 2.0 license; the hosted service runs that same code.
+          </p>
+
+          <h2>2. Your account</h2>
+          <ul>
+            <li>You're responsible for keeping your API keys secret. Treat them like passwords.</li>
+            <li>You must be authorised to post to any social account you connect. We only act on your behalf.</li>
+            <li>You must comply with the terms of every third-party platform you publish to. If the platform bans your account, that's between you and them.</li>
+          </ul>
+
+          <h2>3. Acceptable use</h2>
+          <p>Do not use letmepost.dev to:</p>
+          <ul>
+            <li>Spam, harass, deceive, or impersonate anyone on any connected platform.</li>
+            <li>Evade a third-party platform's rate limits, automation rules, or moderation decisions.</li>
+            <li>Post content that is illegal where either you or the recipient audience lives.</li>
+            <li>Attempt to reverse-engineer our rate limiting, degrade the service, or target other users.</li>
+            <li>Resell the API as a generic "post to social" service without meaningful value-add. You can absolutely build products on top of it; that's what it's for.</li>
+          </ul>
+          <p>We may suspend accounts that violate this section with notice where practical, immediately where not.</p>
+
+          <h2>4. Rate limits and fair use</h2>
+          <p>
+            Published rate limits apply per API key. Exceeding them returns{" "}
+            <code>429</code> responses. We reserve the right to throttle or refuse traffic
+            that materially degrades the service for other users.
+          </p>
+
+          <h2>5. Pricing and payment</h2>
+          <p>
+            Pricing is published on the site. Paid tiers are billed monthly in advance and
+            non-refundable for the current period. You can cancel any time; your plan stays
+            active until the period ends.
+          </p>
+
+          <h2>6. Changes to the service</h2>
+          <p>
+            We may change, add to, or remove features. We'll give reasonable notice of
+            breaking changes via the changelog and webhook events
+            (<code>version.deprecated</code>). The OpenAPI spec is versioned; we do not
+            silently change request/response shapes.
+          </p>
+
+          <h2>7. Termination</h2>
+          <p>
+            You can close your account at any time from the dashboard (once shipped) or by
+            emailing us. We can terminate accounts that violate these terms or expose us to
+            legal risk.
+          </p>
+
+          <h2>8. Liability</h2>
+          <p>
+            To the maximum extent permitted by law, our total liability for any claim arising
+            from your use of the service is capped at the amount you paid us in the three
+            months preceding the claim, or ₹5,000, whichever is greater. We are not liable
+            for lost profits, lost data on third-party platforms, or platform bans.
+          </p>
+
+          <h2>9. Governing law</h2>
+          <p>
+            These terms are governed by the laws of India. Disputes are subject to the
+            exclusive jurisdiction of the courts in the registered address of the operator.
+          </p>
+
+          <h2>10. Contact</h2>
+          <p><a href="mailto:support@letmepost.dev">support@letmepost.dev</a></p>
+        </div>
+      </section>
+    </>
+  );
+}

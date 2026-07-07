@@ -1,0 +1,96 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+
+const updated = "2026-04-27";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy: data, OAuth tokens, logs",
+  description:
+    "How letmepost.dev handles your data, OAuth tokens, and usage logs.",
+  alternates: { canonical: "/privacy/" },
+};
+
+const wrap =
+  "mx-auto max-w-[1080px] px-16 max-[1040px]:px-10 max-[560px]:px-[22px]";
+
+export default function Privacy() {
+  return (
+    <>
+      <header className={`${wrap} pt-16 pb-2`}>
+        <p className="mb-[18px] font-mono text-xs tracking-[0.06em] text-faint [&_a]:text-acc [&_a]:hover:underline">
+          <Link href="/">letmepost</Link> / privacy
+        </p>
+        <p className="mb-[22px] font-mono text-xs uppercase tracking-[0.18em] text-acc">
+          Legal
+        </p>
+        <h1 className="mb-[26px] max-w-[14ch] font-disp text-[64px] font-semibold leading-[1.04] tracking-[-0.03em] text-balance max-[860px]:text-[46px] max-[560px]:text-[36px]">
+          Privacy policy.
+        </h1>
+        <p className="mt-5 font-mono text-[12.5px] text-faint [&_a]:text-acc [&_a]:hover:underline">
+          Last updated: {updated}
+        </p>
+      </header>
+
+      <section className={`${wrap} pt-7 pb-[72px] max-[860px]:pb-16`}>
+        <div className="prose">
+          <p>
+            letmepost.dev ("we", "us", "the service") is an open-source social media
+            publishing API operated by M/S Rose Creator (trading as letmepost.dev), a sole
+            proprietorship based in India. This policy explains what we collect, why, and
+            how you can have your data deleted.
+          </p>
+
+          <h2>1. What we collect</h2>
+          <ul>
+            <li><strong>Account details:</strong> email, display name, organisation name. Used to identify you.</li>
+            <li><strong>Connected social accounts:</strong> we receive OAuth access and refresh tokens (or, for Bluesky, app passwords) for each social platform you explicitly connect. These are stored encrypted at rest.</li>
+            <li><strong>Post content:</strong> the text, media references, scheduled times, and metadata you submit to the API.</li>
+            <li><strong>Usage logs:</strong> request timestamps, endpoints called, response codes, error codes, and upstream platform responses. Used for observability and debugging.</li>
+            <li><strong>Billing details:</strong> when paid plans ship, Stripe will process payment; we store only the last 4 digits and a Stripe customer ID.</li>
+          </ul>
+
+          <h2>2. How we store it</h2>
+          <ul>
+            <li>OAuth tokens and passwords are encrypted using <strong>AES-256-GCM envelope encryption</strong> before being written to the database. A per-token data encryption key is itself encrypted by a master key held outside the database.</li>
+            <li>All traffic is TLS 1.2+ in transit.</li>
+            <li>Databases are hosted by Neon (Postgres); application servers by Railway. Both run in regions we can disclose on request.</li>
+          </ul>
+
+          <h2>3. How long we keep it</h2>
+          <ul>
+            <li>OAuth tokens: kept until you revoke the connected account or delete your letmepost.dev account.</li>
+            <li>Post records: kept for 90 days after publish (or failure).</li>
+            <li>Raw request/response logs: 30 days, then rotated out of hot storage.</li>
+            <li>Aggregated metrics (no personal data): kept indefinitely.</li>
+          </ul>
+
+          <h2>4. Who we share it with</h2>
+          <p>We do not sell your data, and we do not share it for advertising. We share it with:</p>
+          <ul>
+            <li>The social platforms you've connected — Bluesky, LinkedIn, X/Twitter, Instagram, Facebook, Threads, YouTube, and Pinterest — when you use letmepost.dev to publish to them. Each platform's own privacy policy governs what they do with the content you submit through us.</li>
+            <li>Infrastructure providers (Neon, Railway, Upstash, Sentry, Axiom) under data-processing agreements, strictly to operate the service.</li>
+            <li>Law enforcement, only under a valid legal order.</li>
+          </ul>
+
+          <h2>5. Your rights</h2>
+          <p>
+            You can request export or deletion of your data at any time. See our{" "}
+            <Link href="/data-deletion">data deletion page</Link> for how. If you're in a
+            jurisdiction with specific data rights (GDPR, CCPA, India's DPDP Act), those
+            rights apply.
+          </p>
+
+          <h2>6. Cookies</h2>
+          <p>
+            The marketing site uses no tracking cookies. The dashboard (when it ships) will
+            use a single session cookie for authentication. No analytics that profile you
+            across sites.
+          </p>
+
+          <h2>7. Contact</h2>
+          <p>Privacy questions: <a href="mailto:support@letmepost.dev">support@letmepost.dev</a>.</p>
+        </div>
+      </section>
+    </>
+  );
+}
