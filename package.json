@@ -13,7 +13,7 @@
     "lint": "turbo run lint"
   },
   "devDependencies": {
-    "turbo": "^2.3.0",
+    "turbo": "^2.10.4",
     "typescript": "^5.7.2"
   }
 }
