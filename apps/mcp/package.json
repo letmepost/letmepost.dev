@@ -48,12 +48,12 @@
     "directory": "apps/mcp"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "@modelcontextprotocol/sdk": "^1.30.0"
   },
   "devDependencies": {
     "@letmepost/config-tsconfig": "workspace:*",
-    "@types/node": "^22.10.2",
-    "tsx": "^4.19.2",
+    "@types/node": "^20.19.43",
+    "tsx": "^4.23.1",
     "typescript": "^5.7.2"
   },
   "engines": {
