@@ -61,6 +61,9 @@ export default function ApiKeysPage() {
   const [prefix, setPrefix] = useState<"lmp_live_" | "lmp_test_">("lmp_live_");
   // "" sentinel = org-wide; otherwise a profile id.
   const [scope, setScope] = useState<string>("");
+  // Publish rights. Keys are immutable, so this has to be chosen at mint time —
+  // there is no PATCH on /v1/api-keys to widen an existing key later.
+  const [permissions, setPermissions] = useState<"publish" | "read">("publish");
   const [plaintext, setPlaintext] = useState<CreateResponse | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<ApiKey | null>(null);
 
@@ -85,7 +88,10 @@ export default function ApiKeysPage() {
         body: {
           name,
           prefix,
-          scopes: [],
+          scopes:
+            permissions === "read"
+              ? ["posts:read"]
+              : ["posts:read", "posts:write"],
           profileId: scope === "" ? null : scope,
         },
       }),
@@ -212,6 +218,21 @@ export default function ApiKeysPage() {
                 <SelectContent>
                   <SelectItem value="lmp_live_">Live</SelectItem>
                   <SelectItem value="lmp_test_">Test</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="key-permissions">Permissions</Label>
+              <Select
+                value={permissions}
+                onValueChange={(v) => setPermissions(v as "publish" | "read")}
+              >
+                <SelectTrigger id="key-permissions" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="publish">Publish (read + write)</SelectItem>
+                  <SelectItem value="read">Read only</SelectItem>
                 </SelectContent>
               </Select>
             </div>

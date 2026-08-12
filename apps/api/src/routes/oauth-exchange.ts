@@ -74,7 +74,10 @@ oauthExchange.post("/", oauthBearer(), async (c) => {
     prefix: "lmp_live_",
     hashedKey: hashKey(plaintext),
     last4,
-    scopes: [],
+    // `lmp login` exists so the CLI and MCP server can publish. Minting the key
+    // with no scopes made every CLI login unable to reach POST /v1/posts, which
+    // requires posts:write.
+    scopes: ["posts:read", "posts:write"],
   });
 
   return c.json({
