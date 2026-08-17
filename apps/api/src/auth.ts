@@ -2,6 +2,7 @@ import { oauthProvider } from "@better-auth/oauth-provider";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { jwt, organization } from "better-auth/plugins";
+import { adminImpersonation } from "./auth/impersonation.js";
 import { db } from "./db/instance.js";
 import * as authSchema from "./db/schema/auth.js";
 import * as oauthSchema from "./db/schema/oauth.js";
@@ -266,6 +267,14 @@ Kamal`,
       signupLandingPath: { type: "string", required: false, input: true },
     },
   },
+  session: {
+    additionalFields: {
+      // Set only by the admin impersonation plugin. `input: false` keeps it
+      // out of any client-writable payload — a caller must never be able to
+      // claim, or clear, impersonation on its own session.
+      impersonatedBy: { type: "string", required: false, input: false },
+    },
+  },
   socialProviders: buildSocialProviders(),
   plugins: [
     organization(),
@@ -303,6 +312,9 @@ Kamal`,
         ? { pairwiseSecret: process.env.PAIRWISE_SECRET }
         : {}),
     }),
+    // Internal admin impersonation. Inert unless ADMIN_IMPERSONATION_SECRET is
+    // set — see auth/impersonation.ts.
+    adminImpersonation(dashboardUrl),
   ],
   secret,
   baseURL: baseAuthUrl,

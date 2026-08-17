@@ -267,28 +267,29 @@ describeIfDb("POST /v1/posts (twitter)", () => {
         // `command` values. Branch in the handler so we can assert each
         // ran.
         http.post(
-          "https://upload.twitter.com/1.1/media/upload.json",
+          "https://api.x.com/2/media/upload",
           async ({ request }) => {
-            const ct = request.headers.get("content-type") ?? "";
-            if (ct.includes("multipart/form-data")) {
-              calls.append += 1;
-              return new HttpResponse(null, { status: 204 });
-            }
-            const text = await request.text();
-            const params = new URLSearchParams(text);
-            const command = params.get("command");
+            // v2 takes multipart for every command, so branch on the field.
+            const form = await request.formData();
+            const command = form.get("command");
             if (command === "INIT") {
               calls.init += 1;
-              return HttpResponse.json({ media_id_string: "vid-1234" });
+              return HttpResponse.json({ data: { id: "vid-1234" } });
+            }
+            if (command === "APPEND") {
+              calls.append += 1;
+              return new HttpResponse(null, { status: 204 });
             }
             if (command === "FINALIZE") {
               calls.finalize += 1;
               return HttpResponse.json({
-                media_id_string: "vid-1234",
-                processing_info: {
-                  state: "in_progress",
-                  check_after_secs: 1,
-                  progress_percent: 30,
+                data: {
+                  id: "vid-1234",
+                  processing_info: {
+                    state: "in_progress",
+                    check_after_secs: 1,
+                    progress_percent: 30,
+                  },
                 },
               });
             }
@@ -299,14 +300,16 @@ describeIfDb("POST /v1/posts (twitter)", () => {
           },
         ),
         http.get(
-          "https://upload.twitter.com/1.1/media/upload.json",
+          "https://api.x.com/2/media/upload",
           () => {
             calls.status += 1;
             return HttpResponse.json({
-              media_id_string: "vid-1234",
-              processing_info: {
-                state: "succeeded",
-                progress_percent: 100,
+              data: {
+                id: "vid-1234",
+                processing_info: {
+                  state: "succeeded",
+                  progress_percent: 100,
+                },
               },
             });
           },
@@ -354,27 +357,27 @@ describeIfDb("POST /v1/posts (twitter)", () => {
       const videoBytes = new Uint8Array(1024); // tiny — single APPEND.
       server.use(
         http.post(
-          "https://upload.twitter.com/1.1/media/upload.json",
+          "https://api.x.com/2/media/upload",
           async ({ request }) => {
-            const ct = request.headers.get("content-type") ?? "";
-            if (ct.includes("multipart/form-data")) {
-              return new HttpResponse(null, { status: 204 });
-            }
-            const text = await request.text();
-            const params = new URLSearchParams(text);
-            const command = params.get("command");
+            const form = await request.formData();
+            const command = form.get("command");
             if (command === "INIT") {
-              return HttpResponse.json({ media_id_string: "vid-fail" });
+              return HttpResponse.json({ data: { id: "vid-fail" } });
+            }
+            if (command === "APPEND") {
+              return new HttpResponse(null, { status: 204 });
             }
             if (command === "FINALIZE") {
               return HttpResponse.json({
-                media_id_string: "vid-fail",
-                processing_info: {
-                  state: "failed",
-                  error: {
-                    code: 3,
-                    name: "InvalidMedia",
-                    message: "The video is invalid.",
+                data: {
+                  id: "vid-fail",
+                  processing_info: {
+                    state: "failed",
+                    error: {
+                      code: 3,
+                      name: "InvalidMedia",
+                      message: "The video is invalid.",
+                    },
                   },
                 },
               });

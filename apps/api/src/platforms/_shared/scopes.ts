@@ -121,7 +121,16 @@ const SCOPES: Record<Platform, PlatformScopeSet> = {
     // X OAuth 2.0 scopes: posting needs `tweet.write`; `tweet.read` +
     // `users.read` are required to mint the token at all; `offline.access`
     // is what makes X issue a refresh token.
-    write: ["tweet.write", "tweet.read", "users.read", "offline.access"],
+    // `media.write` is required by POST /2/media/upload. Without it the
+    // upload 403s and every post carrying an image or video fails. Tokens
+    // minted before this was added lack it — those accounts must re-authorize.
+    write: [
+      "tweet.write",
+      "tweet.read",
+      "users.read",
+      "media.write",
+      "offline.access",
+    ],
     extended: ["like.read", "follows.read"],
   },
   tiktok: {
