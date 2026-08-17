@@ -363,11 +363,11 @@ async function createScopedKey(
   organizationId: string,
   scopes: string[],
 ): Promise<string> {
-  const plaintext = `lmp_test_${randomBytes(24).toString("base64url")}`;
+  const plaintext = `lmp_live_${randomBytes(24).toString("base64url")}`;
   await tx.insert(apiKeys).values({
     organizationId,
     name: `scoped-${scopes.join("-")}`,
-    prefix: "lmp_test_",
+    prefix: "lmp_live_",
     hashedKey: createHash("sha256").update(plaintext).digest("hex"),
     last4: plaintext.slice(-4),
     scopes,

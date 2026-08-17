@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   jsonb,
   pgEnum,
@@ -40,6 +41,12 @@ export const posts = pgTable(
     platformCid: text("platform_cid"),
     /** Canonical error contract snapshot when status is failed/rejected. */
     error: jsonb("error").$type<Record<string, unknown>>(),
+    /**
+     * Written by an `lmp_test_` key. The worker reads this off the row (it has
+     * no API-key context), so it is the authority on whether a scheduled post
+     * may touch a platform.
+     */
+    sandbox: boolean("sandbox").notNull().default(false),
     ...timestamps,
   },
   (t) => ({

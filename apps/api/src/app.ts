@@ -159,6 +159,7 @@ export function createApp(options: AppOptions = {}) {
         apiKeyId: `session:${session.userId}`,
         scopes: ["posts:read", "posts:write"],
         profileId: null,
+        environment: "live",
       });
       await next();
     };

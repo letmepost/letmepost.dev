@@ -37,7 +37,9 @@ import {
   validateTwitterText,
 } from "../twitter/preflight.js";
 import type { DrizzleClient } from "../../db/index.js";
+import type { ApiKeyEnvironment } from "../../middleware/api-key.js";
 import type { MediaResolverContext } from "./media.js";
+import { sandboxPublishResult } from "./sandbox.js";
 
 /**
  * Single source of truth for "given an account + a post body, run the right
@@ -97,9 +99,13 @@ export type PublishInput = {
  * that legitimately can't provide a DB connection set `skipGates: true`
  * to opt out explicitly, which is grep-able and reviewable.
  */
-export type PublishContext =
+export type PublishContext = (
   | { db: DrizzleClient; skipGates?: false }
-  | { skipGates: true; db?: DrizzleClient };
+  | { skipGates: true; db?: DrizzleClient }
+) & {
+  /** Defaults to "live". "sandbox" short-circuits before any platform call. */
+  environment?: ApiKeyEnvironment;
+};
 
 /**
  * Per-batch fan-out concurrency cap. Intentionally lower than
@@ -232,11 +238,72 @@ export function preflightForAccount(
   }
 }
 
+/**
+ * Board resolution for Pinterest. Split out so the sandbox path enforces the
+ * same requirement without the boards round-trip that builds the hint.
+ */
+async function requirePinterestBoardId(
+  account: DecryptedPlatformAccount,
+  input: PublishInput,
+  opts: { suggestBoards: boolean },
+): Promise<string> {
+  const meta = (account.tokenMetadata ?? {}) as PinterestTokenMetadata;
+  const boardId = input.pinterest?.boardId ?? meta.defaultBoardId;
+  if (boardId) return boardId;
+
+  // Best-effort: surface the user's actual boards so the caller can pick one
+  // without an extra round-trip. Already on the failure path, so the extra
+  // Pinterest call is acceptable; if it fails we just omit the hint rather
+  // than masking the real error.
+  let availableBoards: { id: string; name: string }[] | undefined;
+  if (opts.suggestBoards) {
+    try {
+      const client = new PinterestClient(account.token);
+      const boards = await client.listBoards({ pageSize: 25 });
+      availableBoards = boards.map((b) => ({ id: b.id, name: b.name }));
+    } catch {
+      // intentional swallow — the publish error is what matters
+    }
+  }
+  throw new LetmepostError({
+    code: "validation_failed",
+    status: 400,
+    platform: "pinterest",
+    message:
+      "Pinterest posts need a board — none configured on the account and none on the request.",
+    rule: "pinterest.board.required",
+    remediation:
+      "Set a default board via PATCH /v1/accounts/:id/pinterest/default-board, or pass `pinterest: { boardId }` on the request body. Use one of the ids in `platformResponse.availableBoards` below.",
+    ...(availableBoards ? { platformResponse: { availableBoards } } : {}),
+  });
+}
+
+/**
+ * Sandbox short-circuit. Runs every check that can be made without touching a
+ * platform, then hands back a synthetic result. Deliberately placed at the top
+ * of `publishForAccount` rather than in each platform case: a new platform
+ * added below is sandbox-safe by default instead of silently publishing for
+ * real.
+ */
+async function publishInSandbox(
+  account: DecryptedPlatformAccount,
+  input: PublishInput,
+): Promise<PublishResult> {
+  preflightForAccount(account, input);
+  if (account.platform === "pinterest") {
+    await requirePinterestBoardId(account, input, { suggestBoards: false });
+  }
+  return sandboxPublishResult(account);
+}
+
 export async function publishForAccount(
   account: DecryptedPlatformAccount,
   input: PublishInput,
   ctx: PublishContext,
 ): Promise<PublishResult> {
+  if (ctx.environment === "sandbox") {
+    return publishInSandbox(account, input);
+  }
   switch (account.platform) {
     case "bluesky": {
       const blueskyInput: Parameters<typeof blueskyPublisher.publish>[1] = {
@@ -364,35 +431,9 @@ export async function publishForAccount(
       );
     }
     case "pinterest": {
-      const meta = (account.tokenMetadata ?? {}) as PinterestTokenMetadata;
-      const boardId = input.pinterest?.boardId ?? meta.defaultBoardId;
-      if (!boardId) {
-        // Best-effort: surface the user's actual boards so the caller can
-        // pick one without an extra round-trip. Already on the failure
-        // path, so the extra Pinterest call is acceptable; if it fails
-        // we just omit the hint rather than masking the real error.
-        let availableBoards: { id: string; name: string }[] | undefined;
-        try {
-          const client = new PinterestClient(account.token);
-          const boards = await client.listBoards({ pageSize: 25 });
-          availableBoards = boards.map((b) => ({ id: b.id, name: b.name }));
-        } catch {
-          // intentional swallow — the publish error is what matters
-        }
-        throw new LetmepostError({
-          code: "validation_failed",
-          status: 400,
-          platform: "pinterest",
-          message:
-            "Pinterest posts need a board — none configured on the account and none on the request.",
-          rule: "pinterest.board.required",
-          remediation:
-            "Set a default board via PATCH /v1/accounts/:id/pinterest/default-board, or pass `pinterest: { boardId }` on the request body. Use one of the ids in `platformResponse.availableBoards` below.",
-          ...(availableBoards
-            ? { platformResponse: { availableBoards } }
-            : {}),
-        });
-      }
+      const boardId = await requirePinterestBoardId(account, input, {
+        suggestBoards: true,
+      });
       if (!input.media || input.media.length === 0) {
         throw new LetmepostError({
           code: "validation_failed",

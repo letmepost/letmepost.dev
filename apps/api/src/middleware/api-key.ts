@@ -15,7 +15,22 @@ export type ApiKeyContext = {
    * existence.
    */
   profileId: string | null;
+  /**
+   * `sandbox` for an `lmp_test_` key: the request runs the full auth,
+   * validation and preflight path but never writes to a platform and never
+   * consumes quota. Derived from the stored `prefix` column, never from the
+   * presented string, so a forged prefix cannot buy a free live publish.
+   */
+  environment: ApiKeyEnvironment;
 };
+
+export type ApiKeyEnvironment = "live" | "sandbox";
+
+export function environmentForPrefix(
+  prefix: "lmp_live_" | "lmp_test_",
+): ApiKeyEnvironment {
+  return prefix === "lmp_test_" ? "sandbox" : "live";
+}
 
 declare module "hono" {
   interface ContextVariableMap {
@@ -82,6 +97,7 @@ export function apiKeyAuth(): MiddlewareHandler {
       apiKeyId: row.id,
       scopes: row.scopes,
       profileId: row.profileId,
+      environment: environmentForPrefix(row.prefix),
     });
 
     // Best-effort last_used_at update — don't block the request.

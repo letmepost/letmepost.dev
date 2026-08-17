@@ -163,6 +163,15 @@ function Header({ post }: { post: PostDetail }) {
           {post.platform}
         </Badge>
         <Badge variant={statusTone(post.status)}>{post.status}</Badge>
+        {post.sandbox ? (
+          <Badge
+            variant="outline"
+            className="uppercase tracking-wide border-dashed"
+            title="Published with an lmp_test_ key. Nothing was sent to the platform."
+          >
+            sandbox
+          </Badge>
+        ) : null}
         {post.error?.code ? (
           <Badge variant="outline" className="font-mono">
             {post.error.code}

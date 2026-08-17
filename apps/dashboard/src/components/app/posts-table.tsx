@@ -71,11 +71,22 @@ export function PostsTable({ posts }: { posts: PostListItem[] }) {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge variant={statusTone(row.original.status)}>
-            {row.original.status}
-          </Badge>
+          <div className="flex items-center gap-1.5">
+            <Badge variant={statusTone(row.original.status)}>
+              {row.original.status}
+            </Badge>
+            {row.original.sandbox ? (
+              <Badge
+                variant="outline"
+                className="uppercase tracking-wide text-[10px] border-dashed"
+                title="Published with an lmp_test_ key. Nothing was sent to the platform."
+              >
+                sandbox
+              </Badge>
+            ) : null}
+          </div>
         ),
-        size: 110,
+        size: 170,
       },
       {
         id: "account",
