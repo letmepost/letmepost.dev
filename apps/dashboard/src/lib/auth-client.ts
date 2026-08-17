@@ -35,6 +35,12 @@ export const authClient = createAuthClient({
         signupReferrer: { type: "string", required: false },
         signupLandingPath: { type: "string", required: false },
       },
+      session: {
+        // Set only by the API's admin impersonation plugin; read by
+        // ImpersonationBanner. Declared here so it stays typed on
+        // `useSession().data.session`.
+        impersonatedBy: { type: "string", required: false },
+      },
     }),
   ],
 });
