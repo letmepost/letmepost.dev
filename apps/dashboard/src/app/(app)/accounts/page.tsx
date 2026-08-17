@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowsClockwise, Copy, Plus, Trash } from "@phosphor-icons/react";
 import { apiFetch, ApiRequestError } from "@/lib/api";
-import type { Account } from "@/lib/accounts";
+import type { Account, ConnectablePlatform } from "@/lib/accounts";
 import { useActiveProfile } from "@/lib/profiles";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,9 @@ export default function AccountsListPage() {
     null,
   );
   const [connectOpen, setConnectOpen] = useState(false);
+  // Set when Reconnect is used, so the drawer skips the platform picker.
+  const [reconnectPlatform, setReconnectPlatform] =
+    useState<ConnectablePlatform | null>(null);
 
   // The API's OAuth callback (GET /v1/accounts/oauth/:platform/callback)
   // redirects here with `?connected=<platform>` on success or
@@ -200,6 +203,7 @@ export default function AccountsListPage() {
               name: "connect.drawer_opened",
               properties: { entry_point: "accounts-page" },
             });
+            setReconnectPlatform(null);
             setConnectOpen(true);
           }}
         >
@@ -319,6 +323,9 @@ export default function AccountsListPage() {
                               name: "connect.drawer_opened",
                               properties: { entry_point: "accounts-reconnect" },
                             });
+                            setReconnectPlatform(
+                              acc.platform as ConnectablePlatform,
+                            );
                             setConnectOpen(true);
                           }}
                           title="Re-authorize without losing scheduled posts"
@@ -346,7 +353,11 @@ export default function AccountsListPage() {
 
       <ConnectAccountDrawer
         open={connectOpen}
-        onOpenChange={setConnectOpen}
+        onOpenChange={(open) => {
+          setConnectOpen(open);
+          if (!open) setReconnectPlatform(null);
+        }}
+        {...(reconnectPlatform ? { platform: reconnectPlatform } : {})}
       />
 
       <ConfirmDialog

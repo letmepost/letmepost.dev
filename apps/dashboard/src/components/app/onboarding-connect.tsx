@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { toast } from "sonner";
@@ -46,8 +46,16 @@ const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
 export function OnboardingConnect({
   onConnected,
   size = "default",
+  initialPlatform,
 }: {
   onConnected: () => void;
+  /**
+   * Skip the platform grid and start this platform's flow immediately. Used
+   * by Reconnect, where the account already tells us which platform it is
+   * and re-picking from a grid is both a wasted step and a chance to pick
+   * the wrong one.
+   */
+  initialPlatform?: ConnectablePlatform;
   /**
    * Visual scale for the platform grid. `default` is the onboarding
    * accordion variant (40px icons, 2×4 tight grid). `large` is the
@@ -71,6 +79,16 @@ export function OnboardingConnect({
     setFormValues({});
     setError(null);
   }
+
+  // Fire once. handlePick redirects for OAuth platforms, so re-running it
+  // on re-render would double-start the flow.
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!initialPlatform || autoStarted.current) return;
+    autoStarted.current = true;
+    void handlePick(initialPlatform);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPlatform]);
 
   async function handlePick(platform: ConnectablePlatform) {
     if (busy) return;
