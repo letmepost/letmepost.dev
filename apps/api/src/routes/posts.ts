@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { z } from "zod";
@@ -1199,6 +1199,159 @@ posts.delete("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) =
   });
 
   return c.json({ id: post.id, status: "canceled" });
+});
+
+/** Statuses a post can be re-driven from. `published` is excluded so a retry
+ *  can never double-post; everything else here never reached the platform. */
+const RETRYABLE_STATUSES = ["failed", "rejected", "canceled"] as const;
+
+const RetryPostBody = z.object({
+  scheduledAt: z.string().datetime().optional(),
+});
+
+/**
+ * `POST /v1/posts/:id/retry`
+ *
+ * Re-queue a post that never went out. Before this a terminal post was a dead
+ * end: nothing could move it back to `queued`, so recovering from an outage or
+ * an expired token meant retyping the post. That is what made the 2026-08
+ * scheduler outage unrecoverable for anyone whose posts had already been
+ * marked failed.
+ *
+ * Re-charges quota, because the failure path refunded it.
+ */
+posts.post("/:id/retry", apiKeyOrSession(), requireScope("posts:write"), async (c) => {
+  const id = c.req.param("id");
+  const { organizationId } = c.var.apiKey;
+
+  const raw = await c.req.json().catch(() => ({}));
+  const parsed = RetryPostBody.safeParse(raw ?? {});
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: issue?.message ?? "Invalid request body.",
+      rule: issue?.path.join(".") || "body",
+    });
+  }
+
+  const repo = new DrizzlePostsReadRepository(c.var.db);
+  const post = await repo.findByIdWithAccount(id);
+  if (!post || post.organizationId !== organizationId) {
+    throw new LetmepostError({
+      code: "not_found",
+      status: 404,
+      message: "Post not found.",
+    });
+  }
+  assertKeyCanAccessProfile(c.var.apiKey, post.account);
+
+  if (!RETRYABLE_STATUSES.includes(post.status as (typeof RETRYABLE_STATUSES)[number])) {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 409,
+      message: `Cannot retry a post in status "${post.status}".`,
+      rule: "post.retry.status",
+      remediation: `Only ${RETRYABLE_STATUSES.join(", ")} posts can be retried.`,
+    });
+  }
+  if (!post.accountId) {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 409,
+      message: "This post's platform account was removed, so it can't be retried.",
+      rule: "post.retry.account_missing",
+      remediation: "Re-create the post against a connected account.",
+    });
+  }
+
+  // Default to firing as soon as the queue picks it up.
+  const when = parsed.data.scheduledAt
+    ? new Date(parsed.data.scheduledAt)
+    : new Date(Date.now() + MIN_FUTURE_DELAY_MS);
+  const delayMs = when.getTime() - Date.now();
+  if (delayMs < MIN_FUTURE_DELAY_MS) {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 400,
+      message: "scheduledAt must be at least 1 second in the future.",
+      rule: "scheduledAt.future",
+    });
+  }
+
+  await checkAndIncrementQuota(c.var.db, organizationId, 1, {
+    webhookDispatcher: c.var.webhookDispatcher,
+  });
+
+  // Conditional on the status we read, so two concurrent retries can't both
+  // enqueue the same post.
+  const moved = await c.var.db
+    .update(postsTable)
+    .set({ status: "queued", scheduledAt: when, error: null })
+    .where(
+      and(
+        eq(postsTable.id, post.id),
+        inArray(postsTable.status, [...RETRYABLE_STATUSES]),
+      ),
+    )
+    .returning();
+  if (moved.length === 0) {
+    await decrementQuota(c.var.db, organizationId, 1);
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 409,
+      message: "This post changed status before the retry could start.",
+      rule: "post.retry.raced",
+    });
+  }
+
+  try {
+    // Clear any completed/failed job still holding the deterministic id, or
+    // BullMQ dedupes the re-add against it.
+    await c.var.publishEnqueuer.remove(post.id);
+    await c.var.publishEnqueuer.enqueue(
+      {
+        postId: post.id,
+        organizationId,
+        ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+      },
+      { delayMs },
+    );
+  } catch (err) {
+    const errorRecord = {
+      code: "internal_error",
+      message: "Retry could not be handed to the publish queue.",
+    };
+    await c.var.db
+      .update(postsTable)
+      .set({ status: "failed", error: errorRecord })
+      .where(eq(postsTable.id, post.id));
+    await decrementQuota(c.var.db, organizationId, 1);
+    console.error("[posts] retry enqueue failed", err);
+    throw new LetmepostError({
+      code: "internal_error",
+      status: 500,
+      message: "Could not queue the retry — the publish queue is unavailable.",
+      remediation: "Nothing was sent to the platform. Try again shortly.",
+    });
+  }
+
+  await c.var.webhookDispatcher.dispatch({
+    organizationId,
+    type: "post.queued",
+    data: {
+      id: post.id,
+      platform: post.account.platform,
+      accountId: post.accountId,
+      profileId: post.account.profileId,
+      scheduledAt: when.toISOString(),
+      queuedAt: new Date().toISOString(),
+    },
+    ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+  });
+
+  return c.json({ id: post.id, status: "queued", scheduledAt: when.toISOString() });
 });
 
 function classifyError(err: unknown): {
