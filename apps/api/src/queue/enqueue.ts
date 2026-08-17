@@ -19,8 +19,16 @@ export const PUBLISH_JOB_OPTIONS = {
   backoff: { type: "exponential" as const, delay: 10_000 },
 } as const;
 
+/**
+ * Deterministic job id for a post's publish job. Dash-joined, NOT colon-
+ * joined: BullMQ rejects a custom id containing `:` (its Redis key separator)
+ * unless it splits into exactly three parts. `publish:<uuid>` splits into two,
+ * so every enqueue threw and scheduled publishing was down entirely. The
+ * three-part escape hatch is a compatibility branch BullMQ intends to drop —
+ * keep this dash-joined, as `refresh-enqueue.ts` does.
+ */
 export function publishJobId(postId: string): string {
-  return `publish:${postId}`;
+  return `publish-${postId}`;
 }
 
 export function createDefaultPublishEnqueuer(): PublishEnqueuer {

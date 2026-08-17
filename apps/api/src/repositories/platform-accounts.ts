@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import type { DrizzleClient } from "../db/index.js";
 import {
   platformAccounts,
@@ -93,6 +93,17 @@ export interface PlatformAccountsRepository {
     id: string,
     input: UpdatePlatformTokenInput,
   ): Promise<DecryptedPlatformAccount>;
+  /**
+   * `updateToken` guarded on `tokenExpiresAt` still holding `expected`.
+   * Returns `null` when it doesn't — another writer rotated the credentials
+   * first, and the caller should reload rather than overwrite a newer pair
+   * with its own (possibly already superseded upstream) one.
+   */
+  casUpdateToken(
+    id: string,
+    input: UpdatePlatformTokenInput,
+    expected: Date | null,
+  ): Promise<DecryptedPlatformAccount | null>;
   /**
    * Patch tokenMetadata WITHOUT rotating the token. Caller-supplied keys
    * are merged with the existing metadata; pass `null` to clear a key.
@@ -285,30 +296,58 @@ export class DrizzlePlatformAccountsRepository
     return hydrate(row);
   }
 
+  /** Encrypted column payload shared by both token writers. */
+  private tokenSet(input: UpdatePlatformTokenInput) {
+    const envelope = encrypt(input.token);
+    return {
+      tokenCiphertext: envelope.ciphertext,
+      tokenDekCiphertext: envelope.dekCiphertext,
+      tokenIv: envelope.iv,
+      tokenAuthTag: envelope.authTag,
+      ...(input.tokenMetadata !== undefined
+        ? { tokenMetadata: input.tokenMetadata }
+        : {}),
+      ...(input.tokenExpiresAt !== undefined
+        ? { tokenExpiresAt: input.tokenExpiresAt }
+        : {}),
+    };
+  }
+
   async updateToken(
     id: string,
     input: UpdatePlatformTokenInput,
   ): Promise<DecryptedPlatformAccount> {
-    const envelope = encrypt(input.token);
     const [row] = await this.db
       .update(platformAccounts)
-      .set({
-        tokenCiphertext: envelope.ciphertext,
-        tokenDekCiphertext: envelope.dekCiphertext,
-        tokenIv: envelope.iv,
-        tokenAuthTag: envelope.authTag,
-        ...(input.tokenMetadata !== undefined
-          ? { tokenMetadata: input.tokenMetadata }
-          : {}),
-        ...(input.tokenExpiresAt !== undefined
-          ? { tokenExpiresAt: input.tokenExpiresAt }
-          : {}),
-      })
+      .set(this.tokenSet(input))
       .where(eq(platformAccounts.id, id))
       .returning();
     if (!row) {
       throw new Error(`platformAccounts.updateToken: no account with id=${id}`);
     }
     return hydrate(row);
+  }
+
+  async casUpdateToken(
+    id: string,
+    input: UpdatePlatformTokenInput,
+    expected: Date | null,
+  ): Promise<DecryptedPlatformAccount | null> {
+    const [row] = await this.db
+      .update(platformAccounts)
+      .set(this.tokenSet(input))
+      .where(
+        and(
+          eq(platformAccounts.id, id),
+          // `IS NOT DISTINCT FROM` so a NULL expiry compares equal to NULL.
+          // Bound as ISO text + cast: a raw `sql` fragment carries no column
+          // type, so the driver can't serialize a JS Date on its own.
+          sql`${platformAccounts.tokenExpiresAt} IS NOT DISTINCT FROM ${
+            expected ? expected.toISOString() : null
+          }::timestamptz`,
+        ),
+      )
+      .returning();
+    return row ? hydrate(row) : null;
   }
 }

@@ -66,13 +66,19 @@ export type WebhookDeliverJobData = {
 };
 
 /**
- * Periodic billing maintenance. `kind` discriminates which job runs:
- *   - "dunning"   — hourly past_due → delinquent sweep
- *   - "retention" — nightly per-org log cleanup
+ * Periodic maintenance. `kind` discriminates which job runs:
+ *   - "dunning"           — hourly past_due → delinquent sweep
+ *   - "retention"         — nightly per-org log cleanup
+ *   - "publish-reconcile" — 5-minutely sweep for posts whose row and queue
+ *                           job drifted apart (see jobs/publish-reconcile.ts)
+ *
+ * The queue is still named `billing` for continuity with the jobs already
+ * scheduled on it; it is the general maintenance lane, not a billing-only one.
  */
 export type BillingJobData =
   | { kind: "dunning" }
-  | { kind: "retention" };
+  | { kind: "retention" }
+  | { kind: "publish-reconcile" };
 
 /**
  * Founder-voice onboarding sequence. One job per email, scheduled at

@@ -3,6 +3,7 @@ import {
   authFailed,
   extractUpstreamMessage,
   rejected,
+  upstreamDetail,
 } from "../_shared/errors.js";
 import { LetmepostError } from "../../errors.js";
 
@@ -118,7 +119,7 @@ export async function exchangeFacebookCode(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM_FACEBOOK,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Verify the Meta app id / secret and that the redirect URI matches the FBLB app registration exactly.",
     });
@@ -152,7 +153,7 @@ export async function exchangeFacebookForLongLived(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM_FACEBOOK,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Meta rejected the short→long token swap. Most common cause is a mismatched client secret.",
     });
@@ -276,7 +277,7 @@ export function mapMetaError(
   if (res.status === 401 || code === 190 || code === 102) {
     return authFailed({
       platform,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "The Meta access token is invalid, expired, or the user revoked the grant. Re-connect via the FBLB flow.",
     });
@@ -285,7 +286,7 @@ export function mapMetaError(
   if (code === 10 || code === 200 || code === 299) {
     return authFailed({
       platform,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Meta rejected the call for missing permission. Reconnect the account so the app re-requests the required scopes (the Page may have been transferred to a Business Manager that hasn't re-granted access).",
     });
@@ -321,7 +322,7 @@ export function mapMetaError(
       remediation: rateLimited
         ? "Back off and retry. Meta enforces both app-level and user-level quotas; sustained overage triggers temporary blocks."
         : "Meta returned a transient error; retry shortly.",
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
     });
   }
 
@@ -330,7 +331,7 @@ export function mapMetaError(
   if (subcode === 2207052) {
     return rejected({
       platform,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       upstreamMessage:
         upstreamMessage ?? "The media URL is not publicly accessible.",
       rule: "instagram.media.reachable",
@@ -342,7 +343,7 @@ export function mapMetaError(
   if (subcode === 2207020 || lowerMsg.includes("expired")) {
     return rejected({
       platform,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       upstreamMessage: upstreamMessage ?? "Meta container expired.",
       rule: "meta.container.expired",
       remediation:
@@ -353,7 +354,7 @@ export function mapMetaError(
   if (subcode === 2207003 || lowerMsg.includes("aspect")) {
     return rejected({
       platform,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       upstreamMessage: upstreamMessage ?? "Aspect ratio out of range.",
       rule: "instagram.media.aspect_ratio",
       remediation:
@@ -370,7 +371,7 @@ export function mapMetaError(
     }
     return rejected({
       platform,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
       remediation,
     });
@@ -382,7 +383,7 @@ export function mapMetaError(
   // handled above as platform_unavailable.)
   return rejected({
     platform,
-    platformResponse: res.body ?? res.raw ?? undefined,
+    platformResponse: upstreamDetail(res),
     ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
     ...(opts.fallbackRemediation
       ? { remediation: opts.fallbackRemediation }

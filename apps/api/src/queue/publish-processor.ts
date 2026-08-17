@@ -5,6 +5,7 @@ import type { DrizzleClient } from "../db/index.js";
 import { posts as postsTable } from "../db/schema/posts.js";
 import { DrizzlePlatformAccountsRepository } from "../repositories/platform-accounts.js";
 import { publishForAccount } from "../platforms/_shared/dispatch.js";
+import { ensureFreshToken } from "../platforms/_shared/ensure-fresh-token.js";
 import type { WebhookDispatcher } from "../webhooks/dispatch.js";
 import {
   TIKTOK_PUBLISH_STATUS_POLL_DEADLINE_MS,
@@ -101,6 +102,10 @@ export async function processPublishJob(
   }
 
   try {
+    // A scheduled post can fire days after its token was minted; refresh
+    // inline so a gap in the clock-driven chain doesn't cost the post.
+    const publishAccount = await ensureFreshToken(deps.db, account);
+
     // Wire persisted media through to the publisher. Per-platform
     // overrides (`pinterest.boardId`, `threads.replyToId`, etc.) are
     // not yet stored on the posts row — scheduled posts currently
@@ -110,7 +115,7 @@ export async function processPublishJob(
       ? (post.mediaRefs as Parameters<typeof publishForAccount>[1]["media"])
       : undefined;
     const result = await publishForAccount(
-      account,
+      publishAccount,
       {
         text: post.text,
         ...(persistedMedia && persistedMedia.length > 0
@@ -119,7 +124,7 @@ export async function processPublishJob(
               mediaContext: {
                 db,
                 organizationId,
-                profileId: account.profileId,
+                profileId: publishAccount.profileId,
               },
             }
           : {}),
@@ -186,12 +191,16 @@ export async function processPublishJob(
     // Permanent (4xx-family) failures — preflight / platform_rejected /
     // platform_auth_failed / validation_failed. Record the terminal status,
     // fire the lifecycle webhook, and tell BullMQ never to retry.
+    //
+    // `rate_limited` is terminal too: the only one reaching here is the X
+    // launch cap, whose 30-day window three retries cannot clear.
     if (
       err instanceof LetmepostError &&
       (err.code === "preflight_failed" ||
         err.code === "platform_rejected" ||
         err.code === "platform_auth_failed" ||
-        err.code === "validation_failed")
+        err.code === "validation_failed" ||
+        err.code === "rate_limited")
     ) {
       await finaliseFailure(deps, post.id, err, account, organizationId, requestId);
       throw new UnrecoverableError(err.message);

@@ -1,5 +1,5 @@
 import { platformFetch } from "../_shared/http.js";
-import { authFailed, extractUpstreamMessage, rejected } from "../_shared/errors.js";
+import { authFailed, extractUpstreamMessage, rejected, upstreamDetail } from "../_shared/errors.js";
 
 const DEFAULT_PDS = "https://bsky.social";
 const PLATFORM = "bluesky";
@@ -81,7 +81,7 @@ export class BlueskyClient {
     if (!res.ok || !res.body) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         remediation:
           "Verify the identifier (handle or email) and use a Bluesky app password, not the account password. Generate one at https://bsky.app/settings/app-passwords.",
       });
@@ -110,7 +110,7 @@ export class BlueskyClient {
     if (!res.ok || !res.body) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         message: "Bluesky refresh failed — refresh JWT may be revoked or expired.",
         remediation:
           "Re-authenticate with the stored app password to obtain a fresh session.",
@@ -141,7 +141,7 @@ export class BlueskyClient {
     if (!res.ok || !res.body || !res.body.blob) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         ...(extractUpstreamMessage(res.body) !== undefined
           ? { upstreamMessage: extractUpstreamMessage(res.body)! }
           : {}),
@@ -187,7 +187,7 @@ export class BlueskyClient {
     if (!res.ok || !res.body) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         ...(extractUpstreamMessage(res.body) !== undefined
           ? { upstreamMessage: extractUpstreamMessage(res.body)! }
           : {}),

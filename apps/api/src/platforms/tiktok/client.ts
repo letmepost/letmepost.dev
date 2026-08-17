@@ -3,6 +3,7 @@ import {
   authFailed,
   extractUpstreamMessage,
   rejected,
+  upstreamDetail,
 } from "../_shared/errors.js";
 import { LetmepostError } from "../../errors.js";
 
@@ -331,7 +332,7 @@ export class TikTokClient {
     ) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         remediation:
           "Re-connect the TikTok account — the access token is invalid, expired, or missing the video.upload scope.",
       });
@@ -352,7 +353,7 @@ export class TikTokClient {
         rule: "tiktok.rate_limited",
         remediation:
           "Back off and retry. TikTok enforces per-app and per-user posting quotas.",
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
       });
     }
 
@@ -360,7 +361,7 @@ export class TikTokClient {
     // hint from the caller so the post log can filter by step.
     throw rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(errMsg ? { upstreamMessage: errMsg } : {}),
       rule: fallbackRule,
     });
@@ -405,7 +406,7 @@ export async function exchangeTikTokCode(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Verify the TikTok client_key / client_secret, the PKCE code_verifier, and that the redirect URI matches the developer-portal registration exactly.",
     });
@@ -445,7 +446,7 @@ export async function refreshTikTokToken(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "TikTok refresh token is expired, revoked, or invalid. Have the user re-connect the TikTok account.",
     });

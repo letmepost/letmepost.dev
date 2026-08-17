@@ -50,6 +50,21 @@ export function rejected(params: {
   });
 }
 
+/**
+ * The upstream detail to attach as `platformResponse`. A body or raw payload
+ * passes through unchanged; the `{ httpStatus }` fallback covers the case
+ * that used to yield nothing at all — an empty upstream body left an error
+ * whose own remediation pointed at a field we hadn't populated, with the
+ * status already discarded.
+ */
+export function upstreamDetail(res: {
+  status: number;
+  body: unknown;
+  raw: string | null;
+}): unknown {
+  return res.body ?? res.raw ?? { httpStatus: res.status };
+}
+
 /** Pull a human-readable `message` out of a loosely-typed upstream JSON body. */
 export function extractUpstreamMessage(body: unknown): string | undefined {
   if (body && typeof body === "object" && "message" in body) {

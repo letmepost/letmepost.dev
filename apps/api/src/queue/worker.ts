@@ -24,10 +24,13 @@ import { processTikTokPublishStatusPoll } from "./tiktok-poll-processor.js";
 import { startTierInvalidationListener } from "../billing/invalidate.js";
 import { runBillingDunning } from "./jobs/billing-dunning.js";
 import { runPostsRetention } from "./jobs/posts-retention.js";
+import { runPublishReconcile } from "./jobs/publish-reconcile.js";
+import { createDefaultPublishEnqueuer, publishJobId } from "./enqueue.js";
 import { createRedisConnection } from "./connection.js";
 import {
   QUEUE_NAMES,
   getBillingQueue,
+  getPublishQueue,
   type BillingJobData,
   type OnboardingEmailJobData,
   type PublishJobData,
@@ -53,6 +56,7 @@ import { createDefaultTokenRefreshEnqueuer } from "./refresh-enqueue.js";
 
 const connection = createRedisConnection();
 const dispatcher = createDefaultWebhookDispatcher(db);
+const publishEnqueuer = createDefaultPublishEnqueuer();
 
 const publishWorker = new Worker<PublishJobData>(
   QUEUE_NAMES.publish,
@@ -228,6 +232,18 @@ const billingWorker = new Worker<BillingJobData>(
       const result = await runPostsRetention(db);
       return result;
     }
+    if (job.data.kind === "publish-reconcile") {
+      const result = await runPublishReconcile({
+        db,
+        dispatcher,
+        enqueuer: publishEnqueuer,
+        async findJobState(postId) {
+          const existing = await getPublishQueue().getJob(publishJobId(postId));
+          return existing ? await existing.getState() : null;
+        },
+      });
+      return result;
+    }
     throw new UnrecoverableError(
       `billing worker: unknown job kind ${(job.data as { kind?: string }).kind}`,
     );
@@ -245,11 +261,12 @@ const onboardingEmailWorker = new Worker<OnboardingEmailJobData>(
 );
 
 /**
- * Register repeatable schedules for the billing maintenance jobs. Idempotent
- * thanks to a stable `jobId` per kind; reboot adds nothing.
+ * Register repeatable schedules for the maintenance jobs. Idempotent thanks
+ * to a stable `jobId` per kind; reboot adds nothing.
  *
- *   dunning   — every hour
- *   retention — daily at 03:30 UTC (off-peak everywhere)
+ *   dunning           — every hour
+ *   retention         — daily at 03:30 UTC (off-peak everywhere)
+ *   publish-reconcile — every 5 minutes
  */
 async function registerBillingSchedules(): Promise<void> {
   const queue = getBillingQueue();
@@ -276,6 +293,21 @@ async function registerBillingSchedules(): Promise<void> {
     )
     .catch((err: unknown) => {
       console.error("[worker] failed to register retention schedule", err);
+    });
+  await queue
+    .add(
+      "publish-reconcile",
+      { kind: "publish-reconcile" },
+      {
+        jobId: "publish-reconcile-schedule",
+        repeat: { every: 5 * 60 * 1000 },
+      },
+    )
+    .catch((err: unknown) => {
+      console.error(
+        "[worker] failed to register publish-reconcile schedule",
+        err,
+      );
     });
 }
 

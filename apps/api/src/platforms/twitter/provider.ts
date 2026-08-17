@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { LetmepostError } from "../../errors.js";
 import { encodeOAuthState } from "../../oauth/state.js";
-import { authFailed } from "../_shared/errors.js";
+import { authFailed, upstreamDetail } from "../_shared/errors.js";
 import { platformFetch } from "../_shared/http.js";
 import type {
   AccountProvider,
@@ -79,16 +79,35 @@ function expiresAtFrom(resp: TwitterTokenResponse): Date {
   return new Date(Date.now() + resp.expires_in * 1000);
 }
 
+/**
+ * Build the metadata to persist alongside a fresh access token.
+ *
+ * `previous` matters on the refresh path. `updateToken` replaces
+ * `tokenMetadata` wholesale, and X does not guarantee a `refresh_token` on
+ * every refresh response (the field is optional in the OAuth 2 spec and X
+ * omits it whenever it opts not to rotate). Building metadata purely from the
+ * response therefore erased the stored refresh token on the first such
+ * response — the next scheduled refresh then failed with "no refresh token
+ * stored", emitted `token.revoked`, and left the account dead until the user
+ * manually reconnected. Carry the previous value forward when the response
+ * doesn't supply a new one.
+ */
 function toMetadata(
   resp: TwitterTokenResponse,
   config: TwitterProviderConfig,
+  previous?: TwitterTokenMetadata | null,
 ): TwitterTokenMetadata {
   const md: TwitterTokenMetadata = {
-    grantedScopes: resp.scope.split(/\s+/).filter(Boolean),
+    grantedScopes: resp.scope
+      ? resp.scope.split(/\s+/).filter(Boolean)
+      : (previous?.grantedScopes ?? []),
   };
-  if (resp.refresh_token) md.refreshToken = resp.refresh_token;
+  const refreshToken = resp.refresh_token || previous?.refreshToken;
+  if (refreshToken) md.refreshToken = refreshToken;
   if (config.authorizeUrl) md.authorizeUrl = config.authorizeUrl;
+  else if (previous?.authorizeUrl) md.authorizeUrl = previous.authorizeUrl;
   if (config.tokenUrl) md.tokenUrl = config.tokenUrl;
+  else if (previous?.tokenUrl) md.tokenUrl = previous.tokenUrl;
   return md;
 }
 
@@ -122,7 +141,7 @@ async function fetchAuthenticatedUser(
   if (!res.ok || !user?.id) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       message: "Could not resolve the authenticated X user (GET /2/users/me).",
       remediation:
         "Ensure the connect grant includes the users.read scope, then re-connect the X account.",
@@ -244,7 +263,11 @@ export class TwitterProvider implements AccountProvider {
     const tokens = await refreshTwitterToken(refreshArgs);
     return {
       token: tokens.access_token,
-      tokenMetadata: toMetadata(tokens, this.config),
+      tokenMetadata: toMetadata(
+        tokens,
+        this.config,
+        input.tokenMetadata as TwitterTokenMetadata | null,
+      ),
       tokenExpiresAt: expiresAtFrom(tokens),
     };
   }

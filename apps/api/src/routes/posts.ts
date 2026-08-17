@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { z } from "zod";
@@ -287,6 +287,65 @@ posts.post(
       const batchId = randomUUID();
       const results: PostTargetResult[] = [];
       const createdAt = new Date();
+      // Targets accepted so far, so a failure partway can undo the whole
+      // batch. Otherwise the caller got a 500 while earlier targets stayed
+      // scheduled and still published, and a retry duplicated them.
+      const accepted: Array<{
+        rowId: string;
+        account: DecryptedPlatformAccount;
+      }> = [];
+
+      /**
+       * Cancel everything already accepted and give back the WHOLE batch's
+       * quota. `checkAndIncrementQuota` charged `resolved.length` up front, so
+       * refunding only the rows we managed to create would leak a slot for
+       * every target after the failing one.
+       */
+      const unwindAccepted = async (
+        errorRecord: Record<string, unknown>,
+      ): Promise<void> => {
+        for (const { rowId, account } of accepted) {
+          await c.var.publishEnqueuer
+            .remove(rowId)
+            .catch((removeErr: unknown) => {
+              console.error("[posts] unwind: job remove failed", removeErr);
+            });
+          // Guarded on still being `queued`: with a 1s minimum delay a job
+          // can fire while a large batch is still unwinding, and stamping
+          // `canceled` over a row that already published would be a lie.
+          const canceled = await c.var.db
+            .update(postsTable)
+            .set({ status: "canceled", error: errorRecord })
+            .where(
+              and(eq(postsTable.id, rowId), eq(postsTable.status, "queued")),
+            )
+            .returning();
+          if (canceled.length === 0) continue;
+          await c.var.webhookDispatcher
+            .dispatch({
+              organizationId,
+              type: "post.canceled",
+              data: {
+                id: rowId,
+                platform: account.platform,
+                accountId: account.id,
+                profileId: account.profileId,
+                scheduledAt: when.toISOString(),
+                canceledAt: new Date().toISOString(),
+              },
+              ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+            })
+            .catch((dispatchErr: unknown) => {
+              console.error("[posts] unwind: dispatch failed", dispatchErr);
+            });
+        }
+        await decrementQuota(c.var.db, organizationId, resolved.length);
+      };
+
+      // Every throw inside the loop unwinds — the insert failure and the
+      // `post.queued` dispatch can both blow up, and skipping the unwind on
+      // those paths recreates the partial batch it exists to prevent.
+      try {
       for (const { account, input } of resolved) {
         const [row] = await c.var.db
           .insert(postsTable)
@@ -307,14 +366,43 @@ posts.post(
           });
         }
 
-        await c.var.publishEnqueuer.enqueue(
-          {
-            postId: row.id,
-            organizationId,
-            ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-          },
-          { delayMs },
-        );
+        // The row is committed before the enqueue, so a queue failure would
+        // leave a post durably `queued` with no job behind it. Undo the whole
+        // batch; the reconcile sweep covers a crash before we get here.
+        try {
+          await c.var.publishEnqueuer.enqueue(
+            {
+              postId: row.id,
+              organizationId,
+              ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+            },
+            { delayMs },
+          );
+        } catch (err) {
+          // Mark just this row; the outer catch unwinds the rest of the batch
+          // and refunds the full quota charge in one place.
+          await c.var.db
+            .update(postsTable)
+            .set({
+              status: "failed",
+              error: {
+                code: "internal_error",
+                message:
+                  "The batch could not be handed to the publish queue; no target was scheduled.",
+              },
+            })
+            .where(eq(postsTable.id, row.id));
+          console.error("[posts] publish enqueue failed", err);
+          throw new LetmepostError({
+            code: "internal_error",
+            status: 500,
+            message:
+              "Could not schedule the post for delivery — the publish queue is unavailable.",
+            remediation:
+              "No target in this batch was scheduled. Retry the request; use an Idempotency-Key so a retry can't duplicate it.",
+          });
+        }
+        accepted.push({ rowId: row.id, account });
 
         await c.var.webhookDispatcher.dispatch({
           organizationId,
@@ -336,6 +424,16 @@ posts.post(
           postId: row.id,
           status: "queued",
         });
+      }
+      } catch (err) {
+        await unwindAccepted({
+          code: "internal_error",
+          message:
+            "A later target in this batch could not be scheduled, so the whole batch was rolled back.",
+          remediation:
+            "Nothing was sent to any platform. Retry the request; use an Idempotency-Key so a retry can't duplicate it.",
+        });
+        throw err;
       }
 
       const body: CreatePostResponse = {
@@ -1117,6 +1215,9 @@ function classifyError(err: unknown): {
       return { status: "rejected", eventType: "post.rejected" };
     case "platform_unavailable":
     case "internal_error":
+    // The X launch cap. Used to fall through to `default`, marking the row
+    // failed while dispatching nothing — a post that silently vanished.
+    case "rate_limited":
       return { status: "failed", eventType: "post.failed" };
     default:
       // validation_failed / not_found / unauthenticated / etc. happen before

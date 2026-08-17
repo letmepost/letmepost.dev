@@ -247,6 +247,62 @@ describe("TwitterProvider", () => {
     expect(result.tokenMetadata).toMatchObject({ refreshToken: "rotated-refresh" });
   });
 
+  it("refreshToken keeps the stored refresh token when X rotates only the access token", async () => {
+    // X is not obliged to return a refresh_token on every refresh. Because
+    // updateToken replaces tokenMetadata wholesale, dropping it here used to
+    // wipe the stored one — the NEXT refresh then failed with "no refresh
+    // token stored", revoked the account, and the user had to reconnect.
+    server.use(
+      http.post(TOKEN_URL, async () =>
+        HttpResponse.json({
+          access_token: "rotated-access",
+          token_type: "bearer",
+          expires_in: 7200,
+          scope: "tweet.write tweet.read users.read offline.access",
+        }),
+      ),
+    );
+    const p = new TwitterProvider({
+      clientId: "cid",
+      clientSecret: "cs",
+      tokenUrl: TOKEN_URL,
+    });
+    const result = await p.refreshToken({
+      token: "old-access",
+      tokenMetadata: { refreshToken: "stored-refresh" },
+    });
+    expect(result.token).toBe("rotated-access");
+    expect(result.tokenMetadata).toMatchObject({
+      refreshToken: "stored-refresh",
+    });
+  });
+
+  it("refreshToken carries the stored refresh token across a chain of non-rotating refreshes", async () => {
+    server.use(
+      http.post(TOKEN_URL, async () =>
+        HttpResponse.json({
+          access_token: "rotated-access",
+          token_type: "bearer",
+          expires_in: 7200,
+          scope: "tweet.write tweet.read users.read offline.access",
+        }),
+      ),
+    );
+    const p = new TwitterProvider({
+      clientId: "cid",
+      clientSecret: "cs",
+      tokenUrl: TOKEN_URL,
+    });
+    let metadata: Record<string, unknown> | null = {
+      refreshToken: "stored-refresh",
+    };
+    for (let i = 0; i < 3; i++) {
+      const result = await p.refreshToken({ token: "old", tokenMetadata: metadata });
+      metadata = result.tokenMetadata;
+    }
+    expect(metadata).toMatchObject({ refreshToken: "stored-refresh" });
+  });
+
   it("refreshToken throws platform_auth_failed when no refresh token is present", async () => {
     const p = new TwitterProvider({ tokenUrl: TOKEN_URL });
     await expect(

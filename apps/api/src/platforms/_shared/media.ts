@@ -7,6 +7,7 @@ import {
 } from "../../media/s3.js";
 import { DrizzleMediaRepository } from "../../repositories/media.js";
 import { guardedFetch, isDisallowedUrlError } from "../../net/guarded-fetch.js";
+import { resolveMimeType, SNIFF_HEADER_BYTES } from "./mime.js";
 
 /**
  * A `MediaInput` resolved to actual bytes + a definite mime type. Preflight
@@ -78,8 +79,11 @@ export async function loadMediaItem(
   }
   if (item.bytesBase64) {
     const bytes = Uint8Array.from(Buffer.from(item.bytesBase64, "base64"));
-    const mimeType =
-      item.kind === "image" ? "image/jpeg" : "video/mp4";
+    // `kind` alone can't tell png from jpeg from webp; sniff the bytes.
+    const mimeType = resolveMimeType(
+      bytes,
+      item.kind === "image" ? "image/jpeg" : "video/mp4",
+    );
     return withAlt(
       { kind: item.kind, mimeType, byteLength: bytes.byteLength, bytes },
       item.altText,
@@ -134,11 +138,14 @@ export async function loadMediaItem(
   const buf = await res.arrayBuffer();
   const bytes = new Uint8Array(buf);
   const contentType = res.headers.get("content-type");
-  const mimeType = contentType
+  const declared = contentType
     ? contentType.split(";")[0]!.trim().toLowerCase()
     : item.kind === "image"
       ? "image/jpeg"
       : "video/mp4";
+  // The origin's Content-Type is a hint, not the truth: object stores hand
+  // back `application/octet-stream` for perfectly valid JPEGs.
+  const mimeType = resolveMimeType(bytes, declared);
 
   return withAlt(
     { kind: item.kind, mimeType, byteLength: bytes.byteLength, bytes },
@@ -203,14 +210,19 @@ export async function resolveMediaToUrl(
         ...(opts.platform ? { platform: opts.platform } : {}),
       });
     }
+    const url = buildPublicUrl({
+      publicBaseUrl: getPublicBaseUrl(),
+      s3Key: row.s3Key,
+    });
     return withUrlAlt(
       {
         kind: item.kind,
-        url: buildPublicUrl({
-          publicBaseUrl: getPublicBaseUrl(),
-          s3Key: row.s3Key,
-        }),
-        mimeType: row.contentType,
+        // URL-consuming platforms (Threads, Meta, Pinterest) preflight on this
+        // value, so a row stored before uploads sniffed their own bytes would
+        // still be rejected on mime. This path has no bytes in hand, so refine
+        // only when the stored type is a placeholder.
+        mimeType: await refineStoredMimeType(url, row.contentType),
+        url,
       },
       item.altText,
     );
@@ -239,6 +251,37 @@ function withUrlAlt(
   altText: string | undefined,
 ): ResolvedMediaUrl {
   return altText !== undefined ? { ...base, altText } : base;
+}
+
+/** Types that carry no information — what a client that omitted a part header got. */
+const PLACEHOLDER_CONTENT_TYPES = new Set([
+  "",
+  "application/octet-stream",
+  "binary/octet-stream",
+]);
+
+/**
+ * Recover a real mime type for a `media` row stored with a placeholder, by
+ * range-fetching just the signature bytes. Rows with a meaningful stored type
+ * — every row written since uploads started sniffing — return immediately and
+ * pay nothing. Failures fall back to the stored value rather than blocking a
+ * publish on a diagnostic fetch.
+ */
+async function refineStoredMimeType(
+  url: string,
+  stored: string,
+): Promise<string> {
+  if (!PLACEHOLDER_CONTENT_TYPES.has(stored.trim().toLowerCase())) return stored;
+  try {
+    const res = await fetch(url, {
+      headers: { Range: `bytes=0-${SNIFF_HEADER_BYTES - 1}` },
+    });
+    if (!res.ok) return stored;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    return resolveMimeType(bytes, stored);
+  } catch {
+    return stored;
+  }
 }
 
 async function loadFromMediaId(
@@ -307,7 +350,8 @@ async function loadFromMediaId(
   return withAlt(
     {
       kind: item.kind,
-      mimeType: row.contentType,
+      // The row stores whatever the upload's part header declared.
+      mimeType: resolveMimeType(bytes, row.contentType),
       byteLength: bytes.byteLength,
       bytes,
     },

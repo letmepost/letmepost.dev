@@ -16,6 +16,10 @@ import {
 } from "../media/s3.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
+import {
+  resolveMimeType,
+  SNIFF_HEADER_BYTES,
+} from "../platforms/_shared/mime.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { DrizzleMediaRepository } from "../repositories/media.js";
 import { DrizzleProfilesRepository } from "../repositories/profiles.js";
@@ -236,77 +240,35 @@ async function streamPartToS3(args: {
       }
       fileSeen = true;
 
-      const partContentType =
+      const declaredContentType =
         info.mimeType?.toLowerCase() || "application/octet-stream";
 
       const mediaId = generateMediaId();
-      const ext = extForContentType(partContentType);
-      const s3Key = buildS3Key({
-        envPrefix: getEnvPrefix(),
-        organizationId: args.organizationId,
-        mediaId,
-        ext,
-      });
-
       const hash = createHash("sha256");
       let sizeBytes = 0;
       const passthrough = new PassThrough();
 
-      fileStream.on("data", (chunk: Buffer) => {
-        hash.update(chunk);
-        sizeBytes += chunk.length;
-      });
-      fileStream.on("limit", () => {
-        truncated = true;
-      });
-      fileStream.pipe(passthrough);
+      // The S3 key's extension and the stored Content-Type both depend on the
+      // real format, so hold the upload open until enough leading bytes have
+      // arrived to sniff. Clients that omit the part's Content-Type would
+      // otherwise pin the row to `application/octet-stream`, and every later
+      // publish referencing that mediaId fails mime preflight on a valid file.
+      let contentType = declaredContentType;
+      let s3Key = "";
+      let started = false;
+      // Busboy emits whatever the socket delivered, so the first chunk is not
+      // guaranteed to reach SNIFF_HEADER_BYTES. Accumulate until it does.
+      let header: Buffer = Buffer.alloc(0);
 
-      const upload = new Upload({
-        client: getS3Client(),
-        params: {
-          Bucket: getBucketName(),
-          Key: s3Key,
-          Body: passthrough,
-          ContentType: partContentType,
-          /** Pinterest et al. occasionally probe with HEAD/GET; an inline
-           *  disposition keeps preview-style fetchers happy. */
-          ContentDisposition: "inline",
-        },
-      });
-
-      upload
-        .done()
-        .then(() => {
-          if (truncated) {
-            settle(() =>
-              reject(
-                new LetmepostError({
-                  code: "validation_failed",
-                  status: 413,
-                  message: `Media file exceeds the ${MAX_BYTES} byte limit.`,
-                  rule: "media.size_max",
-                  remediation:
-                    "Compress the asset, or open an issue if you need a higher limit for a specific platform.",
-                }),
-              ),
-            );
-            return;
-          }
-          settle(() =>
-            resolve({
-              mediaId,
-              contentType: partContentType,
-              sizeBytes,
-              sha256: hash.digest("hex"),
-              s3Key,
-              publicUrl: buildPublicUrl({
-                publicBaseUrl: getPublicBaseUrl(),
-                s3Key,
-              }),
-            }),
-          );
-        })
-        .catch((err: unknown) => {
+      const beginUpload = (head: Buffer | null): void => {
+        if (started) return;
+        started = true;
+        // Everything below runs inside a stream listener, where a throw would
+        // escape as an unhandled exception and leave this request's promise
+        // forever unsettled. Settle it explicitly instead.
+        try {
+          beginUploadInner(head);
+        } catch (err: unknown) {
           settle(() =>
             reject(
               new LetmepostError({
@@ -314,13 +276,107 @@ async function streamPartToS3(args: {
                 status: 500,
                 message:
                   err instanceof Error
-                    ? `S3 upload failed: ${err.message}`
-                    : "S3 upload failed.",
+                    ? `Could not start the media upload: ${err.message}`
+                    : "Could not start the media upload.",
                 platform: "s3",
               }),
             ),
           );
+        }
+      };
+
+      const beginUploadInner = (head: Buffer | null): void => {
+        contentType = head
+          ? resolveMimeType(head, declaredContentType)
+          : declaredContentType;
+        s3Key = buildS3Key({
+          envPrefix: getEnvPrefix(),
+          organizationId: args.organizationId,
+          mediaId,
+          ext: extForContentType(contentType),
         });
+
+        const upload = new Upload({
+          client: getS3Client(),
+          params: {
+            Bucket: getBucketName(),
+            Key: s3Key,
+            Body: passthrough,
+            ContentType: contentType,
+            /** Pinterest et al. occasionally probe with HEAD/GET; an inline
+             *  disposition keeps preview-style fetchers happy. */
+            ContentDisposition: "inline",
+          },
+        });
+
+        upload
+          .done()
+          .then(() => {
+            if (truncated) {
+              settle(() =>
+                reject(
+                  new LetmepostError({
+                    code: "validation_failed",
+                    status: 413,
+                    message: `Media file exceeds the ${MAX_BYTES} byte limit.`,
+                    rule: "media.size_max",
+                    remediation:
+                      "Compress the asset, or open an issue if you need a higher limit for a specific platform.",
+                  }),
+                ),
+              );
+              return;
+            }
+            settle(() =>
+              resolve({
+                mediaId,
+                contentType,
+                sizeBytes,
+                sha256: hash.digest("hex"),
+                s3Key,
+                publicUrl: buildPublicUrl({
+                  publicBaseUrl: getPublicBaseUrl(),
+                  s3Key,
+                }),
+              }),
+            );
+          })
+          .catch((err: unknown) => {
+            settle(() =>
+              reject(
+                new LetmepostError({
+                  code: "internal_error",
+                  status: 500,
+                  message:
+                    err instanceof Error
+                      ? `S3 upload failed: ${err.message}`
+                      : "S3 upload failed.",
+                  platform: "s3",
+                }),
+              ),
+            );
+          });
+      };
+
+      // Registered before `.pipe()` so this runs first for each chunk; the
+      // passthrough buffers the few bytes we wait on.
+      fileStream.on("data", (chunk: Buffer) => {
+        hash.update(chunk);
+        sizeBytes += chunk.length;
+        if (started) return;
+        header =
+          header.length === 0 ? chunk : Buffer.concat([header, chunk]);
+        if (header.length >= SNIFF_HEADER_BYTES) beginUpload(header);
+      });
+      // Stream ended before we had a full header (short or zero-byte file):
+      // sniff what we got, so the path resolves instead of hanging.
+      fileStream.on("end", () => {
+        beginUpload(header.length > 0 ? header : null);
+      });
+      fileStream.on("limit", () => {
+        truncated = true;
+      });
+      fileStream.pipe(passthrough);
     });
 
     busboy.on("error", (err: unknown) => {
