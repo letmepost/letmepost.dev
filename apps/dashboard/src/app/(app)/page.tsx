@@ -304,7 +304,11 @@ function ApiKeyStepBody({
     mutationFn: () =>
       apiFetch<{ key: string }>("/v1/api-keys", {
         method: "POST",
-        body: { name: "primary", prefix: "lmp_live_", scopes: [] },
+        body: {
+          name: "primary",
+          prefix: "lmp_live_",
+          scopes: ["posts:read", "posts:write"],
+        },
       }),
     onSuccess: async (res) => {
       onCreated(res.key);

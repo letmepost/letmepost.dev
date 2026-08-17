@@ -42,6 +42,28 @@ oauthExchange.post("/", oauthBearer(), async (c) => {
   const { userId } = oauth;
   const db = c.var.db;
 
+  // Mirror the token's consent grant rather than hardcoding publish rights:
+  // dynamic client registration is open (see auth.ts), so a client holding
+  // only `read` consent must not walk away with a key that can post.
+  const keyScopes = oauth.scopes.includes("publish")
+    ? ["posts:read", "posts:write"]
+    : oauth.scopes.includes("read")
+      ? ["posts:read"]
+      : [];
+
+  // Fail loudly rather than hand back a key that 403s on first use.
+  if (keyScopes.length === 0) {
+    throw new LetmepostError({
+      code: "unauthorized",
+      status: 403,
+      rule: "oauth.insufficient_scope",
+      message:
+        "This OAuth token grants neither the `publish` nor the `read` scope, so the minted key could not access any posts endpoint.",
+      remediation:
+        "Re-authorize requesting the `publish` scope (or `read` for a read-only key), then retry.",
+    });
+  }
+
   // Pick the user's primary organization membership (oldest first). Active
   // org switching lives on the better-auth session, which the OAuth token
   // doesn't carry — for now we always mint under the primary org.
@@ -74,7 +96,7 @@ oauthExchange.post("/", oauthBearer(), async (c) => {
     prefix: "lmp_live_",
     hashedKey: hashKey(plaintext),
     last4,
-    scopes: [],
+    scopes: keyScopes,
   });
 
   return c.json({
