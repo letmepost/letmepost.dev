@@ -16,7 +16,10 @@ import {
 } from "../media/s3.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
-import { resolveMimeType } from "../platforms/_shared/mime.js";
+import {
+  resolveMimeType,
+  SNIFF_HEADER_BYTES,
+} from "../platforms/_shared/mime.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { DrizzleMediaRepository } from "../repositories/media.js";
 import { DrizzleProfilesRepository } from "../repositories/profiles.js";
@@ -245,22 +248,24 @@ async function streamPartToS3(args: {
       let sizeBytes = 0;
       const passthrough = new PassThrough();
 
-      // Both the S3 key's extension and the stored object's Content-Type
-      // depend on the real format, so hold the upload open until the first
-      // chunk arrives and we can sniff it. Clients that omit the part's
-      // Content-Type would otherwise pin the row to
-      // `application/octet-stream`, and every later publish referencing that
-      // mediaId fails per-platform mime preflight on a perfectly valid file.
+      // The S3 key's extension and the stored Content-Type both depend on the
+      // real format, so hold the upload open until enough leading bytes have
+      // arrived to sniff. Clients that omit the part's Content-Type would
+      // otherwise pin the row to `application/octet-stream`, and every later
+      // publish referencing that mediaId fails mime preflight on a valid file.
       let contentType = declaredContentType;
       let s3Key = "";
       let started = false;
+      // Busboy emits whatever the socket delivered, so the first chunk is not
+      // guaranteed to reach SNIFF_HEADER_BYTES. Accumulate until it does.
+      let header: Buffer = Buffer.alloc(0);
 
-      const beginUpload = (first: Buffer | null): void => {
+      const beginUpload = (head: Buffer | null): void => {
         if (started) return;
         started = true;
 
-        contentType = first
-          ? resolveMimeType(first, declaredContentType)
+        contentType = head
+          ? resolveMimeType(head, declaredContentType)
           : declaredContentType;
         s3Key = buildS3Key({
           envPrefix: getEnvPrefix(),
@@ -331,17 +336,20 @@ async function streamPartToS3(args: {
           });
       };
 
-      // Registered before `.pipe()` so this runs first for each chunk and the
-      // Upload is live before the passthrough has to buffer anything.
+      // Registered before `.pipe()` so this runs first for each chunk; the
+      // passthrough buffers the few bytes we wait on.
       fileStream.on("data", (chunk: Buffer) => {
         hash.update(chunk);
         sizeBytes += chunk.length;
-        beginUpload(chunk);
+        if (started) return;
+        header =
+          header.length === 0 ? chunk : Buffer.concat([header, chunk]);
+        if (header.length >= SNIFF_HEADER_BYTES) beginUpload(header);
       });
-      // Zero-byte part: no `data` ever fires, so open the upload on `end` to
-      // keep the empty-file path resolving instead of hanging.
+      // Stream ended before we had a full header (short or zero-byte file):
+      // sniff what we got, so the path resolves instead of hanging.
       fileStream.on("end", () => {
-        beginUpload(null);
+        beginUpload(header.length > 0 ? header : null);
       });
       fileStream.on("limit", () => {
         truncated = true;

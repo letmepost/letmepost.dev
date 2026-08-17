@@ -6,52 +6,27 @@ import type { WebhookDispatcher } from "../../webhooks/dispatch.js";
 import type { PublishEnqueuer } from "../enqueue.js";
 
 /**
- * Reconcile posts whose row and queue job have drifted apart.
+ * Reconcile posts whose row and queue job have drifted apart — a `queued` row
+ * whose enqueue never landed, or a `publishing` row abandoned by a crashed
+ * worker. Both used to sit forever with no attempt and no terminal answer.
  *
- * Two failure modes this exists for, both of which produced a post that never
- * published and never reported anything:
- *
- *  1. **Orphaned `queued`.** `POST /v1/posts` commits the posts row and *then*
- *     enqueues the BullMQ job. If the enqueue fails — Redis down, connection
- *     dropped, process killed between the two — the row is durably `queued`
- *     with no job behind it. Nothing ever ran, so no retry, no failure event,
- *     no error on the row: the post simply sat there forever.
- *
- *  2. **Stranded `publishing`.** Both publish paths flip a row to
- *     `publishing` before calling the platform. A worker OOM, a deploy
- *     restart, or a process crash mid-request leaves it there permanently —
- *     the row shows in-flight forever and the user gets no terminal answer.
- *
- * The sweep is deliberately conservative: grace periods keep it clear of
- * posts that are simply mid-flight, and a job in a live state is always left
- * alone.
+ * Deliberately conservative: grace periods keep it clear of posts that are
+ * simply mid-flight, and a job in a live state is always left alone.
  */
 
-/**
- * How far past `scheduledAt` a `queued` post must be before we treat a
- * missing job as lost rather than as normal scheduling latency.
- */
+/** How far past `scheduledAt` before a missing job counts as lost. */
 export const QUEUED_ORPHAN_GRACE_MS = 2 * 60 * 1000;
 
 /**
- * How late a post may be and still be worth sending.
- *
- * Re-driving anything ever orphaned is wrong in both directions. A backlog
- * that built up during an outage would all fire the moment the sweep starts
- * working — a week of "scheduled" posts landing at once, which is not what
- * the user asked for and cannot be taken back. And a post that was meant to
- * go out days ago is usually stale enough that publishing it silently is
- * worse than saying it never went.
- *
- * Past this bound the row is failed loudly instead, leaving the decision to
- * re-post with the person who wrote it.
+ * How late a post may be and still be worth sending. Past this the row fails
+ * loudly instead — an outage backlog would otherwise all fire at once the
+ * moment the sweep starts working, which can't be taken back.
  */
 export const QUEUED_ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
- * How long a row may sit in `publishing` before we call it stranded. Above
- * TikTok's 30-minute poll deadline, and far above any synchronous publish —
- * X's chunked-video FINALIZE poll, the slowest path, caps at 5 minutes.
+ * How long a row may sit in `publishing` before it counts as stranded. Above
+ * TikTok's 30-minute poll deadline and far above any synchronous publish.
  */
 export const PUBLISHING_STALE_MS = 45 * 60 * 1000;
 

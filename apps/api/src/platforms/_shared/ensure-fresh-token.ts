@@ -8,40 +8,33 @@ import { getProvider } from "./provider.js";
 import { scopeKindFor } from "./scopes.js";
 
 /**
- * How stale a token may be at publish time before we refresh it inline.
- *
- * The clock-driven refresh chain (`refresh-token` queue) is the primary
- * mechanism, but it is a chain of delayed BullMQ jobs: a Redis flush, a
- * worker outage across the wake-up, or a refresh that exhausted its three
- * attempts all break the chain silently. A scheduled post firing hours later
- * then hit the platform with a dead access token and died as a terminal
- * `rejected` — the post is gone and the user sees "authorization expired"
- * with no way to have prevented it.
- *
- * Checking expiry immediately before publishing closes that gap: the chain
- * stays the fast path, and this is the backstop that keeps a missed link from
- * costing the user a post.
+ * How stale a token may be at publish time before we refresh it inline. The
+ * clock-driven `refresh-token` queue is the primary mechanism, but it's a
+ * chain of delayed jobs — a Redis flush or a worker outage breaks it silently,
+ * and a post scheduled hours out then fires with a dead token.
  */
 export const PUBLISH_REFRESH_SKEW_MS = 2 * 60 * 1000;
+
+function isFresh(account: DecryptedPlatformAccount, now: Date): boolean {
+  if (!account.tokenExpiresAt) return true;
+  return account.tokenExpiresAt.getTime() - now.getTime() > PUBLISH_REFRESH_SKEW_MS;
+}
 
 /**
  * Return an account whose access token is good for the next
  * {@link PUBLISH_REFRESH_SKEW_MS}, refreshing it in place if not.
  *
- * - Credentials platforms → returned untouched. Bluesky stores an app
- *   password as `token` and its publisher opens a fresh session from it on
- *   every publish, so the stored access JWT's expiry has no bearing on
- *   whether the post can go out. Refreshing here would add one to three
- *   wasted round-trips per post and buy nothing.
- * - No `tokenExpiresAt` → returned untouched; nothing to decide from.
- * - Comfortably valid → returned untouched, no upstream call.
- * - Expired / expiring → refresh via the platform's provider and persist the
- *   rotated token so concurrent and subsequent publishes see it too.
+ * Credentials platforms are skipped: Bluesky stores an app password and its
+ * publisher opens a fresh session per publish, so the stored JWT's expiry says
+ * nothing about deliverability and refreshing would just burn round-trips.
  *
- * Refresh failures are deliberately propagated rather than swallowed. The
- * caller's existing error classification then does the right thing: an auth
- * failure is terminal and tells the user to reconnect, while a transient
- * upstream failure stays retryable instead of burning the post.
+ * Concurrency: this and the scheduled refresh worker can target one account at
+ * once, and strictly-rotating providers (TikTok, X when it chooses to) kill the
+ * old refresh token on first use — so the loser gets `platform_auth_failed` and
+ * its post is terminally rejected. Three things prevent that: re-read the row
+ * instead of trusting the caller's snapshot, persist under a compare-and-swap
+ * so only one coherent pair lands, and re-read once more on failure to pick up
+ * a concurrent winner's token rather than raising.
  */
 export async function ensureFreshToken(
   db: DrizzleClient,
@@ -49,46 +42,51 @@ export async function ensureFreshToken(
   now: Date = new Date(),
 ): Promise<DecryptedPlatformAccount> {
   if (scopeKindFor(account.platform) !== "oauth") return account;
-  if (!account.tokenExpiresAt) return account;
-  if (account.tokenExpiresAt.getTime() - now.getTime() > PUBLISH_REFRESH_SKEW_MS) {
-    return account;
-  }
-
-  const provider = getProvider(account.platform);
-  const refreshed = await provider.refreshToken({
-    token: account.token,
-    tokenMetadata: account.tokenMetadata,
-  });
+  if (isFresh(account, now)) return account;
 
   const repo = new DrizzlePlatformAccountsRepository(db);
+
+  // The caller's snapshot may predate a refresh that already landed.
+  const current = (await repo.findById(account.id)) ?? account;
+  if (isFresh(current, now)) return current;
+
+  const provider = getProvider(current.platform);
+  let refreshed;
   try {
-    return await repo.updateToken(account.id, {
-      token: refreshed.token,
-      tokenMetadata: refreshed.tokenMetadata,
-      tokenExpiresAt: refreshed.tokenExpiresAt,
+    refreshed = await provider.refreshToken({
+      token: current.token,
+      tokenMetadata: current.tokenMetadata,
     });
   } catch (err) {
-    // The refresh itself succeeded, so the in-memory token is publishable
-    // even though we failed to persist it. Losing the write is bad (the next
-    // publish refreshes again, and a rotated refresh token may now be stale)
-    // but failing the post over it would be worse.
-    console.error(
-      `[publish] token refreshed for account ${account.id} but persisting it failed`,
-      err,
-    );
-    return {
-      ...account,
+    if (err instanceof LetmepostError && err.code === "platform_auth_failed") {
+      const reloaded = await repo.findById(account.id);
+      if (reloaded && isFresh(reloaded, now)) return reloaded;
+    }
+    throw err;
+  }
+
+  const persisted = await repo.casUpdateToken(
+    current.id,
+    {
       token: refreshed.token,
       tokenMetadata: refreshed.tokenMetadata,
       tokenExpiresAt: refreshed.tokenExpiresAt,
-    };
-  }
-}
+    },
+    current.tokenExpiresAt,
+  );
+  if (persisted) return persisted;
 
-/**
- * True when `err` means the platform will not accept this account's
- * credentials until a human reconnects.
- */
-export function isAuthFailure(err: unknown): boolean {
-  return err instanceof LetmepostError && err.code === "platform_auth_failed";
+  // Lost the CAS. Prefer whatever the winner stored — ours may already be
+  // superseded upstream by their rotation.
+  const winner = await repo.findById(account.id);
+  if (winner && isFresh(winner, now)) return winner;
+
+  // No winner visible (transient read, or the write raced elsewhere). The
+  // refresh succeeded, so publish with it rather than failing the post.
+  return {
+    ...current,
+    token: refreshed.token,
+    tokenMetadata: refreshed.tokenMetadata,
+    tokenExpiresAt: refreshed.tokenExpiresAt,
+  };
 }

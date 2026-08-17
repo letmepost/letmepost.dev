@@ -79,9 +79,7 @@ export async function loadMediaItem(
   }
   if (item.bytesBase64) {
     const bytes = Uint8Array.from(Buffer.from(item.bytesBase64, "base64"));
-    // Sniff first — the caller gave us bytes, not a type, so `kind` alone
-    // can't tell png from jpeg from webp. Falling back to the kind-based
-    // guess keeps behaviour unchanged for formats we can't identify.
+    // `kind` alone can't tell png from jpeg from webp; sniff the bytes.
     const mimeType = resolveMimeType(
       bytes,
       item.kind === "image" ? "image/jpeg" : "video/mp4",
@@ -145,9 +143,8 @@ export async function loadMediaItem(
     : item.kind === "image"
       ? "image/jpeg"
       : "video/mp4";
-  // The origin's Content-Type is a hint, not the truth — plenty of CDNs and
-  // object stores hand back `application/octet-stream` for a valid JPEG,
-  // which preflight would then reject as an unsupported mime.
+  // The origin's Content-Type is a hint, not the truth: object stores hand
+  // back `application/octet-stream` for perfectly valid JPEGs.
   const mimeType = resolveMimeType(bytes, declared);
 
   return withAlt(
@@ -317,9 +314,7 @@ async function loadFromMediaId(
   return withAlt(
     {
       kind: item.kind,
-      // `row.contentType` is whatever the multipart part declared at upload
-      // time (defaulting to application/octet-stream when the client omitted
-      // it), so prefer what the bytes actually are.
+      // The row stores whatever the upload's part header declared.
       mimeType: resolveMimeType(bytes, row.contentType),
       byteLength: bytes.byteLength,
       bytes,

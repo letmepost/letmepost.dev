@@ -7,14 +7,9 @@ import type { DrizzleClient } from "../../db/index.js";
 // unbounded publish loop = real money out the door.
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 /**
- * Only a post that actually went out costs money. Counting `rejected` and
- * `failed` rows here made the cap self-reinforcing: anything that broke a
- * publish (expired token, media rejected on a bad mime, upstream blip) also
- * consumed a slot, so a user hitting a run of failures burned the whole
- * 30-day allowance without a single tweet being created — and then got
- * `rate_limited` on every subsequent attempt, whose `failed` row consumed yet
- * another slot. The guard exists to bound the PPU bill, and a post X never
- * created is not billable.
+ * Only a post that actually went out costs money. Counting `rejected` /
+ * `failed` made the cap self-reinforcing: a broken publish consumed a slot,
+ * and the resulting `rate_limited` failure consumed another.
  */
 const BILLABLE_STATUSES = ["published"] as const;
 
@@ -32,19 +27,21 @@ export async function assertTwitterLaunchCap(
   const cap = readCap();
   const windowStart = new Date(Date.now() - WINDOW_MS);
 
+  // Windowed on `publishedAt`, not `createdAt`: the charge happens when X
+  // creates the tweet. A post scheduled 40 days ago and published today is
+  // billable today, and a slot frees 30 days after publication — keying on
+  // creation would miss the first and release the second early.
   const rows = await db
     .select({
-      // Oldest billable timestamp in the window — lets us compute a
-      // tight `Retry-After` so the caller can poll back at exactly the
-      // moment a slot frees instead of guessing.
-      oldest: sql<Date>`MIN(${posts.createdAt})`,
+      // Oldest billable publish in the window, for a tight `Retry-After`.
+      oldest: sql<Date>`MIN(${posts.publishedAt})`,
       total: sql<number>`COUNT(*)`,
     })
     .from(posts)
     .where(
       and(
         eq(posts.accountId, accountId),
-        gte(posts.createdAt, windowStart),
+        gte(posts.publishedAt, windowStart),
         inArray(posts.status, [...BILLABLE_STATUSES]),
       ),
     );

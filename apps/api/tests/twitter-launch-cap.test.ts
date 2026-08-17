@@ -30,10 +30,13 @@ const describeIfDb = canRunDbTests ? describe : describe.skip;
 
 type PostStatus = (typeof postsTable.$inferInsert)["status"];
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 async function insertPosts(
   tx: DrizzleClient,
   base: { organizationId: string; accountId: string },
   statuses: PostStatus[],
+  opts: { createdAt?: Date; publishedAt?: Date } = {},
 ): Promise<void> {
   for (const status of statuses) {
     await tx.insert(postsTable).values({
@@ -41,6 +44,9 @@ async function insertPosts(
       accountId: base.accountId,
       status,
       text: `cap-${status}`,
+      ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
+      publishedAt:
+        opts.publishedAt ?? (status === "published" ? new Date() : null),
     });
   }
 }
@@ -97,6 +103,48 @@ describeIfDb("assertTwitterLaunchCap", () => {
         platform: "twitter",
         rule: "twitter.launch_cap.per_account",
       });
+    });
+  });
+
+  it("counts a post scheduled long ago but published inside the window", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const base = {
+        organizationId: fixture.organizationId,
+        accountId: fixture.accountId,
+      };
+
+      // The charge lands when X creates the tweet, so the window has to key
+      // on publishedAt — filtering on createdAt would let these slip through
+      // free, and would also release a slot 30 days after creation rather
+      // than 30 days after publication.
+      await insertPosts(tx, base, ["published", "published", "published"], {
+        createdAt: new Date(Date.now() - 40 * DAY_MS),
+        publishedAt: new Date(),
+      });
+
+      await expect(
+        assertTwitterLaunchCap(tx, base.accountId),
+      ).rejects.toMatchObject({ code: "rate_limited" });
+    });
+  });
+
+  it("ignores a post published before the window opened", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const base = {
+        organizationId: fixture.organizationId,
+        accountId: fixture.accountId,
+      };
+
+      await insertPosts(tx, base, ["published", "published", "published"], {
+        publishedAt: new Date(Date.now() - 40 * DAY_MS),
+      });
+
+      await expect(assertTwitterLaunchCap(tx, base.accountId)).resolves
+        .toBeUndefined();
     });
   });
 });

@@ -25,9 +25,17 @@ const GIF = new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00]);
 const WEBP = new Uint8Array([
   0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
 ]);
-const MP4 = new Uint8Array([
-  0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x70, 0x34, 0x32,
-]);
+/** ISOBMFF: 4 size bytes, "ftyp", then the 4-byte brand. */
+function isobmff(brand: string): Uint8Array {
+  const bytes = new Uint8Array(16);
+  bytes.set([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], 0);
+  for (let i = 0; i < 4; i++) bytes[8 + i] = brand.charCodeAt(i);
+  return bytes;
+}
+
+const MP4 = isobmff("mp42");
+const HEIC = isobmff("heic");
+const AVIF = isobmff("avif");
 
 describe("sniffMimeType", () => {
   it("identifies the formats the platforms accept", () => {
@@ -36,6 +44,25 @@ describe("sniffMimeType", () => {
     expect(sniffMimeType(GIF)).toBe("image/gif");
     expect(sniffMimeType(WEBP)).toBe("image/webp");
     expect(sniffMimeType(MP4)).toBe("video/mp4");
+  });
+
+  it("discriminates ISOBMFF containers by brand, not just the ftyp box", () => {
+    // `ftyp` alone is every ISO base media container. Matching on it alone
+    // resolved an iPhone HEIC photo to video/mp4, which then chose a .mp4 S3
+    // extension and produced a preflight error naming a type nobody sent.
+    expect(sniffMimeType(HEIC)).toBe("image/heic");
+    expect(sniffMimeType(AVIF)).toBe("image/avif");
+    expect(sniffMimeType(isobmff("qt  "))).toBe("video/quicktime");
+    expect(sniffMimeType(isobmff("isom"))).toBe("video/mp4");
+  });
+
+  it("defers to the declared type for an ISOBMFF brand it can't name", () => {
+    expect(sniffMimeType(isobmff("zzzz"))).toBeUndefined();
+    expect(resolveMimeType(isobmff("zzzz"), "video/mp4")).toBe("video/mp4");
+  });
+
+  it("needs a full header — a truncated ftyp must not assert a type", () => {
+    expect(sniffMimeType(HEIC.slice(0, 8))).toBeUndefined();
   });
 
   it("returns undefined for bytes it doesn't recognise", () => {

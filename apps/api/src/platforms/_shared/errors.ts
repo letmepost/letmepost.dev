@@ -51,19 +51,11 @@ export function rejected(params: {
 }
 
 /**
- * The upstream detail to attach as `platformResponse`.
- *
- * Callers used to write `res.body ?? res.raw ?? undefined`, which silently
- * produced *nothing* when the platform answered with an empty body — and an
- * empty body is exactly when you most need to know what happened. The result
- * was an error record reading `"platform_rejected" / "twitter rejected the
- * post."` whose own remediation said "Inspect platformResponse for the
- * upstream error detail", with no platformResponse to inspect and the HTTP
- * status discarded. Undiagnosable after the fact.
- *
- * When there is a body or a raw payload the contract is unchanged — that
- * value is passed through as before. The status-only object is the fallback
- * for the empty case, so a bare 403 or 503 still says something.
+ * The upstream detail to attach as `platformResponse`. A body or raw payload
+ * passes through unchanged; the `{ httpStatus }` fallback covers the case
+ * that used to yield nothing at all — an empty upstream body left an error
+ * whose own remediation pointed at a field we hadn't populated, with the
+ * status already discarded.
  */
 export function upstreamDetail(res: {
   status: number;

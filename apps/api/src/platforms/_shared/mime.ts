@@ -1,31 +1,22 @@
 /**
  * Content-sniffing for media bytes.
  *
- * Every path that produced a `LoadedMediaItem` used to take the mime type on
- * trust: the base64 path hard-coded `image/jpeg` for anything tagged
- * `kind: "image"`, the URL path echoed whatever `Content-Type` the origin
- * sent, and the `mediaId` path echoed the `media` row's stored contentType
- * (itself just the multipart part header, defaulting to
- * `application/octet-stream`).
- *
- * That is the wrong source of truth. Per-platform preflight rejects on mime
- * (`twitter.media.mime_allowed`, etc.), so a perfectly valid PNG served by a
- * CDN as `application/octet-stream` — or uploaded through a client that
- * omitted the part's Content-Type — got rejected before it ever reached the
- * platform, while the identical file uploaded by hand to X went through fine.
- *
- * The bytes are already in memory at the point preflight runs, so sniff them
- * and let the magic number win. The declared type stays as the fallback for
- * formats we don't have a signature for.
+ * Every resolver path used to take the mime type on trust — a hard-coded
+ * guess for base64, the origin's `Content-Type` for URLs, the stored row for
+ * mediaIds — and per-platform preflight then rejected on it. A valid JPEG
+ * served as `application/octet-stream` never reached the platform.
  */
 
-/** Formats we can positively identify, and that some platform accepts. */
+/** Longest signature we match, so callers know how much to buffer. */
+export const SNIFF_HEADER_BYTES = 12;
+
+/** `null` is a wildcard at that position. */
+type Pattern = ReadonlyArray<number | null>;
+
 const SIGNATURES: ReadonlyArray<{
   mimeType: string;
-  /** Byte offset the pattern starts at. */
   offset: number;
-  /** Bytes to match; `null` is a wildcard for that position. */
-  pattern: ReadonlyArray<number | null>;
+  pattern: Pattern;
 }> = [
   { mimeType: "image/jpeg", offset: 0, pattern: [0xff, 0xd8, 0xff] },
   {
@@ -39,7 +30,7 @@ const SIGNATURES: ReadonlyArray<{
     offset: 0,
     pattern: [0x47, 0x49, 0x46, 0x38, null, 0x61],
   },
-  // "RIFF" .... "WEBP" — the 4 size bytes at offset 4 are the wildcards.
+  // "RIFF" ???? "WEBP"
   {
     mimeType: "image/webp",
     offset: 0,
@@ -47,16 +38,46 @@ const SIGNATURES: ReadonlyArray<{
       0x52, 0x49, 0x46, 0x46, null, null, null, null, 0x57, 0x45, 0x42, 0x50,
     ],
   },
-  // ISO base media file format: "ftyp" box at offset 4. Covers mp4 / m4v and
-  // the QuickTime brands platforms accept under the video/mp4 umbrella.
-  { mimeType: "video/mp4", offset: 4, pattern: [0x66, 0x74, 0x79, 0x70] },
 ];
 
-function matches(
-  bytes: Uint8Array,
-  offset: number,
-  pattern: ReadonlyArray<number | null>,
-): boolean {
+/** ISOBMFF `ftyp` box marker at offset 4; the brand follows at offset 8. */
+const FTYP: Pattern = [0x66, 0x74, 0x79, 0x70];
+
+/**
+ * `ftyp` alone means "ISO base media container", NOT mp4 — HEIC, AVIF and
+ * QuickTime share it. Matching on the box marker alone resolved an iPhone
+ * HEIC photo to `video/mp4`, which then picked a `.mp4` S3 extension and
+ * produced a preflight error naming a type the user never sent. The brand is
+ * what actually discriminates.
+ */
+const ISOBMFF_BRANDS: Readonly<Record<string, string>> = {
+  // Video.
+  isom: "video/mp4",
+  iso2: "video/mp4",
+  iso4: "video/mp4",
+  iso5: "video/mp4",
+  iso6: "video/mp4",
+  mp41: "video/mp4",
+  mp42: "video/mp4",
+  avc1: "video/mp4",
+  dash: "video/mp4",
+  mmp4: "video/mp4",
+  m4v: "video/mp4",
+  qt: "video/quicktime",
+  // Still images that also ride in ISOBMFF.
+  heic: "image/heic",
+  heix: "image/heic",
+  heim: "image/heic",
+  hesp: "image/heic",
+  hevc: "image/heic",
+  hevx: "image/heic",
+  mif1: "image/heic",
+  msf1: "image/heic",
+  avif: "image/avif",
+  avis: "image/avif",
+};
+
+function matches(bytes: Uint8Array, offset: number, pattern: Pattern): boolean {
   if (bytes.byteLength < offset + pattern.length) return false;
   for (let i = 0; i < pattern.length; i++) {
     const expected = pattern[i];
@@ -66,26 +87,36 @@ function matches(
   return true;
 }
 
+/** Read the 4-byte ISOBMFF brand at offset 8, trimmed of padding. */
+function readIsobmffBrand(bytes: Uint8Array): string | undefined {
+  if (bytes.byteLength < 12) return undefined;
+  let brand = "";
+  for (let i = 8; i < 12; i++) brand += String.fromCharCode(bytes[i]!);
+  return brand.replace(/[\s\0]+$/, "").toLowerCase() || undefined;
+}
+
 /**
- * Identify `bytes` from its magic number. Returns `undefined` when the format
- * isn't one we have a signature for — callers fall back to the declared type
- * rather than guessing.
+ * Identify `bytes` from its magic number, or `undefined` when the format
+ * isn't one we recognise — callers fall back to the declared type rather
+ * than guessing. Needs {@link SNIFF_HEADER_BYTES} bytes to be conclusive.
  */
 export function sniffMimeType(bytes: Uint8Array): string | undefined {
   for (const sig of SIGNATURES) {
     if (matches(bytes, sig.offset, sig.pattern)) return sig.mimeType;
   }
+  if (matches(bytes, 4, FTYP)) {
+    const brand = readIsobmffBrand(bytes);
+    // An unknown brand stays undefined: better to defer to the declared type
+    // than to assert a container we can't name.
+    return brand ? ISOBMFF_BRANDS[brand] : undefined;
+  }
   return undefined;
 }
 
 /**
- * Pick the mime type to preflight and upload with: the sniffed type when we
- * recognise the bytes, otherwise the declared one.
- *
- * Sniffing wins outright rather than only filling in blanks — a wrong
- * declared type (`image/jpeg` on PNG bytes from the base64 path, or a CDN
- * serving `application/octet-stream`) is exactly the case that was breaking
- * publishes, and the bytes cannot lie about what they are.
+ * The mime type to preflight and upload with. Sniffing wins outright — a
+ * wrong declared type is the case that breaks publishes, and the bytes
+ * cannot lie about what they are.
  */
 export function resolveMimeType(
   bytes: Uint8Array,

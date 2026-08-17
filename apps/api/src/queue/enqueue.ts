@@ -20,19 +20,12 @@ export const PUBLISH_JOB_OPTIONS = {
 } as const;
 
 /**
- * Deterministic job id for a post's publish job.
- *
- * Dash-joined, NOT colon-joined. BullMQ rejects a custom job id containing
- * `:` unless it happens to split into exactly three parts — it uses the colon
- * as its internal Redis key separator (`bullmq/classes/job.js`, "Custom Id
- * cannot contain :"). `publish:<uuid>` splits into two, so every enqueue
- * threw, the posts row stayed durably `queued` with no job behind it, and the
- * caller got a 500. Scheduled publishing was down entirely; only the
- * immediate path, which never enqueues, still worked.
- *
- * The three-part escape hatch is a documented compatibility branch BullMQ
- * intends to drop, so don't reach for it. Keep this dash-joined —
- * `refresh-enqueue.ts` makes the same choice for the same reason.
+ * Deterministic job id for a post's publish job. Dash-joined, NOT colon-
+ * joined: BullMQ rejects a custom id containing `:` (its Redis key separator)
+ * unless it splits into exactly three parts. `publish:<uuid>` splits into two,
+ * so every enqueue threw and scheduled publishing was down entirely. The
+ * three-part escape hatch is a compatibility branch BullMQ intends to drop —
+ * keep this dash-joined, as `refresh-enqueue.ts` does.
  */
 export function publishJobId(postId: string): string {
   return `publish-${postId}`;

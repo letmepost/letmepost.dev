@@ -102,11 +102,8 @@ export async function processPublishJob(
   }
 
   try {
-    // A scheduled post can fire hours or days after the token it publishes
-    // with was minted. Refresh inline when that token is at or past expiry
-    // so a gap in the clock-driven refresh chain doesn't cost the user the
-    // post. No-op for accounts without an expiry, and for tokens that are
-    // still comfortably valid.
+    // A scheduled post can fire days after its token was minted; refresh
+    // inline so a gap in the clock-driven chain doesn't cost the post.
     const publishAccount = await ensureFreshToken(deps.db, account);
 
     // Wire persisted media through to the publisher. Per-platform
@@ -195,10 +192,8 @@ export async function processPublishJob(
     // platform_auth_failed / validation_failed. Record the terminal status,
     // fire the lifecycle webhook, and tell BullMQ never to retry.
     //
-    // `rate_limited` is terminal here too. The only rate limit that reaches
-    // this point is the X launch cap, whose window is 30 days — burning three
-    // attempts over 30 seconds cannot clear it, and each exhausted attempt
-    // delays the honest `post.failed` the user needs to see.
+    // `rate_limited` is terminal too: the only one reaching here is the X
+    // launch cap, whose 30-day window three retries cannot clear.
     if (
       err instanceof LetmepostError &&
       (err.code === "preflight_failed" ||
