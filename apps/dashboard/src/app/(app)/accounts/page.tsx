@@ -33,6 +33,21 @@ const BRAND_BY_ID = Object.fromEntries(
 ) as Record<string, (typeof PLATFORM_BRANDS)[number]>;
 const FALLBACK_COLOR = "#737373";
 
+function isTokenExpired(acc: Account): boolean {
+  if (!acc.tokenExpiresAt) return false;
+  return new Date(acc.tokenExpiresAt).getTime() <= Date.now();
+}
+
+/**
+ * Reports the actual token state. This used to read "Token refresh managed"
+ * unconditionally, which claimed a guarantee the card had no way to check —
+ * an account whose refresh had stopped still advertised itself as healthy.
+ */
+function tokenStatusLabel(acc: Account): string {
+  if (!acc.tokenExpiresAt) return "No expiry";
+  return isTokenExpired(acc) ? "Token expired — reconnect" : "Token valid";
+}
+
 export default function AccountsListPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -280,8 +295,14 @@ export default function AccountsListPage() {
                       <PinterestDefaultBoard accountId={acc.id} />
                     ) : null}
                     <div className="mt-auto flex items-center justify-between gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        Token refresh managed
+                      <span
+                        className={
+                          isTokenExpired(acc)
+                            ? "text-xs text-destructive"
+                            : "text-xs text-muted-foreground"
+                        }
+                      >
+                        {tokenStatusLabel(acc)}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
                         <Button
@@ -322,7 +343,16 @@ export default function AccountsListPage() {
                   pendingDisconnect.handle ??
                   pendingDisconnect.id}
               </span>{" "}
-              from your organization. Posting will stop until you reconnect.
+              from your organization and{" "}
+              <span className="font-medium text-foreground">
+                permanently cancels every scheduled post
+              </span>{" "}
+              queued against it. Cancelled posts can&rsquo;t be restored.
+              <br />
+              <br />
+              If the token has expired and you only want to re-authorize, you
+              don&rsquo;t need this — use Connect account and pick the same
+              account. That rotates the token in place and keeps your queue.
             </>
           ) : null
         }
