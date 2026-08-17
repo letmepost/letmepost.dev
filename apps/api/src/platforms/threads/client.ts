@@ -3,6 +3,7 @@ import {
   authFailed,
   extractUpstreamMessage,
   rejected,
+  upstreamDetail,
 } from "../_shared/errors.js";
 import { LetmepostError } from "../../errors.js";
 
@@ -302,7 +303,7 @@ export async function exchangeThreadsCode(params: {
   if (!res.ok || !res.body?.access_token || !res.body?.user_id) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Verify the Threads client id / secret and that the redirect URI matches the app registration exactly.",
     });
@@ -335,7 +336,7 @@ export async function exchangeForLongLivedToken(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Threads rejected the short→long token swap. The short-lived token may have already expired (1h window) or the client secret is wrong.",
     });
@@ -365,7 +366,7 @@ export async function refreshLongLivedToken(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Threads token refresh failed — the long-lived token may be expired (60d) or the user revoked access. Have the user re-connect the account.",
     });
@@ -408,14 +409,14 @@ function mapTokenLikeError(
   if (res.status === 401 || code === 190 || code === 102) {
     return authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Re-connect the Threads account — the access token is invalid, expired, or revoked.",
     });
   }
   return rejected({
     platform: PLATFORM,
-    platformResponse: res.body ?? res.raw ?? undefined,
+    platformResponse: upstreamDetail(res),
     ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
     remediation: opts.fallbackRemediation,
   });
@@ -437,7 +438,7 @@ function mapPublishError(res: {
   if (res.status === 401 || code === 190 || code === 102) {
     return authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Re-connect the Threads account — the access token is invalid, expired, or revoked.",
     });
@@ -447,7 +448,7 @@ function mapPublishError(res: {
   if (code === 10 || code === 200) {
     return authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Threads rejected the request for a missing permission. Reconnect the account to grant `threads_content_publish`.",
     });
@@ -483,7 +484,7 @@ function mapPublishError(res: {
       remediation: rateLimited
         ? "Back off and retry; Threads enforces app- and user-level quotas."
         : "Threads returned a transient error; retry shortly.",
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
     });
   }
 
@@ -502,7 +503,7 @@ function mapPublishError(res: {
     }
     return rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
       remediation,
     });
@@ -512,7 +513,7 @@ function mapPublishError(res: {
   if (subcode === 2207020 || lowerMsg.includes("expired")) {
     return rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       upstreamMessage: upstreamMessage ?? "Threads container expired.",
       remediation:
         "Threads expires unpublished media containers after 24 hours. Re-create and publish in a single flow.",
@@ -521,7 +522,7 @@ function mapPublishError(res: {
 
   return rejected({
     platform: PLATFORM,
-    platformResponse: res.body ?? res.raw ?? undefined,
+    platformResponse: upstreamDetail(res),
     ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
   });
 }

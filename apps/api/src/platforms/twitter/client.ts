@@ -3,6 +3,7 @@ import {
   authFailed,
   extractUpstreamMessage,
   rejected,
+  upstreamDetail,
 } from "../_shared/errors.js";
 import { LetmepostError } from "../../errors.js";
 
@@ -440,7 +441,7 @@ export class TwitterClient {
     if (res.status === 401 || lowerMsg.includes("unauthorized")) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         remediation:
           "Re-connect the X account — the access token is invalid, expired, or missing scopes.",
       });
@@ -458,7 +459,7 @@ export class TwitterClient {
         }`,
         remediation:
           "Back off and retry — X enforces per-app and per-user tweet-posting ceilings.",
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
       });
     }
 
@@ -467,7 +468,7 @@ export class TwitterClient {
     if (isDuplicateTweet(res.body) || lowerMsg.includes("duplicate")) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage: upstreamMessage ?? "Duplicate tweet.",
         remediation:
           "X detected this tweet as a duplicate of a recent tweet; vary the content and retry.",
@@ -478,7 +479,7 @@ export class TwitterClient {
     if (isTweetTooLong(res.body) || lowerMsg.includes("too long")) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage: upstreamMessage ?? "Tweet too long.",
         remediation:
           "Shorten the tweet; letmepost should have caught this in preflight — file a bug.",
@@ -492,7 +493,7 @@ export class TwitterClient {
     ) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage: upstreamMessage ?? "Unsupported media.",
         remediation:
           "X rejected the media format; use a supported mime type and size.",
@@ -501,7 +502,7 @@ export class TwitterClient {
 
     throw rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
     });
   }
@@ -566,7 +567,7 @@ export async function exchangeTwitterCode(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Verify the X client id / secret, the PKCE code_verifier, and that the redirect URI matches the app registration.",
     });
@@ -618,7 +619,7 @@ export async function refreshTwitterToken(params: {
             : `X token-refresh endpoint returned ${res.status}.`,
         remediation:
           "Transient upstream failure during token refresh; retry shortly — the account is not revoked.",
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
       });
     }
 
@@ -626,7 +627,7 @@ export async function refreshTwitterToken(params: {
     // genuine auth failure: the refresh token is expired or revoked.
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "The X refresh token is expired or revoked — have the user re-connect the account.",
     });

@@ -3,6 +3,7 @@ import {
   authFailed,
   extractUpstreamMessage,
   rejected,
+  upstreamDetail,
 } from "../_shared/errors.js";
 import { LetmepostError } from "../../errors.js";
 
@@ -175,7 +176,7 @@ export class PinterestClient {
     if (res.status === 401 || lowerMsg.includes("invalid_token")) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         remediation:
           "Re-connect the Pinterest account — the access token is invalid or revoked.",
       });
@@ -185,7 +186,7 @@ export class PinterestClient {
     if (res.status === 429) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage: upstreamMessage ?? "Rate limited by Pinterest.",
         remediation:
           "Back off and retry; Pinterest enforces per-app and per-account quotas.",
@@ -201,7 +202,7 @@ export class PinterestClient {
     ) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage: upstreamMessage ?? "Duplicate pin.",
         remediation:
           "Pinterest rejected the pin as a duplicate of an existing pin on this board.",
@@ -217,7 +218,7 @@ export class PinterestClient {
     ) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage: upstreamMessage ?? "Pinterest could not fetch the image URL.",
         remediation:
           "Ensure the image URL is publicly reachable and serves a supported image mime type.",
@@ -226,7 +227,7 @@ export class PinterestClient {
 
     throw rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
     });
   }
@@ -262,7 +263,7 @@ export class PinterestClient {
     ) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         remediation:
           "Re-connect the Pinterest account — the access token is invalid or revoked.",
       });
@@ -270,7 +271,7 @@ export class PinterestClient {
 
     throw rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
       rule: "pinterest.media.register_failed",
       remediation:
@@ -369,7 +370,7 @@ export class PinterestClient {
       if (!res.ok || !res.body) {
         throw rejected({
           platform: PLATFORM,
-          platformResponse: res.body ?? res.raw ?? undefined,
+          platformResponse: upstreamDetail(res),
           ...(extractUpstreamMessage(res.body) !== undefined
             ? { upstreamMessage: extractUpstreamMessage(res.body)! }
             : {}),
@@ -418,7 +419,7 @@ export class PinterestClient {
     if (!res.ok || !res.body) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage:
           extractUpstreamMessage(res.body) ??
           "Pinterest /v5/user_account did not return a user.",
@@ -462,7 +463,7 @@ export class PinterestClient {
     ) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         remediation:
           "Pinterest rejected board creation — likely the connected account predates the boards:write scope. Reconnect Pinterest from the dashboard.",
       });
@@ -475,7 +476,7 @@ export class PinterestClient {
     ) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage:
           upstreamMessage ?? "A board with that name already exists.",
         remediation:
@@ -485,7 +486,7 @@ export class PinterestClient {
 
     throw rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
     });
   }
@@ -512,7 +513,7 @@ export class PinterestClient {
     if (!res.ok || !res.body) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage:
           extractUpstreamMessage(res.body) ??
           "Pinterest /v5/boards did not return a list.",
@@ -556,7 +557,7 @@ export async function exchangePinterestCode(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Verify the Pinterest client id / secret and the redirect URI matches the app registration.",
     });
@@ -592,7 +593,7 @@ export async function refreshPinterestToken(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "The Pinterest refresh token is expired or revoked — have the user re-connect the account.",
     });

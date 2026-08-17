@@ -1,4 +1,4 @@
-import { authFailed, extractUpstreamMessage, rejected } from "../_shared/errors.js";
+import { authFailed, extractUpstreamMessage, rejected, upstreamDetail } from "../_shared/errors.js";
 import { platformFetch } from "../_shared/http.js";
 import { LetmepostError } from "../../errors.js";
 
@@ -93,7 +93,7 @@ export class LinkedInClient {
     if (!res.ok || !res.body?.sub) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         remediation:
           "Re-authenticate the LinkedIn account — the access token couldn't read /v2/userinfo (token revoked, expired, or missing openid+profile scopes).",
       });
@@ -142,7 +142,7 @@ export class LinkedInClient {
       if (!urn) {
         throw rejected({
           platform: PLATFORM,
-          platformResponse: res.body ?? res.raw ?? undefined,
+          platformResponse: upstreamDetail(res),
           upstreamMessage:
             "LinkedIn accepted the post but didn't return a URN in x-restli-id — treat as ambiguous.",
         });
@@ -162,7 +162,7 @@ export class LinkedInClient {
     ) {
       throw authFailed({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         remediation:
           "The LinkedIn access token is expired or revoked — reconnect the account.",
       });
@@ -171,7 +171,7 @@ export class LinkedInClient {
     if (res.status === 403 || code === "INSUFFICIENT_PERMISSIONS") {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage:
           upstreamMessage ?? "LinkedIn refused the post — insufficient scopes.",
         remediation:
@@ -187,7 +187,7 @@ export class LinkedInClient {
     ) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         upstreamMessage: upstreamMessage ?? "LinkedIn rejected the author URN.",
         remediation:
           "Verify the author URN matches the authenticated member; org URNs require MDP-approved scopes.",
@@ -206,13 +206,13 @@ export class LinkedInClient {
         }`,
         remediation:
           "Back off — LinkedIn enforces both per-app and per-member quotas. Retry after the window.",
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
       });
     }
 
     throw rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(upstreamMessage !== undefined ? { upstreamMessage } : {}),
     });
   }
@@ -271,7 +271,7 @@ export async function exchangeLinkedInCode(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Verify the LinkedIn client id / secret and that the redirect URI matches the app registration exactly.",
     });
@@ -303,7 +303,7 @@ export async function refreshLinkedInToken(params: {
   if (!res.ok || !res.body?.access_token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       remediation:
         "Refresh token is expired or revoked — have the user re-connect the LinkedIn account.",
     });

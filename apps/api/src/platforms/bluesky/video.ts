@@ -3,6 +3,7 @@ import {
   authFailed,
   extractUpstreamMessage,
   rejected,
+  upstreamDetail,
 } from "../_shared/errors.js";
 import { LetmepostError } from "../../errors.js";
 import type { BlueskyBlobRef, BlueskySession } from "./client.js";
@@ -115,7 +116,7 @@ export async function getServiceAuth(
   if (!res.ok || !res.body?.token) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       message:
         "Bluesky did not return a service auth token for the video service.",
       remediation:
@@ -191,7 +192,7 @@ export async function uploadVideo(
     // mentions Bluesky's daily caps.
     throw rejected({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       ...(extractUpstreamMessage(res.body) !== undefined
         ? { upstreamMessage: extractUpstreamMessage(res.body)! }
         : {}),
@@ -232,7 +233,7 @@ export async function pollJobUntilComplete(
     if (!res.ok || !res.body?.jobStatus) {
       throw rejected({
         platform: PLATFORM,
-        platformResponse: res.body ?? res.raw ?? undefined,
+        platformResponse: upstreamDetail(res),
         ...(extractUpstreamMessage(res.body) !== undefined
           ? { upstreamMessage: extractUpstreamMessage(res.body)! }
           : {}),

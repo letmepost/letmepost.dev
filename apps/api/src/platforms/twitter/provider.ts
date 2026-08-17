@@ -2,7 +2,7 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { z } from "zod";
 import { LetmepostError } from "../../errors.js";
 import { encodeOAuthState } from "../../oauth/state.js";
-import { authFailed } from "../_shared/errors.js";
+import { authFailed, upstreamDetail } from "../_shared/errors.js";
 import { platformFetch } from "../_shared/http.js";
 import type {
   AccountProvider,
@@ -141,7 +141,7 @@ async function fetchAuthenticatedUser(
   if (!res.ok || !user?.id) {
     throw authFailed({
       platform: PLATFORM,
-      platformResponse: res.body ?? res.raw ?? undefined,
+      platformResponse: upstreamDetail(res),
       message: "Could not resolve the authenticated X user (GET /2/users/me).",
       remediation:
         "Ensure the connect grant includes the users.read scope, then re-connect the X account.",
