@@ -190,8 +190,8 @@ export default function ApiKeysPage() {
           <CardContent
             className={
               profiles.length > 0
-                ? "grid gap-4 md:grid-cols-[1fr_180px_220px]"
-                : "grid gap-4 md:grid-cols-[1fr_220px]"
+                ? "grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_160px_180px_200px]"
+                : "grid gap-4 md:grid-cols-[1fr_180px_200px]"
             }
           >
             <div className="space-y-1.5">

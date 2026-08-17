@@ -313,7 +313,11 @@ async function resolveLoopbackKey(c: Context): Promise<ResolvedAuth> {
     prefix: "lmp_live_",
     hashedKey: hashKeyForStorage(plaintext),
     last4: plaintext.slice(-4),
-    scopes: [],
+    // Internal loopback credential, never handed to the client. Consent is
+    // enforced per-request by authorizeToolCall(); this key is cached per user
+    // and reused across both read-only and publish tokens, so it must not be
+    // the narrower gate.
+    scopes: ["posts:read", "posts:write"],
   });
   jwtUserToApiKey.set(userId, plaintext);
   return { apiKey: plaintext, scopes };
