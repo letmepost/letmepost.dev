@@ -34,6 +34,21 @@ import type { PublishEnqueuer } from "../enqueue.js";
 export const QUEUED_ORPHAN_GRACE_MS = 2 * 60 * 1000;
 
 /**
+ * How late a post may be and still be worth sending.
+ *
+ * Re-driving anything ever orphaned is wrong in both directions. A backlog
+ * that built up during an outage would all fire the moment the sweep starts
+ * working — a week of "scheduled" posts landing at once, which is not what
+ * the user asked for and cannot be taken back. And a post that was meant to
+ * go out days ago is usually stale enough that publishing it silently is
+ * worse than saying it never went.
+ *
+ * Past this bound the row is failed loudly instead, leaving the decision to
+ * re-post with the person who wrote it.
+ */
+export const QUEUED_ORPHAN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/**
  * How long a row may sit in `publishing` before we call it stranded. Above
  * TikTok's 30-minute poll deadline, and far above any synchronous publish —
  * X's chunked-video FINALIZE poll, the slowest path, caps at 5 minutes.
@@ -71,6 +86,8 @@ export interface PublishReconcileDeps {
 export interface PublishReconcileResult {
   /** Orphaned `queued` rows handed back to the publish queue. */
   requeued: number;
+  /** Orphaned `queued` rows too late to send, closed out as failed. */
+  expired: number;
   /** Stranded `publishing` rows closed out as failed. */
   stranded: number;
 }
@@ -81,29 +98,35 @@ export async function runPublishReconcile(
 ): Promise<PublishReconcileResult> {
   const now = options.now ?? new Date();
 
-  const requeued = await requeueOrphanedQueued(deps, now);
+  const { requeued, expired } = await requeueOrphanedQueued(deps, now);
   const stranded = await failStrandedPublishing(deps, now);
 
-  if (requeued > 0 || stranded > 0) {
+  if (requeued > 0 || expired > 0 || stranded > 0) {
     console.warn(
-      `[reconcile] requeued ${requeued} orphaned queued post(s), failed ${stranded} stranded publishing post(s)`,
+      `[reconcile] requeued ${requeued} orphaned queued post(s), expired ${expired} too-late post(s), failed ${stranded} stranded publishing post(s)`,
     );
   }
-  return { requeued, stranded };
+  return { requeued, expired, stranded };
 }
 
 async function requeueOrphanedQueued(
   deps: PublishReconcileDeps,
   now: Date,
-): Promise<number> {
+): Promise<{ requeued: number; expired: number }> {
   const cutoff = new Date(now.getTime() - QUEUED_ORPHAN_GRACE_MS);
+  const tooLateBefore = new Date(now.getTime() - QUEUED_ORPHAN_MAX_AGE_MS);
 
   const rows = await deps.db
     .select({
       id: postsTable.id,
       organizationId: postsTable.organizationId,
+      accountId: postsTable.accountId,
+      scheduledAt: postsTable.scheduledAt,
+      platform: platformAccounts.platform,
+      profileId: platformAccounts.profileId,
     })
     .from(postsTable)
+    .leftJoin(platformAccounts, eq(platformAccounts.id, postsTable.accountId))
     .where(
       and(
         eq(postsTable.status, "queued"),
@@ -113,9 +136,22 @@ async function requeueOrphanedQueued(
     .limit(MAX_ROWS_PER_SWEEP);
 
   let requeued = 0;
+  let expired = 0;
   for (const row of rows) {
     const state = await deps.findJobState(row.id);
     if (state !== null && LIVE_JOB_STATES.has(state)) continue;
+
+    if (row.scheduledAt && row.scheduledAt < tooLateBefore) {
+      const closed = await failQueuedRow(deps, row, {
+        code: "internal_error",
+        message:
+          "This post was never handed to the publish queue, and is now too far past its scheduled time to send automatically.",
+        remediation:
+          "Nothing was sent to the platform. Re-create the post if you still want it published.",
+      });
+      if (closed) expired++;
+      continue;
+    }
 
     // A lingering `completed` / `failed` job still occupies the deterministic
     // job id (`removeOnComplete` keeps it for 7 days), and BullMQ silently
@@ -129,7 +165,51 @@ async function requeueOrphanedQueued(
     });
     requeued++;
   }
-  return requeued;
+  return { requeued, expired };
+}
+
+/**
+ * Move a `queued` row to `failed` and fire `post.failed`. Conditional on the
+ * row still being `queued`, so a worker that picks it up mid-sweep wins.
+ * Returns whether this call was the one that closed it.
+ */
+async function failQueuedRow(
+  deps: PublishReconcileDeps,
+  row: {
+    id: string;
+    organizationId: string;
+    accountId: string | null;
+    platform: string | null;
+    profileId: string | null;
+  },
+  errorRecord: Record<string, unknown>,
+): Promise<boolean> {
+  const updated = await deps.db
+    .update(postsTable)
+    .set({ status: "failed", error: errorRecord })
+    .where(and(eq(postsTable.id, row.id), eq(postsTable.status, "queued")))
+    .returning();
+  if (updated.length === 0) return false;
+
+  if (row.accountId && row.platform && row.profileId) {
+    await deps.dispatcher
+      .dispatch({
+        organizationId: row.organizationId,
+        type: "post.failed",
+        data: {
+          id: row.id,
+          platform: row.platform,
+          accountId: row.accountId,
+          profileId: row.profileId,
+          error: errorRecord,
+          rejectedAt: new Date().toISOString(),
+        },
+      })
+      .catch((e: unknown) => {
+        console.error("[reconcile] post.failed dispatch failed", e);
+      });
+  }
+  return true;
 }
 
 async function failStrandedPublishing(

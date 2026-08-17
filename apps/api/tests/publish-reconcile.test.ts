@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import {
   PUBLISHING_STALE_MS,
   QUEUED_ORPHAN_GRACE_MS,
+  QUEUED_ORPHAN_MAX_AGE_MS,
   runPublishReconcile,
   type PublishReconcileDeps,
 } from "../src/queue/jobs/publish-reconcile.js";
@@ -159,6 +160,54 @@ describeIfDb("runPublishReconcile — orphaned queued posts", () => {
 
       expect(deps.removed).toContain(orphan);
       expect(deps.enqueued.map((d) => d.postId)).toContain(orphan);
+    });
+  });
+
+  it("fails a long-abandoned post instead of firing a stale backlog", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const now = new Date("2026-07-05T12:00:00.000Z");
+      // The shape of the production backlog: scheduled a week ago, never
+      // enqueued. Re-driving these on deploy would blast out a week of posts
+      // at once, which nobody asked for and nobody can take back.
+      const ancient = await insertPost(tx, {
+        organizationId: fixture.organizationId,
+        accountId: fixture.accountId,
+        status: "queued",
+        scheduledAt: new Date(now.getTime() - 7 * 24 * 60 * MINUTE_MS),
+      });
+
+      const deps = makeDeps(tx);
+      await runPublishReconcile(deps, { now });
+
+      expect(deps.enqueued.map((d) => d.postId)).not.toContain(ancient);
+      const [row] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.id, ancient));
+      expect(row?.status).toBe("failed");
+      expect(row?.error).toMatchObject({ code: "internal_error" });
+      expect(deps.events).toContain("post.failed");
+    });
+  });
+
+  it("still re-drives a post that is late but inside the send window", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const now = new Date("2026-07-05T12:00:00.000Z");
+      const recentlyLate = await insertPost(tx, {
+        organizationId: fixture.organizationId,
+        accountId: fixture.accountId,
+        status: "queued",
+        scheduledAt: new Date(now.getTime() - QUEUED_ORPHAN_MAX_AGE_MS / 2),
+      });
+
+      const deps = makeDeps(tx);
+      await runPublishReconcile(deps, { now });
+
+      expect(deps.enqueued.map((d) => d.postId)).toContain(recentlyLate);
     });
   });
 

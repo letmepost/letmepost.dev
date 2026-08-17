@@ -5,6 +5,7 @@ import {
   type DecryptedPlatformAccount,
 } from "../../repositories/platform-accounts.js";
 import { getProvider } from "./provider.js";
+import { scopeKindFor } from "./scopes.js";
 
 /**
  * How stale a token may be at publish time before we refresh it inline.
@@ -27,9 +28,12 @@ export const PUBLISH_REFRESH_SKEW_MS = 2 * 60 * 1000;
  * Return an account whose access token is good for the next
  * {@link PUBLISH_REFRESH_SKEW_MS}, refreshing it in place if not.
  *
- * - No `tokenExpiresAt` → returned untouched. Credentials platforms
- *   (Bluesky) and providers without an explicit expiry are event-driven; we
- *   have nothing to decide from.
+ * - Credentials platforms → returned untouched. Bluesky stores an app
+ *   password as `token` and its publisher opens a fresh session from it on
+ *   every publish, so the stored access JWT's expiry has no bearing on
+ *   whether the post can go out. Refreshing here would add one to three
+ *   wasted round-trips per post and buy nothing.
+ * - No `tokenExpiresAt` → returned untouched; nothing to decide from.
  * - Comfortably valid → returned untouched, no upstream call.
  * - Expired / expiring → refresh via the platform's provider and persist the
  *   rotated token so concurrent and subsequent publishes see it too.
@@ -44,6 +48,7 @@ export async function ensureFreshToken(
   account: DecryptedPlatformAccount,
   now: Date = new Date(),
 ): Promise<DecryptedPlatformAccount> {
+  if (scopeKindFor(account.platform) !== "oauth") return account;
   if (!account.tokenExpiresAt) return account;
   if (account.tokenExpiresAt.getTime() - now.getTime() > PUBLISH_REFRESH_SKEW_MS) {
     return account;
