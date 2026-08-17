@@ -29,13 +29,9 @@ const FINALIZE_POLL_TIMEOUT_MS = 5 * 60_000;
  */
 export const TWITTER_API_BASE = "https://api.twitter.com/2";
 /**
- * v2 media upload. The old `upload.twitter.com/1.1` host was sunset on
- * 2025-06-09 and answers 403 with an empty body, which is why every X post
- * carrying media failed while text-only posts kept working.
- *
- * v2 also requires the `media.write` OAuth scope — see `_shared/scopes.ts`.
- * Tokens minted before that scope was added cannot upload; the account has to
- * be re-authorized (via Connect, which upserts and preserves the queue).
+ * The v1.1 host was sunset 2025-06-09 and answers 403 with an empty body.
+ * v2 also requires the `media.write` scope, so tokens minted before it was
+ * added must be re-authorized.
  */
 export const TWITTER_UPLOAD_BASE = "https://api.x.com/2";
 export const TWITTER_OAUTH_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
@@ -66,10 +62,7 @@ export interface TwitterTweetResponse {
   };
 }
 
-/**
- * v2 media responses nest everything under `data`, and the id is `data.id`
- * (v1.1 returned a top-level `media_id_string`).
- */
+/** v2 nests everything under `data`; the id is `data.id`. */
 export interface TwitterMediaUploadResponse {
   data?: {
     id?: string;
@@ -143,11 +136,7 @@ export class TwitterClient {
     this.throwForError(res);
   }
 
-  /**
-   * `POST /2/media/metadata` — attach alt-text to an uploaded media id.
-   * Best-effort: the tweet still goes out without alt text rather than
-   * failing the publish over an accessibility write.
-   */
+  /** Best-effort: the tweet goes out without alt text rather than failing. */
   async setMediaAltText(mediaId: string, altText: string): Promise<void> {
     await platformFetch({
       method: "POST",
@@ -162,14 +151,8 @@ export class TwitterClient {
   }
 
   /**
-   * Upload media to X via the v2 endpoint. Routes between two pipes:
-   *   - image / GIF → single multipart request.
-   *   - video       → chunked (INIT / APPEND / FINALIZE + STATUS poll). The
-   *                   simple route silently ignores `tweet_video` past a
-   *                   small threshold and the tweet later fails with a vague
-   *                   "media not ready", so video MUST go through chunked.
-   *
-   * Spec: https://docs.x.com/x-api/media/quickstart/media-upload-chunked
+   * Video MUST go chunked: the simple route silently ignores `tweet_video`
+   * past a small threshold and the tweet later fails with "media not ready".
    */
   async uploadMedia(bytes: Uint8Array, mimeType: string): Promise<string> {
     if (mimeType.startsWith("video/")) {
@@ -178,11 +161,7 @@ export class TwitterClient {
     return this.uploadImageSimple(bytes, mimeType);
   }
 
-  /**
-   * POST a multipart form to `/2/media/upload`. v2 takes multipart for every
-   * command, unlike v1.1 which mixed url-encoded and multipart, so all the
-   * boundary handling lives here.
-   */
+  /** v2 takes multipart for every command, so boundary handling lives here. */
   private async mediaUploadForm(
     form: FormData,
   ): Promise<{ ok: boolean; status: number; body: unknown; raw: string | null }> {
@@ -223,16 +202,14 @@ export class TwitterClient {
     return { ok: res.ok, status: res.status, body, raw };
   }
 
-  /** Blob-wrap a chunk so fetch serializes it as a binary multipart part. */
   private static binaryPart(bytes: Uint8Array, mimeType: string): Blob {
-    // Copy into a fresh ArrayBuffer-backed view: Uint8Array<SharedArrayBuffer>
-    // is rejected by the lib.dom Blob signature in some TS versions.
+    // Fresh ArrayBuffer-backed view: Uint8Array<SharedArrayBuffer> is rejected
+    // by the lib.dom Blob signature in some TS versions.
     const part = new Uint8Array(bytes.byteLength);
     part.set(bytes);
     return new Blob([part], { type: mimeType });
   }
 
-  /** Single-request v2 upload for images and GIFs. */
   private async uploadImageSimple(
     bytes: Uint8Array,
     mimeType: string,
