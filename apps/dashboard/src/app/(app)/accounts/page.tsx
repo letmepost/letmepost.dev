@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Copy, Plus, Trash } from "@phosphor-icons/react";
+import { ArrowsClockwise, Copy, Plus, Trash } from "@phosphor-icons/react";
 import { apiFetch, ApiRequestError } from "@/lib/api";
 import type { Account } from "@/lib/accounts";
 import { useActiveProfile } from "@/lib/profiles";
@@ -305,6 +305,27 @@ export default function AccountsListPage() {
                         {tokenStatusLabel(acc)}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
+                        {/* The non-destructive path. Re-running connect for an
+                            account that already exists rotates its token in
+                            place and leaves scheduled posts alone, where
+                            Disconnect cancels the whole queue. Without this
+                            button the only visible way to re-authorize was the
+                            destructive one. */}
+                        <Button
+                          variant={isTokenExpired(acc) ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => {
+                            track({
+                              name: "connect.drawer_opened",
+                              properties: { entry_point: "accounts-reconnect" },
+                            });
+                            setConnectOpen(true);
+                          }}
+                          title="Re-authorize without losing scheduled posts"
+                        >
+                          <ArrowsClockwise className="size-4" />
+                          Reconnect
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
