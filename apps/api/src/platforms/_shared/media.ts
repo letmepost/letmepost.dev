@@ -7,6 +7,7 @@ import {
 } from "../../media/s3.js";
 import { DrizzleMediaRepository } from "../../repositories/media.js";
 import { guardedFetch, isDisallowedUrlError } from "../../net/guarded-fetch.js";
+import { resolveMimeType } from "./mime.js";
 
 /**
  * A `MediaInput` resolved to actual bytes + a definite mime type. Preflight
@@ -78,8 +79,13 @@ export async function loadMediaItem(
   }
   if (item.bytesBase64) {
     const bytes = Uint8Array.from(Buffer.from(item.bytesBase64, "base64"));
-    const mimeType =
-      item.kind === "image" ? "image/jpeg" : "video/mp4";
+    // Sniff first — the caller gave us bytes, not a type, so `kind` alone
+    // can't tell png from jpeg from webp. Falling back to the kind-based
+    // guess keeps behaviour unchanged for formats we can't identify.
+    const mimeType = resolveMimeType(
+      bytes,
+      item.kind === "image" ? "image/jpeg" : "video/mp4",
+    );
     return withAlt(
       { kind: item.kind, mimeType, byteLength: bytes.byteLength, bytes },
       item.altText,
@@ -134,11 +140,15 @@ export async function loadMediaItem(
   const buf = await res.arrayBuffer();
   const bytes = new Uint8Array(buf);
   const contentType = res.headers.get("content-type");
-  const mimeType = contentType
+  const declared = contentType
     ? contentType.split(";")[0]!.trim().toLowerCase()
     : item.kind === "image"
       ? "image/jpeg"
       : "video/mp4";
+  // The origin's Content-Type is a hint, not the truth — plenty of CDNs and
+  // object stores hand back `application/octet-stream` for a valid JPEG,
+  // which preflight would then reject as an unsupported mime.
+  const mimeType = resolveMimeType(bytes, declared);
 
   return withAlt(
     { kind: item.kind, mimeType, byteLength: bytes.byteLength, bytes },
@@ -307,7 +317,10 @@ async function loadFromMediaId(
   return withAlt(
     {
       kind: item.kind,
-      mimeType: row.contentType,
+      // `row.contentType` is whatever the multipart part declared at upload
+      // time (defaulting to application/octet-stream when the client omitted
+      // it), so prefer what the bytes actually are.
+      mimeType: resolveMimeType(bytes, row.contentType),
       byteLength: bytes.byteLength,
       bytes,
     },

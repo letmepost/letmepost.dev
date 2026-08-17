@@ -307,14 +307,65 @@ posts.post(
           });
         }
 
-        await c.var.publishEnqueuer.enqueue(
-          {
-            postId: row.id,
-            organizationId,
-            ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-          },
-          { delayMs },
-        );
+        // The row is already committed, so an enqueue failure here would
+        // otherwise leave a post durably `queued` with no job behind it: no
+        // delivery attempt, no error on the row, no failure event — a silent
+        // black hole, and the caller still gets a 500. Close the row out
+        // loudly and give the quota slot back. The 5-minutely reconcile sweep
+        // (queue/jobs/publish-reconcile.ts) covers the harsher case where the
+        // process dies before this handler can run at all.
+        try {
+          await c.var.publishEnqueuer.enqueue(
+            {
+              postId: row.id,
+              organizationId,
+              ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+            },
+            { delayMs },
+          );
+        } catch (err) {
+          const errorRecord = {
+            code: "internal_error",
+            message:
+              "The post was accepted but could not be handed to the publish queue.",
+            remediation:
+              "Nothing was sent to the platform. Re-create the post; if it keeps failing, the queue backend is unreachable.",
+          };
+          await c.var.db
+            .update(postsTable)
+            .set({ status: "failed", error: errorRecord })
+            .where(eq(postsTable.id, row.id));
+          await decrementQuota(c.var.db, organizationId, 1);
+          await c.var.webhookDispatcher
+            .dispatch({
+              organizationId,
+              type: "post.failed",
+              data: {
+                id: row.id,
+                platform: account.platform,
+                accountId: account.id,
+                profileId: account.profileId,
+                error: errorRecord,
+                rejectedAt: new Date().toISOString(),
+              },
+              ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+            })
+            .catch((dispatchErr: unknown) => {
+              console.error(
+                "[posts] post.failed dispatch failed after enqueue error",
+                dispatchErr,
+              );
+            });
+          console.error("[posts] publish enqueue failed", err);
+          throw new LetmepostError({
+            code: "internal_error",
+            status: 500,
+            message:
+              "Could not schedule the post for delivery — the publish queue is unavailable.",
+            remediation:
+              "Nothing was sent to the platform. Retry the request; use an Idempotency-Key so a partially-accepted batch isn't duplicated.",
+          });
+        }
 
         await c.var.webhookDispatcher.dispatch({
           organizationId,
@@ -1117,6 +1168,11 @@ function classifyError(err: unknown): {
       return { status: "rejected", eventType: "post.rejected" };
     case "platform_unavailable":
     case "internal_error":
+    // A rate limit reaching this point (the X launch cap) is a real, terminal
+    // outcome for the post — it used to fall through to `default` and mark
+    // the row failed while dispatching nothing, so an integrator watching
+    // webhooks saw a post silently vanish.
+    case "rate_limited":
       return { status: "failed", eventType: "post.failed" };
     default:
       // validation_failed / not_found / unauthenticated / etc. happen before

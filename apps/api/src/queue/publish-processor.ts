@@ -5,6 +5,7 @@ import type { DrizzleClient } from "../db/index.js";
 import { posts as postsTable } from "../db/schema/posts.js";
 import { DrizzlePlatformAccountsRepository } from "../repositories/platform-accounts.js";
 import { publishForAccount } from "../platforms/_shared/dispatch.js";
+import { ensureFreshToken } from "../platforms/_shared/ensure-fresh-token.js";
 import type { WebhookDispatcher } from "../webhooks/dispatch.js";
 import {
   TIKTOK_PUBLISH_STATUS_POLL_DEADLINE_MS,
@@ -101,6 +102,13 @@ export async function processPublishJob(
   }
 
   try {
+    // A scheduled post can fire hours or days after the token it publishes
+    // with was minted. Refresh inline when that token is at or past expiry
+    // so a gap in the clock-driven refresh chain doesn't cost the user the
+    // post. No-op for accounts without an expiry, and for tokens that are
+    // still comfortably valid.
+    const publishAccount = await ensureFreshToken(deps.db, account);
+
     // Wire persisted media through to the publisher. Per-platform
     // overrides (`pinterest.boardId`, `threads.replyToId`, etc.) are
     // not yet stored on the posts row — scheduled posts currently
@@ -110,7 +118,7 @@ export async function processPublishJob(
       ? (post.mediaRefs as Parameters<typeof publishForAccount>[1]["media"])
       : undefined;
     const result = await publishForAccount(
-      account,
+      publishAccount,
       {
         text: post.text,
         ...(persistedMedia && persistedMedia.length > 0
@@ -119,7 +127,7 @@ export async function processPublishJob(
               mediaContext: {
                 db,
                 organizationId,
-                profileId: account.profileId,
+                profileId: publishAccount.profileId,
               },
             }
           : {}),
@@ -186,12 +194,18 @@ export async function processPublishJob(
     // Permanent (4xx-family) failures — preflight / platform_rejected /
     // platform_auth_failed / validation_failed. Record the terminal status,
     // fire the lifecycle webhook, and tell BullMQ never to retry.
+    //
+    // `rate_limited` is terminal here too. The only rate limit that reaches
+    // this point is the X launch cap, whose window is 30 days — burning three
+    // attempts over 30 seconds cannot clear it, and each exhausted attempt
+    // delays the honest `post.failed` the user needs to see.
     if (
       err instanceof LetmepostError &&
       (err.code === "preflight_failed" ||
         err.code === "platform_rejected" ||
         err.code === "platform_auth_failed" ||
-        err.code === "validation_failed")
+        err.code === "validation_failed" ||
+        err.code === "rate_limited")
     ) {
       await finaliseFailure(deps, post.id, err, account, organizationId, requestId);
       throw new UnrecoverableError(err.message);

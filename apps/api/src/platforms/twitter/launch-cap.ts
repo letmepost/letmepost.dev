@@ -6,7 +6,17 @@ import type { DrizzleClient } from "../../db/index.js";
 // X charges new developers on Pay-Per-Use with no free quota, so an
 // unbounded publish loop = real money out the door.
 const WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-const BILLABLE_STATUSES = ["published", "rejected", "failed"] as const;
+/**
+ * Only a post that actually went out costs money. Counting `rejected` and
+ * `failed` rows here made the cap self-reinforcing: anything that broke a
+ * publish (expired token, media rejected on a bad mime, upstream blip) also
+ * consumed a slot, so a user hitting a run of failures burned the whole
+ * 30-day allowance without a single tweet being created — and then got
+ * `rate_limited` on every subsequent attempt, whose `failed` row consumed yet
+ * another slot. The guard exists to bound the PPU bill, and a post X never
+ * created is not billable.
+ */
+const BILLABLE_STATUSES = ["published"] as const;
 
 function readCap(): number {
   const raw = process.env.TWITTER_LAUNCH_CAP_PER_ACCOUNT;
