@@ -3,12 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ArrowSquareOut, Clipboard } from "@phosphor-icons/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowClockwise,
+  ArrowLeft,
+  ArrowSquareOut,
+  Clipboard,
+} from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { slugifyRule } from "@letmepost/schemas";
 import { apiFetch, ApiRequestError } from "@/lib/api";
-import { getPost, statusTone, type PostDetail } from "@/lib/posts";
+import {
+  canRetry,
+  getPost,
+  retryPost,
+  statusTone,
+  type PostDetail,
+} from "@/lib/posts";
 import { API_URL, DOCS_URL } from "@/lib/env";
 import { queryKeys } from "@/lib/query-keys";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +57,25 @@ export default function PostDetailPage() {
   });
   const post = query.data ?? null;
 
+  const queryClient = useQueryClient();
+  const retry = useMutation({
+    mutationFn: () => retryPost(id),
+    onSuccess: () => {
+      toast.success("Queued. It'll publish shortly.");
+      queryClient.invalidateQueries({ queryKey: queryKeys.posts.detail(id) });
+      queryClient.invalidateQueries({ queryKey: ["posts"] });
+    },
+    onError: (err: unknown) => {
+      toast.error(
+        err instanceof ApiRequestError
+          ? err.payload.message
+          : err instanceof Error
+            ? err.message
+            : "Retry failed.",
+      );
+    },
+  });
+
   // Fire `post_detail.viewed` once per post id load. The query cache
   // means navigating away and back doesn't refire, but a hard reload
   // does — same semantics as PostHog's `$pageview`.
@@ -67,12 +97,24 @@ export default function PostDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild>
-        <Link href="/logs">
-          <ArrowLeft className="size-4" />
-          Back to log
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" asChild>
+          <Link href="/logs">
+            <ArrowLeft className="size-4" />
+            Back to log
+          </Link>
+        </Button>
+        {post && canRetry(post.status) ? (
+          <Button
+            size="sm"
+            onClick={() => retry.mutate()}
+            disabled={retry.isPending}
+          >
+            <ArrowClockwise className="size-4" />
+            {retry.isPending ? "Queueing…" : "Retry post"}
+          </Button>
+        ) : null}
+      </div>
 
       {error ? (
         <Card>

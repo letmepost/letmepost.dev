@@ -116,6 +116,27 @@ export function reschedulePost(
   });
 }
 
+/** Statuses the retry endpoint accepts. `published` is excluded server-side. */
+export const RETRYABLE_STATUSES: PostStatus[] = ["failed", "rejected", "canceled"];
+
+export function canRetry(status: PostStatus): boolean {
+  return RETRYABLE_STATUSES.includes(status);
+}
+
+/**
+ * Re-queue a post that never went out. Omit `scheduledAt` to fire as soon as
+ * the queue picks it up.
+ */
+export function retryPost(
+  id: string,
+  scheduledAt?: string,
+): Promise<{ id: string; status: "queued"; scheduledAt: string }> {
+  return apiFetch<{ id: string; status: "queued"; scheduledAt: string }>(
+    `/v1/posts/${id}/retry`,
+    { method: "POST", body: scheduledAt ? { scheduledAt } : {} },
+  );
+}
+
 export function cancelPost(id: string): Promise<{ id: string; status: "canceled" }> {
   return apiFetch<{ id: string; status: "canceled" }>(`/v1/posts/${id}`, {
     method: "DELETE",
