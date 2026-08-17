@@ -91,7 +91,7 @@ export type DashboardEvent =
   // ── Account connection ──────────────────────────────────────────────
   | {
       name: "connect.drawer_opened";
-      properties: { entry_point: "sidebar" | "onboarding" | "empty-state" | "accounts-page" };
+      properties: { entry_point: "sidebar" | "onboarding" | "empty-state" | "accounts-page" | "accounts-reconnect" };
     }
   | { name: "connect.platform_selected"; properties: { platform: Platform } }
   | {
