@@ -49,7 +49,7 @@ describe("TwitterProvider", () => {
     expect(url.searchParams.get("code_challenge_method")).toBe("S256");
     expect(url.searchParams.get("code_challenge")).toMatch(/^[A-Za-z0-9_-]+$/);
     expect(url.searchParams.get("scope")).toBe(
-      "tweet.write tweet.read users.read offline.access",
+      "tweet.write tweet.read users.read media.write offline.access",
     );
   });
 

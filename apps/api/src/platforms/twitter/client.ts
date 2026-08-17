@@ -28,7 +28,12 @@ const FINALIZE_POLL_TIMEOUT_MS = 5 * 60_000;
  * endpoint and the OAuth 2.0 token endpoint.
  */
 export const TWITTER_API_BASE = "https://api.twitter.com/2";
-export const TWITTER_UPLOAD_BASE = "https://upload.twitter.com/1.1";
+/**
+ * The v1.1 host was sunset 2025-06-09 and answers 403 with an empty body.
+ * v2 also requires the `media.write` scope, so tokens minted before it was
+ * added must be re-authorized.
+ */
+export const TWITTER_UPLOAD_BASE = "https://api.x.com/2";
 export const TWITTER_OAUTH_TOKEN_URL = "https://api.twitter.com/2/oauth2/token";
 export const TWITTER_OAUTH_AUTHORIZE_URL =
   "https://twitter.com/i/oauth2/authorize";
@@ -57,9 +62,14 @@ export interface TwitterTweetResponse {
   };
 }
 
+/** v2 nests everything under `data`; the id is `data.id`. */
 export interface TwitterMediaUploadResponse {
-  media_id_string: string;
-  size: number;
+  data?: {
+    id?: string;
+    media_key?: string;
+    size?: number;
+    processing_info?: TwitterProcessingInfo;
+  };
 }
 
 /**
@@ -126,41 +136,23 @@ export class TwitterClient {
     this.throwForError(res);
   }
 
-  /**
-   * `POST /1.1/media/metadata/create` — attach alt-text to a previously-
-   * uploaded media id. Best-effort: if it fails (e.g. v1.1 endpoint
-   * deprecation), the tweet still goes out without alt text — losing the
-   * accessibility metadata is not a publish-breaking failure.
-   *
-   * Despite living on the v1.1 host, this endpoint is the only documented
-   * way to set alt text on uploaded media. v2 has no equivalent yet.
-   */
+  /** Best-effort: the tweet goes out without alt text rather than failing. */
   async setMediaAltText(mediaId: string, altText: string): Promise<void> {
     await platformFetch({
       method: "POST",
-      url: `${this.uploadBase}/media/metadata/create.json`,
+      url: `${this.uploadBase}/media/metadata`,
       headers: {
         Authorization: `Bearer ${this.accessToken}`,
         "Content-Type": "application/json",
       },
-      body: { media_id: mediaId, alt_text: { text: altText } },
+      body: { id: mediaId, metadata: { alt_text: { text: altText } } },
       platform: PLATFORM,
     });
-    // Intentionally don't inspect the response. Per X docs, success is 2xx
-    // with empty body; we don't need the response shape and we don't want
-    // to fail a publish over a metadata write.
   }
 
   /**
-   * Upload media to X. Routes between two pipes:
-   *   - image / GIF → v1.1 simple upload (single base64-encoded request).
-   *   - video       → v1.1 chunked upload (INIT / APPEND / FINALIZE +
-   *                   STATUS poll). The simple route silently ignores
-   *                   `media_category=tweet_video` past a tiny threshold
-   *                   and tweets fail later with a vague "media not
-   *                   ready" — so video MUST go through chunked.
-   *
-   * Spec: https://developer.x.com/en/docs/twitter-api/v1/media/upload-media/api-reference
+   * Video MUST go chunked: the simple route silently ignores `tweet_video`
+   * past a small threshold and the tweet later fails with "media not ready".
    */
   async uploadMedia(bytes: Uint8Array, mimeType: string): Promise<string> {
     if (mimeType.startsWith("video/")) {
@@ -169,33 +161,73 @@ export class TwitterClient {
     return this.uploadImageSimple(bytes, mimeType);
   }
 
-  /**
-   * v1.1 simple upload — `media_data` base64 path. The endpoint supports
-   * multipart but the form-encoded base64 route is simpler and keeps the
-   * fast image path free of multipart boundary handling.
-   */
+  /** v2 takes multipart for every command, so boundary handling lives here. */
+  private async mediaUploadForm(
+    form: FormData,
+  ): Promise<{ ok: boolean; status: number; body: unknown; raw: string | null }> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.uploadBase}/media/upload`, {
+        method: "POST",
+        // No Content-Type — fetch must set it with the multipart boundary.
+        headers: { Authorization: `Bearer ${this.accessToken}` },
+        body: form,
+        signal: AbortSignal.timeout(2 * 60_000),
+      });
+    } catch (err) {
+      const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
+      throw new LetmepostError({
+        code: "platform_unavailable",
+        status: 503,
+        platform: PLATFORM,
+        message: isTimeout
+          ? "Upstream X media upload timed out."
+          : "Failed to reach X's media upload endpoint.",
+        rule: "twitter.media.upload_unreachable",
+        remediation:
+          "The upstream X media endpoint may be unreachable; retry the publish shortly.",
+      });
+    }
+
+    const text = await res.text();
+    let body: unknown;
+    let raw: string | null = null;
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        raw = text;
+      }
+    }
+    return { ok: res.ok, status: res.status, body, raw };
+  }
+
+  private static binaryPart(bytes: Uint8Array, mimeType: string): Blob {
+    // Fresh ArrayBuffer-backed view: Uint8Array<SharedArrayBuffer> is rejected
+    // by the lib.dom Blob signature in some TS versions.
+    const part = new Uint8Array(bytes.byteLength);
+    part.set(bytes);
+    return new Blob([part], { type: mimeType });
+  }
+
   private async uploadImageSimple(
     bytes: Uint8Array,
     mimeType: string,
   ): Promise<string> {
-    const form = new URLSearchParams({
-      media_data: Buffer.from(bytes).toString("base64"),
-      media_category:
-        mimeType === "image/gif" ? "tweet_gif" : "tweet_image",
-    });
+    const form = new FormData();
+    form.append(
+      "media",
+      TwitterClient.binaryPart(bytes, mimeType),
+      "upload",
+    );
+    form.append(
+      "media_category",
+      mimeType === "image/gif" ? "tweet_gif" : "tweet_image",
+    );
 
-    const res = await platformFetch<TwitterMediaUploadResponse>({
-      method: "POST",
-      url: `${this.uploadBase}/media/upload.json`,
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: form.toString(),
-      platform: PLATFORM,
-    });
-
-    if (res.ok && res.body?.media_id_string) return res.body.media_id_string;
+    const res = await this.mediaUploadForm(form);
+    const id = (res.body as TwitterMediaUploadResponse | undefined)?.data?.id;
+    if (res.ok && id) return id;
     this.throwForError(res);
   }
 
@@ -225,26 +257,17 @@ export class TwitterClient {
     mimeType: string,
   ): Promise<string> {
     // INIT
-    const initForm = new URLSearchParams({
-      command: "INIT",
-      total_bytes: String(bytes.byteLength),
-      media_type: mimeType,
-      media_category: "tweet_video",
-    });
-    const initRes = await platformFetch<TwitterMediaUploadResponse>({
-      method: "POST",
-      url: `${this.uploadBase}/media/upload.json`,
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: initForm.toString(),
-      platform: PLATFORM,
-    });
-    if (!initRes.ok || !initRes.body?.media_id_string) {
+    const initForm = new FormData();
+    initForm.append("command", "INIT");
+    initForm.append("total_bytes", String(bytes.byteLength));
+    initForm.append("media_type", mimeType);
+    initForm.append("media_category", "tweet_video");
+    const initRes = await this.mediaUploadForm(initForm);
+    const mediaId = (initRes.body as TwitterMediaUploadResponse | undefined)
+      ?.data?.id;
+    if (!initRes.ok || !mediaId) {
       this.throwForError(initRes);
     }
-    const mediaId = initRes.body.media_id_string;
 
     // APPEND — one segment per chunk. Sequential because X assigns segment
     // indices in upload order; parallel uploads risk reordering on retry.
@@ -257,28 +280,16 @@ export class TwitterClient {
     }
 
     // FINALIZE
-    const finalizeForm = new URLSearchParams({
-      command: "FINALIZE",
-      media_id: mediaId,
-    });
-    const finalizeRes = await platformFetch<{
-      media_id_string: string;
-      processing_info?: TwitterProcessingInfo;
-    }>({
-      method: "POST",
-      url: `${this.uploadBase}/media/upload.json`,
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: finalizeForm.toString(),
-      platform: PLATFORM,
-    });
+    const finalizeForm = new FormData();
+    finalizeForm.append("command", "FINALIZE");
+    finalizeForm.append("media_id", mediaId);
+    const finalizeRes = await this.mediaUploadForm(finalizeForm);
     if (!finalizeRes.ok || !finalizeRes.body) {
       this.throwForError(finalizeRes);
     }
 
-    const info = finalizeRes.body.processing_info;
+    const info = (finalizeRes.body as TwitterMediaUploadResponse).data
+      ?.processing_info;
     if (!info || info.state === "succeeded") {
       // Sufficiently small clips return ready immediately.
       return mediaId;
@@ -300,11 +311,7 @@ export class TwitterClient {
     return this.pollMediaStatus(mediaId, info.check_after_secs ?? 1);
   }
 
-  /**
-   * APPEND a single chunk via multipart/form-data. Twitter's v1.1 endpoint
-   * is the only X media path that requires multipart — INIT/FINALIZE/STATUS
-   * are all url-encoded — so we keep the boundary-handling localized here.
-   */
+  /** APPEND a single chunk. 2xx (usually 204) is success. */
   private async appendChunk(
     mediaId: string,
     segmentIndex: number,
@@ -315,60 +322,15 @@ export class TwitterClient {
     form.append("command", "APPEND");
     form.append("media_id", mediaId);
     form.append("segment_index", String(segmentIndex));
-    // Wrap the chunk in a Blob so fetch's multipart serializer treats it
-    // as a binary part with the right Content-Type.
-    // Copy into a fresh ArrayBuffer-backed Uint8Array so the Blob constructor
-    // gets a concrete BlobPart type (Uint8Array<SharedArrayBuffer> is rejected
-    // by the lib.dom Blob signature in some TS versions).
-    const part = new Uint8Array(chunk.byteLength);
-    part.set(chunk);
     form.append(
       "media",
-      new Blob([part], { type: mimeType }),
+      TwitterClient.binaryPart(chunk, mimeType),
       `chunk-${segmentIndex}`,
     );
 
-    let res: Response;
-    try {
-      res = await fetch(`${this.uploadBase}/media/upload.json`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          // Don't set Content-Type — fetch must set it with the boundary.
-        },
-        body: form,
-        // Generous timeout; a 4MB chunk over a slow link can take a bit.
-        signal: AbortSignal.timeout(2 * 60_000),
-      });
-    } catch (err) {
-      const isTimeout = err instanceof DOMException && err.name === "TimeoutError";
-      throw new LetmepostError({
-        code: "platform_unavailable",
-        status: 503,
-        platform: PLATFORM,
-        message: isTimeout
-          ? "Upstream X chunked upload timed out."
-          : "Failed to reach X's chunked upload endpoint.",
-        rule: "twitter.media.upload_unreachable",
-        remediation:
-          "The upstream X media endpoint may be unreachable; retry the publish shortly.",
-      });
-    }
-
-    // 204 No Content is the documented success for APPEND.
-    if (res.status >= 200 && res.status < 300) return;
-
-    let parsed: unknown;
-    let raw: string | null = null;
-    const text = await res.text();
-    if (text) {
-      try {
-        parsed = JSON.parse(text);
-      } catch {
-        raw = text;
-      }
-    }
-    this.throwForError({ status: res.status, body: parsed, raw });
+    const res = await this.mediaUploadForm(form);
+    if (res.ok) return;
+    this.throwForError(res);
   }
 
   /**
@@ -386,22 +348,19 @@ export class TwitterClient {
     while (true) {
       await delay(nextWaitSecs * 1000);
 
-      const res = await platformFetch<{
-        media_id_string: string;
-        processing_info: TwitterProcessingInfo;
-      }>({
+      const res = await platformFetch<TwitterMediaUploadResponse>({
         method: "GET",
         url:
-          `${this.uploadBase}/media/upload.json` +
+          `${this.uploadBase}/media/upload` +
           `?command=STATUS&media_id=${encodeURIComponent(mediaId)}`,
         headers: { Authorization: `Bearer ${this.accessToken}` },
         platform: PLATFORM,
       });
 
-      if (!res.ok || !res.body?.processing_info) {
+      if (!res.ok || !res.body?.data?.processing_info) {
         this.throwForError(res);
       }
-      const info = res.body.processing_info;
+      const info = res.body.data.processing_info;
       if (info.state === "succeeded") return mediaId;
       if (info.state === "failed") {
         throw rejected({

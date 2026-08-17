@@ -58,6 +58,12 @@ export const session = pgTable(
     userAgent: text("user_agent"),
     /** Populated by the organizations plugin when a user switches active org. */
     activeOrganizationId: uuid("active_organization_id"),
+    /**
+     * Non-null marks this session as an admin impersonation, holding the actor
+     * label from the grant. The dashboard reads it to show the "viewing as"
+     * banner; a normal sign-in always leaves it NULL.
+     */
+    impersonatedBy: text("impersonated_by"),
     ...timestamps,
   },
   (t) => ({
