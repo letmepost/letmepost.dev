@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { OnboardingConnect } from "@/components/app/onboarding-connect";
+import type { ConnectablePlatform } from "@/lib/accounts";
 
 /**
  * Right-side drawer wrapper around `OnboardingConnect`. Same descriptor-
@@ -23,9 +24,12 @@ import { OnboardingConnect } from "@/components/app/onboarding-connect";
 export function ConnectAccountDrawer({
   open,
   onOpenChange,
+  platform,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Set by Reconnect: skips the picker and goes straight to this platform. */
+  platform?: ConnectablePlatform;
 }) {
   const queryClient = useQueryClient();
   return (
@@ -35,7 +39,9 @@ export function ConnectAccountDrawer({
         className="w-full sm:max-w-md flex flex-col gap-0 overflow-y-auto"
       >
         <SheetHeader className="border-b">
-          <SheetTitle className="text-base">Connect account</SheetTitle>
+          <SheetTitle className="text-base">
+            {platform ? `Reconnect ${platform}` : "Connect account"}
+          </SheetTitle>
           <SheetDescription>
             We&apos;ll handle the OAuth redirect, app password, or whatever
             else the platform requires. Tokens land encrypted at rest with
@@ -44,6 +50,7 @@ export function ConnectAccountDrawer({
         </SheetHeader>
         <div className="p-4">
           <OnboardingConnect
+            {...(platform ? { initialPlatform: platform } : {})}
             onConnected={() => {
               // Top-level prefix invalidation matches every profile-scoped
               // variant (`["accounts", profileId]`). The newly-connected
