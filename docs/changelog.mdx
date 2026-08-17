@@ -6,6 +6,84 @@ icon: clock-rotate-left
 
 The canonical record lives in the git history; this page summarises the milestones a caller needs to know about. Subscribe to [GitHub releases](https://github.com/rosekamallove/letmepost.dev/releases) for tagged cuts, or follow [the open source repo](https://github.com/rosekamallove/letmepost.dev) for the running history.
 
+## 2026-08
+
+### Fixed: scheduled posts stayed queued and never published
+
+Scheduled publishing was broken end to end. Every `scheduledAt` post failed at
+the moment it was handed to the queue, on every platform. Immediate publishes
+(no `scheduledAt`) were unaffected throughout.
+
+- **Root cause.** Publish jobs were written with `jobId: publish:<postId>`.
+  BullMQ rejects a custom job id containing `:` — it uses the colon as its
+  internal key separator — unless the id happens to split into exactly three
+  parts. `publish:<uuid>` splits into two, so `queue.add()` threw every time.
+  Job ids are now dash-joined (`publish-<postId>`).
+- **Why it was silent.** The `posts` row is committed before the enqueue, so
+  each failure left a row durably `queued` with no job behind it: no delivery
+  attempt, no error on the row, no lifecycle event, and a `500` to the caller.
+  `POST /v1/posts` now rolls the whole batch back — every accepted target has
+  its job removed, its row canceled, and its quota refunded — rather than
+  returning an error over a partly-scheduled batch.
+- **Recovery.** A new reconciliation sweep runs every 5 minutes and re-drives
+  `queued` / `validated` posts that are past due with no live job. Posts more
+  than 24h past `scheduledAt` are failed with [`post.failed`](/webhooks/post-failed)
+  instead of being sent, so a recovered backlog can't fire days-old posts at
+  once. Rows stranded in `publishing` by an interrupted worker are closed out
+  the same way.
+
+### Fixed: X (Twitter) connections dying after a token refresh
+
+- **Refresh tokens are no longer dropped.** X is not obliged to return a
+  `refresh_token` on every refresh response. Metadata was rebuilt from the
+  response alone and persisted wholesale, so the first such response erased the
+  stored refresh token; the next refresh failed with "no refresh token stored",
+  emitted [`token.revoked`](/webhooks/token-revoked), and the account stayed
+  dead until manually reconnected. The previous value now carries forward.
+- **Tokens are refreshed inline at publish time** when they're at or past
+  expiry, so a gap in the scheduled refresh chain no longer costs a post. This
+  is a best-effort backstop and never fails a publish on its own.
+
+<Note>
+Accounts disconnected by the old bug can't be restored server-side — the stored
+credential is gone. Reconnect the X account once to clear it.
+</Note>
+
+### Fixed: valid media rejected on mime type
+
+- **Media type is detected from the bytes**, not from the declared value. The
+  base64 path hard-coded `image/jpeg`, the URL path trusted the origin's
+  `Content-Type`, and the `mediaId` path trusted the stored row — so a valid
+  JPEG served as `application/octet-stream` was rejected by preflight before it
+  ever reached the platform. Detection covers JPEG, PNG, GIF, WebP and ISOBMFF
+  containers, discriminated by brand so HEIC and AVIF aren't mistaken for MP4.
+- **`POST /v1/media` sniffs on upload**, so the stored `contentType` and the S3
+  object's `Content-Type` are correct at the source. Rows written earlier with a
+  placeholder type are recovered on read.
+- Formats we can't identify still fall back to the declared type, so genuinely
+  unsupported media is still rejected with the same rule.
+
+### Fixed: failures that reported nothing
+
+- **`rate_limited` now dispatches [`post.failed`](/webhooks/post-failed).** It
+  previously marked the row failed and dispatched no event at all, so a post
+  could disappear from an integrator's point of view. It is also terminal now
+  rather than consuming retries against a 30-day window.
+- **`platformResponse` always carries something.** When an upstream answered
+  with an empty body we recorded no detail and discarded the HTTP status,
+  producing errors whose own remediation pointed at a field that wasn't there.
+  Those now carry `{ httpStatus }` at minimum. Responses with a body are
+  unchanged.
+
+### Changed: X launch cap counts calls that reached X
+
+The per-account launch cap (`twitter.launch_cap.per_account`) now counts posts
+that actually reached X — published tweets, plus failures X itself returned.
+Locally-produced failures such as preflight rejections no longer consume a slot.
+Previously any failure counted, which made the cap self-reinforcing: a run of
+failures could exhaust a 30-day allowance without a single tweet being created.
+The window is also measured from publication rather than creation.
+
 ## 2026-06
 
 ### Added: Bluesky reply threading
@@ -38,7 +116,7 @@ The canonical record lives in the git history; this page summarises the mileston
 
 - **`PATCH /v1/posts/:id`**: reschedule a queued post. Body `{ scheduledAt }`. Atomic: removes the existing BullMQ job, enqueues a new one at the updated delay, then persists the new time. Window-gated to `status=queued AND scheduledAt > now`. A `409` lands once the worker has the row. Dispatches [`post.rescheduled`](/webhooks/post-rescheduled) on success with both old and new timestamps.
 - **`DELETE /v1/posts/:id`**: cancel a queued post before it fires. Same window. Removes the BullMQ job and transitions the row to the new terminal state `canceled`. Dispatches [`post.canceled`](/webhooks/post-canceled).
-- **Stable BullMQ jobIds.** `POST /v1/posts` now writes scheduled jobs with `jobId: publish:<postId>` so the cancel/reschedule endpoints can find and replace by post id without tracking BullMQ-assigned ids on the row.
+- **Stable BullMQ jobIds.** `POST /v1/posts` writes scheduled jobs with a deterministic per-post job id so the cancel/reschedule endpoints can find and replace by post id without tracking BullMQ-assigned ids on the row. (The colon-joined form shipped here was invalid and broke scheduled publishing outright — see [2026-08](#2026-08).)
 - **Worker race-safe transition.** The publish worker's queued→publishing step is now a conditional `UPDATE … WHERE status IN ('queued','validated')`. If a `DELETE` lands between the worker's SELECT and UPDATE, the transition matches zero rows and the worker bails out cleanly. No more canceled posts going out by accident.
 - **New post status:** `canceled`. Terminal. Set exclusively via `DELETE`.
 - **New webhook events:** [`post.canceled`](/webhooks/post-canceled), [`post.rescheduled`](/webhooks/post-rescheduled).
