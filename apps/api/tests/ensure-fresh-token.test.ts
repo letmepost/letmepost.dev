@@ -111,7 +111,7 @@ describeIfDb("ensureFreshToken", () => {
     });
   });
 
-  it("still raises when the credentials are genuinely dead", async () => {
+  it("publishes with the existing token when the refresh cannot run", async () => {
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {
       const fixture = await seed(tx);
@@ -128,9 +128,34 @@ describeIfDb("ensureFreshToken", () => {
         .where(eq(platformAccounts.id, fixture.accountId));
       const account = await repo.findById(fixture.accountId);
 
-      await expect(ensureFreshToken(tx, account!)).rejects.toMatchObject({
-        code: "platform_auth_failed",
-      });
+      // Best-effort backstop: raising here would convert a publish that may
+      // still have worked into a terminal rejection. Let the publish itself
+      // be the thing that reports a dead credential.
+      const result = await ensureFreshToken(tx, account!);
+      expect(result.token).toBe(account!.token);
+    });
+  });
+
+  it("does not fail the publish when no provider is registered", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const repo = new DrizzlePlatformAccountsRepository(tx);
+
+      // `pinterest` has no provider registered in this suite, so getProvider
+      // throws validation_failed — which the publish processor treats as
+      // terminal. It must not reach the processor.
+      await tx
+        .update(platformAccounts)
+        .set({
+          platform: "pinterest",
+          tokenExpiresAt: new Date(Date.now() - HOUR_MS),
+        })
+        .where(eq(platformAccounts.id, fixture.accountId));
+      const account = await repo.findById(fixture.accountId);
+
+      const result = await ensureFreshToken(tx, account!);
+      expect(result.token).toBe(account!.token);
     });
   });
 

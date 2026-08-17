@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { z } from "zod";
@@ -295,7 +295,12 @@ posts.post(
         account: DecryptedPlatformAccount;
       }> = [];
 
-      /** Cancel + close out everything already accepted in this batch. */
+      /**
+       * Cancel everything already accepted and give back the WHOLE batch's
+       * quota. `checkAndIncrementQuota` charged `resolved.length` up front, so
+       * refunding only the rows we managed to create would leak a slot for
+       * every target after the failing one.
+       */
       const unwindAccepted = async (
         errorRecord: Record<string, unknown>,
       ): Promise<void> => {
@@ -305,10 +310,17 @@ posts.post(
             .catch((removeErr: unknown) => {
               console.error("[posts] unwind: job remove failed", removeErr);
             });
-          await c.var.db
+          // Guarded on still being `queued`: with a 1s minimum delay a job
+          // can fire while a large batch is still unwinding, and stamping
+          // `canceled` over a row that already published would be a lie.
+          const canceled = await c.var.db
             .update(postsTable)
             .set({ status: "canceled", error: errorRecord })
-            .where(eq(postsTable.id, rowId));
+            .where(
+              and(eq(postsTable.id, rowId), eq(postsTable.status, "queued")),
+            )
+            .returning();
+          if (canceled.length === 0) continue;
           await c.var.webhookDispatcher
             .dispatch({
               organizationId,
@@ -327,11 +339,13 @@ posts.post(
               console.error("[posts] unwind: dispatch failed", dispatchErr);
             });
         }
-        if (accepted.length > 0) {
-          await decrementQuota(c.var.db, organizationId, accepted.length);
-        }
+        await decrementQuota(c.var.db, organizationId, resolved.length);
       };
 
+      // Every throw inside the loop unwinds — the insert failure and the
+      // `post.queued` dispatch can both blow up, and skipping the unwind on
+      // those paths recreates the partial batch it exists to prevent.
+      try {
       for (const { account, input } of resolved) {
         const [row] = await c.var.db
           .insert(postsTable)
@@ -365,19 +379,19 @@ posts.post(
             { delayMs },
           );
         } catch (err) {
-          const errorRecord = {
-            code: "internal_error",
-            message:
-              "The batch could not be handed to the publish queue; no target was scheduled.",
-            remediation:
-              "Nothing was sent to any platform. Retry the request; if it keeps failing, the queue backend is unreachable.",
-          };
+          // Mark just this row; the outer catch unwinds the rest of the batch
+          // and refunds the full quota charge in one place.
           await c.var.db
             .update(postsTable)
-            .set({ status: "failed", error: errorRecord })
+            .set({
+              status: "failed",
+              error: {
+                code: "internal_error",
+                message:
+                  "The batch could not be handed to the publish queue; no target was scheduled.",
+              },
+            })
             .where(eq(postsTable.id, row.id));
-          await decrementQuota(c.var.db, organizationId, 1);
-          await unwindAccepted(errorRecord);
           console.error("[posts] publish enqueue failed", err);
           throw new LetmepostError({
             code: "internal_error",
@@ -410,6 +424,16 @@ posts.post(
           postId: row.id,
           status: "queued",
         });
+      }
+      } catch (err) {
+        await unwindAccepted({
+          code: "internal_error",
+          message:
+            "A later target in this batch could not be scheduled, so the whole batch was rolled back.",
+          remediation:
+            "Nothing was sent to any platform. Retry the request; use an Idempotency-Key so a retry can't duplicate it.",
+        });
+        throw err;
       }
 
       const body: CreatePostResponse = {

@@ -1,4 +1,5 @@
-import { and, eq, isNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNull, lte } from "drizzle-orm";
+import { decrementQuota } from "../../billing/quota.js";
 import type { DrizzleClient } from "../../db/index.js";
 import { platformAccounts } from "../../db/schema/platform_accounts.js";
 import { posts as postsTable } from "../../db/schema/posts.js";
@@ -104,7 +105,11 @@ async function requeueOrphanedQueued(
     .leftJoin(platformAccounts, eq(platformAccounts.id, postsTable.accountId))
     .where(
       and(
-        eq(postsTable.status, "queued"),
+        // `validated` too: the publish processor parks a retryable failure
+        // there so the next attempt's conditional transition matches. A job
+        // lost mid-retry leaves the row in `validated`, and a queued-only
+        // sweep would never see it again.
+        inArray(postsTable.status, ["queued", "validated"]),
         lte(postsTable.scheduledAt, cutoff),
       ),
     )
@@ -113,40 +118,45 @@ async function requeueOrphanedQueued(
   let requeued = 0;
   let expired = 0;
   for (const row of rows) {
-    const state = await deps.findJobState(row.id);
-    if (state !== null && LIVE_JOB_STATES.has(state)) continue;
+    // Per-row isolation: an unguarded enqueuer call would abort the whole
+    // tick, taking the stranded-publishing pass down with it.
+    try {
+      const state = await deps.findJobState(row.id);
+      if (state !== null && LIVE_JOB_STATES.has(state)) continue;
 
-    if (row.scheduledAt && row.scheduledAt < tooLateBefore) {
-      const closed = await failQueuedRow(deps, row, {
-        code: "internal_error",
-        message:
-          "This post was never handed to the publish queue, and is now too far past its scheduled time to send automatically.",
-        remediation:
-          "Nothing was sent to the platform. Re-create the post if you still want it published.",
+      if (row.scheduledAt && row.scheduledAt < tooLateBefore) {
+        const closed = await failQueuedRow(deps, row, {
+          code: "internal_error",
+          message:
+            "This post was never handed to the publish queue, and is now too far past its scheduled time to send automatically.",
+          remediation:
+            "Nothing was sent to the platform. Re-create the post if you still want it published.",
+        });
+        if (closed) expired++;
+        continue;
+      }
+
+      // A lingering `completed` / `failed` job still occupies the
+      // deterministic job id, and BullMQ silently dedupes an `add()` against
+      // it. Clear it, then enqueue for immediate run — the scheduled time has
+      // already passed.
+      await deps.enqueuer.remove(row.id);
+      await deps.enqueuer.enqueue({
+        postId: row.id,
+        organizationId: row.organizationId,
       });
-      if (closed) expired++;
-      continue;
+      requeued++;
+    } catch (err) {
+      console.error(`[reconcile] post ${row.id} could not be re-driven`, err);
     }
-
-    // A lingering `completed` / `failed` job still occupies the deterministic
-    // job id (`removeOnComplete` keeps it for 7 days), and BullMQ silently
-    // dedupes an `add()` against it — which would make this sweep a no-op
-    // exactly when it's needed. Clear it, then enqueue for immediate run:
-    // the scheduled time has already passed.
-    await deps.enqueuer.remove(row.id);
-    await deps.enqueuer.enqueue({
-      postId: row.id,
-      organizationId: row.organizationId,
-    });
-    requeued++;
   }
   return { requeued, expired };
 }
 
 /**
- * Move a `queued` row to `failed` and fire `post.failed`. Conditional on the
- * row still being `queued`, so a worker that picks it up mid-sweep wins.
- * Returns whether this call was the one that closed it.
+ * Move a pending row to `failed`, refund its quota slot, and fire
+ * `post.failed`. Conditional on the row still being pending, so a worker that
+ * picks it up mid-sweep wins. Returns whether this call closed it.
  */
 async function failQueuedRow(
   deps: PublishReconcileDeps,
@@ -162,9 +172,17 @@ async function failQueuedRow(
   const updated = await deps.db
     .update(postsTable)
     .set({ status: "failed", error: errorRecord })
-    .where(and(eq(postsTable.id, row.id), eq(postsTable.status, "queued")))
+    .where(
+      and(
+        eq(postsTable.id, row.id),
+        inArray(postsTable.status, ["queued", "validated"]),
+      ),
+    )
     .returning();
   if (updated.length === 0) return false;
+
+  // The slot was charged when the post was accepted; it never sent.
+  await decrementQuota(deps.db, row.organizationId, 1);
 
   if (row.accountId && row.platform && row.profileId) {
     await deps.dispatcher
@@ -238,6 +256,7 @@ async function failStrandedPublishing(
       .returning();
     if (updated.length === 0) continue;
     stranded++;
+    await decrementQuota(deps.db, row.organizationId, 1);
 
     if (!row.accountId || !row.platform || !row.profileId) continue;
     await deps.dispatcher

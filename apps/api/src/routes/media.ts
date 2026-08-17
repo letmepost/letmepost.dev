@@ -263,7 +263,29 @@ async function streamPartToS3(args: {
       const beginUpload = (head: Buffer | null): void => {
         if (started) return;
         started = true;
+        // Everything below runs inside a stream listener, where a throw would
+        // escape as an unhandled exception and leave this request's promise
+        // forever unsettled. Settle it explicitly instead.
+        try {
+          beginUploadInner(head);
+        } catch (err: unknown) {
+          settle(() =>
+            reject(
+              new LetmepostError({
+                code: "internal_error",
+                status: 500,
+                message:
+                  err instanceof Error
+                    ? `Could not start the media upload: ${err.message}`
+                    : "Could not start the media upload.",
+                platform: "s3",
+              }),
+            ),
+          );
+        }
+      };
 
+      const beginUploadInner = (head: Buffer | null): void => {
         contentType = head
           ? resolveMimeType(head, declaredContentType)
           : declaredContentType;

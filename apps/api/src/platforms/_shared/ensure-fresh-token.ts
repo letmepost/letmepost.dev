@@ -1,5 +1,4 @@
 import type { DrizzleClient } from "../../db/index.js";
-import { LetmepostError } from "../../errors.js";
 import {
   DrizzlePlatformAccountsRepository,
   type DecryptedPlatformAccount,
@@ -28,13 +27,19 @@ function isFresh(account: DecryptedPlatformAccount, now: Date): boolean {
  * publisher opens a fresh session per publish, so the stored JWT's expiry says
  * nothing about deliverability and refreshing would just burn round-trips.
  *
+ * This is a best-effort backstop, so it NEVER fails the publish. A refresh
+ * that can't run — no provider registered for the platform, a legacy row whose
+ * stored credential the provider doesn't understand (Meta-provisioned
+ * instagram rows carry a Page token), or a rotation race lost to the scheduled
+ * worker — falls through to publishing with the existing token. Raising here
+ * would turn a publish that previously worked into a terminal rejection; if
+ * the credential really is dead, the publish itself reports that honestly.
+ *
  * Concurrency: this and the scheduled refresh worker can target one account at
- * once, and strictly-rotating providers (TikTok, X when it chooses to) kill the
- * old refresh token on first use — so the loser gets `platform_auth_failed` and
- * its post is terminally rejected. Three things prevent that: re-read the row
- * instead of trusting the caller's snapshot, persist under a compare-and-swap
- * so only one coherent pair lands, and re-read once more on failure to pick up
- * a concurrent winner's token rather than raising.
+ * once, and strictly-rotating providers kill the old refresh token on first
+ * use. Re-read the row instead of trusting the caller's snapshot, persist
+ * under a compare-and-swap so only one coherent pair lands, and re-read once
+ * more on failure to pick up a concurrent winner's token.
  */
 export async function ensureFreshToken(
   db: DrizzleClient,
@@ -50,19 +55,24 @@ export async function ensureFreshToken(
   const current = (await repo.findById(account.id)) ?? account;
   if (isFresh(current, now)) return current;
 
-  const provider = getProvider(current.platform);
   let refreshed;
   try {
+    // getProvider throws for an unregistered platform — that must not be the
+    // thing that kills the post.
+    const provider = getProvider(current.platform);
     refreshed = await provider.refreshToken({
       token: current.token,
       tokenMetadata: current.tokenMetadata,
     });
   } catch (err) {
-    if (err instanceof LetmepostError && err.code === "platform_auth_failed") {
-      const reloaded = await repo.findById(account.id);
-      if (reloaded && isFresh(reloaded, now)) return reloaded;
-    }
-    throw err;
+    // Someone else may have just succeeded; prefer their token.
+    const reloaded = await repo.findById(account.id);
+    if (reloaded && isFresh(reloaded, now)) return reloaded;
+    console.warn(
+      `[publish] inline token refresh failed for account ${account.id}; publishing with the existing token`,
+      err,
+    );
+    return current;
   }
 
   const persisted = await repo.casUpdateToken(

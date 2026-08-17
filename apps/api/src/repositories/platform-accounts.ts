@@ -296,25 +296,30 @@ export class DrizzlePlatformAccountsRepository
     return hydrate(row);
   }
 
+  /** Encrypted column payload shared by both token writers. */
+  private tokenSet(input: UpdatePlatformTokenInput) {
+    const envelope = encrypt(input.token);
+    return {
+      tokenCiphertext: envelope.ciphertext,
+      tokenDekCiphertext: envelope.dekCiphertext,
+      tokenIv: envelope.iv,
+      tokenAuthTag: envelope.authTag,
+      ...(input.tokenMetadata !== undefined
+        ? { tokenMetadata: input.tokenMetadata }
+        : {}),
+      ...(input.tokenExpiresAt !== undefined
+        ? { tokenExpiresAt: input.tokenExpiresAt }
+        : {}),
+    };
+  }
+
   async updateToken(
     id: string,
     input: UpdatePlatformTokenInput,
   ): Promise<DecryptedPlatformAccount> {
-    const envelope = encrypt(input.token);
     const [row] = await this.db
       .update(platformAccounts)
-      .set({
-        tokenCiphertext: envelope.ciphertext,
-        tokenDekCiphertext: envelope.dekCiphertext,
-        tokenIv: envelope.iv,
-        tokenAuthTag: envelope.authTag,
-        ...(input.tokenMetadata !== undefined
-          ? { tokenMetadata: input.tokenMetadata }
-          : {}),
-        ...(input.tokenExpiresAt !== undefined
-          ? { tokenExpiresAt: input.tokenExpiresAt }
-          : {}),
-      })
+      .set(this.tokenSet(input))
       .where(eq(platformAccounts.id, id))
       .returning();
     if (!row) {
@@ -328,21 +333,9 @@ export class DrizzlePlatformAccountsRepository
     input: UpdatePlatformTokenInput,
     expected: Date | null,
   ): Promise<DecryptedPlatformAccount | null> {
-    const envelope = encrypt(input.token);
     const [row] = await this.db
       .update(platformAccounts)
-      .set({
-        tokenCiphertext: envelope.ciphertext,
-        tokenDekCiphertext: envelope.dekCiphertext,
-        tokenIv: envelope.iv,
-        tokenAuthTag: envelope.authTag,
-        ...(input.tokenMetadata !== undefined
-          ? { tokenMetadata: input.tokenMetadata }
-          : {}),
-        ...(input.tokenExpiresAt !== undefined
-          ? { tokenExpiresAt: input.tokenExpiresAt }
-          : {}),
-      })
+      .set(this.tokenSet(input))
       .where(
         and(
           eq(platformAccounts.id, id),
