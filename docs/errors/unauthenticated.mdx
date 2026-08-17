@@ -11,7 +11,11 @@ The request didn't carry a valid letmepost API key. This is about *your* key —
 - No `Authorization` header.
 - Header doesn't start with `Bearer `.
 - Key is unknown (typo, revoked, deleted org).
-- Key prefix doesn't match the environment (e.g., `lmp_test_…` against the production base URL).
+- Token doesn't start with `lmp_live_` or `lmp_test_` — anything else isn't recognised as a key at all.
+
+<Note>
+The prefix is not an environment check. `lmp_live_` and `lmp_test_` take the same code path against the same base URL, so a test key will never be rejected for being "the wrong environment" — it just publishes. See [authentication](/authentication).
+</Note>
 
 ## Response shape
 
@@ -30,7 +34,7 @@ The request didn't carry a valid letmepost API key. This is about *your* key —
 ## Remediation
 
 1. Mint or rotate a key in the dashboard's **API keys** page.
-2. Confirm the prefix matches your environment.
+2. Confirm you're sending the whole secret, prefix included.
 3. Confirm the key wasn't revoked — revocation is immediate.
 
 ## Related

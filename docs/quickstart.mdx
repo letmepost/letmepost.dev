@@ -12,7 +12,11 @@ Twitter and Bluesky are live today. The remaining platforms (Instagram, LinkedIn
 
 ## 1. Get an API key
 
-Sign in at [dashboard.letmepost.dev](https://dashboard.letmepost.dev) and mint a key from the **API keys** page. Keys look like `lmp_live_…` (production) or `lmp_test_…` (sandbox). Treat them like passwords; the dashboard only shows the secret once.
+Sign in at [dashboard.letmepost.dev](https://dashboard.letmepost.dev) and mint a key from the **API keys** page. Keys look like `lmp_live_…` or `lmp_test_…`. Treat them like passwords; the dashboard only shows the secret once.
+
+<Warning>
+The `lmp_test_` prefix is a naming convention, not a sandbox. Test keys publish to your real accounts and consume real quota exactly like live keys. Everything below posts for real — use a throwaway account if you don't want the tweet.
+</Warning>
 
 ```bash
 export LMP_KEY=lmp_live_...

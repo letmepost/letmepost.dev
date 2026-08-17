@@ -30,7 +30,9 @@ for (const r of result.results) {
 
 ## Authentication
 
-Mint an API key in the [dashboard](https://dashboard.letmepost.dev) and pass it in `apiKey`. See [docs.letmepost.dev/authentication](https://docs.letmepost.dev/authentication) for the full flow, scopes, and `lmp_test_…` vs `lmp_live_…` prefixes.
+Mint an API key in the [dashboard](https://dashboard.letmepost.dev) and pass it in `apiKey`. See [docs.letmepost.dev/authentication](https://docs.letmepost.dev/authentication) for the full flow and scopes.
+
+> **`lmp_test_` is a label, not a sandbox.** Test and live keys behave identically — both publish to your real connected accounts and consume real quota. Don't point an integration test suite at a `lmp_test_` key expecting it to be inert.
 
 ```ts
 const lmp = new Letmepost({
