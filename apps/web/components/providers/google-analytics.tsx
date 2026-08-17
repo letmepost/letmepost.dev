@@ -4,14 +4,7 @@ import { Suspense, useEffect } from "react";
 import Script from "next/script";
 import { usePathname, useSearchParams } from "next/navigation";
 
-/**
- * GA4, alongside PostHog rather than instead of it. PostHog stays the product
- * analytics surface; GA exists so Search Console can attribute organic traffic
- * to landing pages, which PostHog can't do.
- *
- * No-ops when NEXT_PUBLIC_GA_MEASUREMENT_ID is unset, so local dev and any
- * deploy without the var stay quiet — same contract as the PostHog init.
- */
+/** No-ops when unset, matching the PostHog init. */
 const MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 declare global {
@@ -21,13 +14,6 @@ declare global {
   }
 }
 
-/**
- * `send_page_view: false` + an explicit send per route change. GA4's enhanced
- * measurement infers soft navigations from History API events, which
- * double-counts against the initial load and misses the App Router's
- * `searchParams`-only transitions. Same reason PostHog runs with
- * `capture_pageview: false` here.
- */
 function Pageviews() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -63,8 +49,7 @@ export function GoogleAnalytics() {
           gtag('config', '${MEASUREMENT_ID}', { send_page_view: false });
         `}
       </Script>
-      {/* useSearchParams bails out of static rendering without a boundary,
-          which would opt every page into client-side rendering. */}
+      {/* Suspense: useSearchParams opts the tree into client-side rendering. */}
       <Suspense fallback={null}>
         <Pageviews />
       </Suspense>

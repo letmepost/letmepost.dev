@@ -28,9 +28,8 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   manifest: "/site.webmanifest",
-  // Only needed for Search Console's HTML-tag verification. A DNS-verified
-  // Domain property covers letmepost.dev and every subdomain at once and
-  // needs nothing here — leave the var unset in that case.
+  // Only for Search Console URL-prefix properties; DNS-verified Domain
+  // properties need nothing here.
   ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
     ? {
         verification: {
