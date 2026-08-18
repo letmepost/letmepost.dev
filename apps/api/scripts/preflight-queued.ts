@@ -15,6 +15,7 @@ import { LetmepostError } from "../src/errors.js";
 import { preflightForAccount } from "../src/platforms/_shared/dispatch.js";
 import { loadMediaItem } from "../src/platforms/_shared/media.js";
 import { DrizzlePlatformAccountsRepository } from "../src/repositories/platform-accounts.js";
+import { BLUESKY_IMAGE_MAX_BYTES, TWITTER_IMAGE_MAX_BYTES } from "@letmepost/schemas";
 import { validateTwitterMedia } from "../src/platforms/twitter/preflight.js";
 import { validateBlueskyMedia } from "../src/platforms/bluesky/preflight.js";
 import { validateThreadsMedia } from "../src/platforms/threads/preflight.js";
@@ -29,6 +30,12 @@ const DEEP: Record<string, ((items: readonly Resolved[]) => void) | undefined> =
   threads: validateThreadsMedia as never,
   instagram: validateInstagramMedia as never,
   facebook: validateFacebookMedia as never,
+};
+
+/** Byte-uploading platforms shrink oversized images to fit. */
+const FIT: Record<string, number | undefined> = {
+  twitter: TWITTER_IMAGE_MAX_BYTES,
+  bluesky: BLUESKY_IMAGE_MAX_BYTES,
 };
 
 const orgArg = process.argv.indexOf("--org");
@@ -71,6 +78,7 @@ for (const row of rows) {
         media.map((m) =>
           loadMediaItem(m, {
             platform: row.platform,
+            ...(FIT[row.platform] ? { fitImageToBytes: FIT[row.platform]! } : {}),
             db,
             organizationId: row.organizationId,
             profileId: account.profileId,

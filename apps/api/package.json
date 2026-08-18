@@ -54,7 +54,8 @@
     "svix": "^1.94.0",
     "ws": "^8.20.0",
     "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.25.2"
+    "zod-to-json-schema": "^3.25.2",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@letmepost/config-tsconfig": "workspace:*",

@@ -1,4 +1,4 @@
-import type { PublishResult, MediaInput } from "@letmepost/schemas";
+import { TWITTER_IMAGE_MAX_BYTES, type PublishResult, type MediaInput } from "@letmepost/schemas";
 import {
   loadMediaItem as sharedLoadMediaItem,
   type MediaResolverContext,
@@ -42,6 +42,7 @@ function loadMediaItem(
   return sharedLoadMediaItem(item, {
     platform: "twitter",
     reachableRule: "twitter.media.reachable",
+    fitImageToBytes: TWITTER_IMAGE_MAX_BYTES,
     ...(ctx
       ? {
           db: ctx.db,
