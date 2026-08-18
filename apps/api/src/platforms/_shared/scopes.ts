@@ -121,13 +121,17 @@ const SCOPES: Record<Platform, PlatformScopeSet> = {
     // X OAuth 2.0 scopes: posting needs `tweet.write`; `tweet.read` +
     // `users.read` are required to mint the token at all; `offline.access`
     // is what makes X issue a refresh token.
-    // `media.write` is required by POST /2/media/upload; without it every
-    // post carrying media 403s. Pre-existing tokens must be re-authorized.
+    //
+    // `media.write` is required by POST /2/media/upload, but an X app that
+    // isn't permitted to grant it makes the whole authorize call fail with
+    // access_denied — which blocks reconnect entirely, including for
+    // text-only posting that would otherwise work. Opt in with
+    // TWITTER_MEDIA_SCOPE=1 once the X app is confirmed to allow it.
     write: [
       "tweet.write",
       "tweet.read",
       "users.read",
-      "media.write",
+      ...(process.env.TWITTER_MEDIA_SCOPE === "1" ? ["media.write"] : []),
       "offline.access",
     ],
     extended: ["like.read", "follows.read"],
