@@ -21,8 +21,15 @@ import { LetmepostError } from "../../errors.js";
  */
 export const META_GRAPH_BASE =
   process.env.META_GRAPH_BASE ?? "https://graph.facebook.com";
+/**
+ * v23.0 was three releases behind and expires 2027-10-08. v25.0 has been out
+ * since February 2026 and runs to 2028-07-29. Not taking v26.0 (July 2026) on
+ * purpose: it is weeks old, and the extra runway isn't worth being the one to
+ * find its regressions. Overridable via env, so a bad bump is a variable
+ * change rather than a deploy. Sunset tracked in `_shared/api-versions.ts`.
+ */
 export const META_GRAPH_VERSION =
-  process.env.META_GRAPH_VERSION ?? "v23.0";
+  process.env.META_GRAPH_VERSION ?? "v25.0";
 export const META_OAUTH_AUTHORIZE_URL =
   process.env.META_OAUTH_AUTHORIZE_URL ??
   `https://www.facebook.com/${META_GRAPH_VERSION}/dialog/oauth`;
