@@ -22,7 +22,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "seed:demo": "tsx scripts/seed-demo.ts"
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "preflight:queued": "tsx scripts/preflight-queued.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1038.0",
@@ -53,7 +54,8 @@
     "svix": "^1.94.0",
     "ws": "^8.20.0",
     "zod": "^3.23.8",
-    "zod-to-json-schema": "^3.25.2"
+    "zod-to-json-schema": "^3.25.2",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@letmepost/config-tsconfig": "workspace:*",

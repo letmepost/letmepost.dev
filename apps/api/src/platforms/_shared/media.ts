@@ -7,6 +7,7 @@ import {
 } from "../../media/s3.js";
 import { DrizzleMediaRepository } from "../../repositories/media.js";
 import { guardedFetch, isDisallowedUrlError } from "../../net/guarded-fetch.js";
+import { fitImageToBytes } from "./downscale.js";
 import { resolveMimeType, SNIFF_HEADER_BYTES } from "./mime.js";
 
 /**
@@ -53,6 +54,12 @@ export type LoadMediaOptions = {
   db?: DrizzleClient;
   organizationId?: string;
   profileId?: string;
+  /**
+   * Platform image ceiling. When set, an oversized image is re-encoded to fit
+   * rather than rejected, so one upload can serve platforms whose limits
+   * differ by 5x. No-op for video, animated GIFs, and images already under.
+   */
+  fitImageToBytes?: number;
 };
 
 /**
@@ -85,7 +92,7 @@ export async function loadMediaItem(
       item.kind === "image" ? "image/jpeg" : "video/mp4",
     );
     return withAlt(
-      { kind: item.kind, mimeType, byteLength: bytes.byteLength, bytes },
+      await applyFit({ kind: item.kind, mimeType, bytes }, opts),
       item.altText,
     );
   }
@@ -148,9 +155,26 @@ export async function loadMediaItem(
   const mimeType = resolveMimeType(bytes, declared);
 
   return withAlt(
-    { kind: item.kind, mimeType, byteLength: bytes.byteLength, bytes },
+    await applyFit({ kind: item.kind, mimeType, bytes }, opts),
     item.altText,
   );
+}
+
+/** Shrink to the platform ceiling when the caller set one. */
+async function applyFit(
+  base: { kind: "image" | "video"; mimeType: string; bytes: Uint8Array },
+  opts: LoadMediaOptions,
+): Promise<Omit<LoadedMediaItem, "altText">> {
+  if (!opts.fitImageToBytes || base.kind !== "image") {
+    return { ...base, byteLength: base.bytes.byteLength };
+  }
+  const fitted = await fitImageToBytes(base.bytes, base.mimeType, opts.fitImageToBytes);
+  return {
+    kind: base.kind,
+    mimeType: fitted.mimeType,
+    bytes: fitted.bytes,
+    byteLength: fitted.bytes.byteLength,
+  };
 }
 
 function withAlt(
@@ -348,13 +372,11 @@ async function loadFromMediaId(
   const bytes = new Uint8Array(buf);
 
   return withAlt(
-    {
-      kind: item.kind,
+    await applyFit(
       // The row stores whatever the upload's part header declared.
-      mimeType: resolveMimeType(bytes, row.contentType),
-      byteLength: bytes.byteLength,
-      bytes,
-    },
+      { kind: item.kind, mimeType: resolveMimeType(bytes, row.contentType), bytes },
+      opts,
+    ),
     item.altText,
   );
 }
