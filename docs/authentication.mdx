@@ -1,10 +1,14 @@
 ---
 title: Authentication
-description: API keys, scoping, and rotation. Bearer tokens, prefixed by environment.
+description: API keys, scoping, and rotation. Bearer tokens, scoped per organization.
 icon: key
 ---
 
-Every request to the API requires a Bearer token in the `Authorization` header. Keys are prefixed by environment so a `lmp_test_…` key cannot accidentally write to production data.
+Every request to the API requires a Bearer token in the `Authorization` header.
+
+<Warning>
+**`lmp_test_` keys are not sandboxed.** The prefix is a label for your own bookkeeping — nothing more. A `lmp_test_…` key has identical permissions to a `lmp_live_…` key: it publishes to your real connected accounts and burns real quota. Sandbox isolation is on the roadmap; until it ships, do not point an integration test suite at a test key expecting it to be inert.
+</Warning>
 
 ## Headers
 
@@ -17,10 +21,12 @@ The dashboard's **API keys** page mints, lists, and revokes keys. The secret is 
 
 ## Key shape
 
-| Prefix       | Environment | Use                                         |
-|--------------|-------------|---------------------------------------------|
-| `lmp_live_…` | production  | hits `api.letmepost.dev`                    |
-| `lmp_test_…` | sandbox     | hits sandbox accounts; rejects live writes  |
+| Prefix       | Label | Behaviour                                                |
+|--------------|-------|----------------------------------------------------------|
+| `lmp_live_…` | live  | hits `api.letmepost.dev`, writes to real accounts         |
+| `lmp_test_…` | test  | hits `api.letmepost.dev`, writes to real accounts         |
+
+Both rows are identical on purpose — that is the current behaviour. The prefix is chosen at mint time and stored on the key so you can tell two keys apart in the dashboard; the API does not branch on it. There is no separate sandbox base URL, no sandbox account pool, and no write rejection for test keys.
 
 The hash, not the secret, is stored at rest. Your secret is unrecoverable after creation.
 
@@ -57,7 +63,7 @@ See [accounts](/guides/connect-account) for the connection lifecycle.
 
 | code | when |
 |------|------|
-| [`unauthenticated`](/errors/unauthenticated) | Header missing, malformed, key revoked, or key prefix doesn't match the environment. |
+| [`unauthenticated`](/errors/unauthenticated) | Header missing, malformed, or key unknown/revoked. |
 | [`unauthorized`](/errors/unauthorized) | Authenticated, but the key isn't allowed to perform this action. |
 | [`not_found`](/errors/not_found) | Often a profile-scope mismatch — see scoping above. |
 | [`rate_limited`](/errors/rate_limited) | Per-key rate limit exhausted. |
