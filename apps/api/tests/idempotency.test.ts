@@ -377,6 +377,7 @@ describeIfDb("Idempotency-Key middleware on POST /v1/posts", () => {
           apiKeyId: "test",
           scopes: ["posts:write"],
           profileId: null,
+          environment: "live",
         });
         await next();
       });

@@ -87,7 +87,7 @@ async function mintProfileScopedKey(
   });
 
   const rawSecret = randomBytes(24).toString("base64url");
-  const plaintext = `lmp_test_${rawSecret}`;
+  const plaintext = `lmp_live_${rawSecret}`;
   const last4 = plaintext.slice(-4);
   const [key] = await tx
     .insert(apiKeys)
@@ -95,7 +95,7 @@ async function mintProfileScopedKey(
       organizationId: fixture.organizationId,
       profileId: profile.id,
       name: `key-${profileSlug}`,
-      prefix: "lmp_test_",
+      prefix: "lmp_live_",
       hashedKey: createHash("sha256").update(plaintext).digest("hex"),
       last4,
       scopes: ["posts:write"],

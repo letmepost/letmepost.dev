@@ -48,7 +48,9 @@ export async function seed(
   const userName = options.userName ?? `Seed User ${suffix}`;
   const handle = options.blueskyHandle ?? `seed-${suffix}.bsky.social`;
   const appPassword = options.blueskyAppPassword ?? `test-${suffix}-password`;
-  const prefix = options.apiKeyPrefix ?? "lmp_test_";
+  // Live by default: `lmp_test_` now means sandbox, which never touches a
+  // platform, so a fixture key must be live for a publish test to be real.
+  const prefix = options.apiKeyPrefix ?? "lmp_live_";
 
   const [userRow] = await db
     .insert(user)

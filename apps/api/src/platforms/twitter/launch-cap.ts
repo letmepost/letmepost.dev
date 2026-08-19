@@ -51,6 +51,8 @@ export async function assertTwitterLaunchCap(
     .where(
       and(
         eq(posts.accountId, accountId),
+        // Sandbox rows never reached X, so they never cost anything.
+        eq(posts.sandbox, false),
         // ISO text + cast: `billableAt` is a raw expression with no column
         // type, so the driver can't serialize a JS Date against it.
         sql`${billableAt} >= ${windowStart.toISOString()}::timestamptz`,

@@ -97,7 +97,7 @@ export async function processPublishJob(
       status: 500,
       message: "Platform account no longer exists — scheduled post cannot run.",
     });
-    await finaliseFailure(deps, post.id, err, account, organizationId, requestId);
+    await finaliseFailure(deps, post, err, account, organizationId, requestId);
     throw new UnrecoverableError(err.message);
   }
 
@@ -129,7 +129,9 @@ export async function processPublishJob(
             }
           : {}),
       },
-      { db },
+      // The row is the only sandbox signal the worker has; no API key
+      // context survives the enqueue.
+      { db, environment: post.sandbox ? "sandbox" : "live" },
     );
 
     // TikTok's publish is async — the publisher returns `publishing`
@@ -182,6 +184,7 @@ export async function processPublishJob(
         uri: result.uri,
         cid: result.cid,
         publishedAt: publishedAt.toISOString(),
+        ...(post.sandbox ? { sandbox: true } : {}),
       },
       ...(requestId ? { requestId } : {}),
     });
@@ -202,7 +205,7 @@ export async function processPublishJob(
         err.code === "validation_failed" ||
         err.code === "rate_limited")
     ) {
-      await finaliseFailure(deps, post.id, err, account, organizationId, requestId);
+      await finaliseFailure(deps, post, err, account, organizationId, requestId);
       throw new UnrecoverableError(err.message);
     }
 
@@ -219,7 +222,7 @@ export async function processPublishJob(
     const maxAttempts = job.opts.attempts ?? 1;
     const isLastAttempt = job.attemptsMade + 1 >= maxAttempts;
     if (isLastAttempt) {
-      await finaliseFailure(deps, post.id, err, account, organizationId, requestId);
+      await finaliseFailure(deps, post, err, account, organizationId, requestId);
       throw err;
     }
 
@@ -233,7 +236,7 @@ export async function processPublishJob(
 
 async function finaliseFailure(
   deps: Pick<PublishJobDeps, "db" | "dispatcher">,
-  postId: string,
+  post: { id: string; sandbox: boolean },
   err: unknown,
   account: { id: string; platform: string; profileId: string } | null,
   organizationId: string,
@@ -269,7 +272,7 @@ async function finaliseFailure(
   await db
     .update(postsTable)
     .set({ status, error: errorRecord })
-    .where(eq(postsTable.id, postId));
+    .where(eq(postsTable.id, post.id));
 
   if (!account) return;
   await dispatcher
@@ -277,12 +280,13 @@ async function finaliseFailure(
       organizationId,
       type: eventType,
       data: {
-        id: postId,
+        id: post.id,
         platform: account.platform,
         accountId: account.id,
         profileId: account.profileId,
         error: errorRecord,
         rejectedAt: new Date().toISOString(),
+        ...(post.sandbox ? { sandbox: true } : {}),
       },
       ...(requestId ? { requestId } : {}),
     })

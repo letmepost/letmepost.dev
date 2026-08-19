@@ -85,6 +85,13 @@
       "when": 1786984082161,
       "tag": "0011_lively_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786986644632,
+      "tag": "0012_clear_whirlwind",
+      "breakpoints": true
     }
   ]
 }

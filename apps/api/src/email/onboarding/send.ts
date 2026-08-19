@@ -51,7 +51,8 @@ async function readUserState(
       EXISTS (SELECT 1 FROM ${platformAccounts}
               WHERE ${platformAccounts.organizationId} = ${orgId}) AS has_account,
       EXISTS (SELECT 1 FROM ${posts}
-              WHERE ${posts.organizationId} = ${orgId}) AS has_post,
+              WHERE ${posts.organizationId} = ${orgId}
+                AND ${posts.sandbox} = false) AS has_post,
       EXISTS (SELECT 1 FROM ${webhookEndpoints}
               WHERE ${webhookEndpoints.organizationId} = ${orgId}) AS has_webhook
   `)) as unknown as {

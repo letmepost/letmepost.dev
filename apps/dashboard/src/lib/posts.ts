@@ -47,6 +47,9 @@ export type PostListItem = {
   platformUri: string | null;
   platformCid: string | null;
   error: PostError | null;
+  /** Written by an `lmp_test_` key; nothing reached the platform. Absent on
+   *  rows that predate the column. */
+  sandbox?: boolean;
   createdAt: string;
   updatedAt: string;
 };

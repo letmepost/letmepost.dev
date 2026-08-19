@@ -4,7 +4,7 @@ import type { MiddlewareHandler } from "hono";
 import { auth } from "../auth.js";
 import { apiKeys } from "../db/schema/api_keys.js";
 import { LetmepostError } from "../errors.js";
-import type { ApiKeyContext } from "./api-key.js";
+import { environmentForPrefix, type ApiKeyContext } from "./api-key.js";
 import { assertTrustedOrigin } from "./origin-guard.js";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -54,6 +54,7 @@ export function apiKeyOrSession(): MiddlewareHandler {
         apiKeyId: row.id,
         scopes: row.scopes,
         profileId: row.profileId,
+        environment: environmentForPrefix(row.prefix),
       };
       c.set("apiKey", ctx);
       // Best-effort last-used touch — don't block on it.
@@ -96,6 +97,8 @@ export function apiKeyOrSession(): MiddlewareHandler {
       scopes: ["posts:read", "posts:write"],
       // Session = org-wide read. Profile filtering is via ?profileId only.
       profileId: null,
+      // The dashboard is always live; sandbox is an API-key concept.
+      environment: "live",
     };
     c.set("apiKey", synthetic);
     c.set("session", { userId: result.user.id, organizationId: orgId });

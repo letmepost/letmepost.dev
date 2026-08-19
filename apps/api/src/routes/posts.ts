@@ -16,6 +16,7 @@ import {
   type WebhookEventType,
 } from "@letmepost/schemas";
 import { checkAndIncrementQuota, decrementQuota } from "../billing/quota.js";
+import type { DrizzleClient } from "../db/index.js";
 import { posts as postsTable, type Post } from "../db/schema/posts.js";
 import { LetmepostError } from "../errors.js";
 import { apiKeyOrSession } from "../middleware/api-key-or-session.js";
@@ -36,6 +37,7 @@ import {
   type PostListFilters,
   type PostWithAccount,
 } from "../repositories/posts.js";
+import type { WebhookDispatcher } from "../webhooks/dispatch.js";
 
 export const posts = new Hono();
 
@@ -57,6 +59,28 @@ export const posts = new Hono();
  * so they always pass; a programmatic key missing the required scope is
  * rejected with a 403 before the handler runs.
  */
+/**
+ * A sandbox key may read live history but must never re-drive it: a retry or
+ * reschedule of a live row ends in a real platform write, which is the one
+ * thing an `lmp_test_` key must not be able to cause. 404, not 403, to match
+ * the profile-scope contract.
+ */
+function assertKeyCanMutatePost(
+  apiKey: { environment: "live" | "sandbox" },
+  post: { sandbox: boolean },
+): void {
+  if (apiKey.environment === "sandbox" && !post.sandbox) {
+    throw new LetmepostError({
+      code: "not_found",
+      status: 404,
+      message: "Post not found.",
+      rule: "api_key.environment_scope",
+      remediation:
+        "Live posts can only be modified with a live (`lmp_live_`) API key.",
+    });
+  }
+}
+
 function requireScope(scope: "posts:read" | "posts:write"): MiddlewareHandler {
   return async (c, next) => {
     if (!c.var.apiKey.scopes.includes(scope)) {
@@ -77,6 +101,32 @@ function requireScope(scope: "posts:read" | "posts:write"): MiddlewareHandler {
  * where the job fires before this transaction commits.
  */
 const MIN_FUTURE_DELAY_MS = 1_000;
+
+/**
+ * Sandbox (`lmp_test_`) traffic is unmetered and must never move a live
+ * counter: not the charge, and not the refund that mirrors it.
+ */
+async function chargeQuota(
+  c: { var: { db: DrizzleClient; webhookDispatcher: WebhookDispatcher } },
+  sandbox: boolean,
+  organizationId: string,
+  cost: number,
+): Promise<void> {
+  if (sandbox) return;
+  await checkAndIncrementQuota(c.var.db, organizationId, cost, {
+    webhookDispatcher: c.var.webhookDispatcher,
+  });
+}
+
+async function refundQuota(
+  db: DrizzleClient,
+  sandbox: boolean,
+  organizationId: string,
+  cost: number,
+): Promise<void> {
+  if (sandbox) return;
+  await decrementQuota(db, organizationId, cost);
+}
 
 /**
  * Hybrid publish contract:
@@ -120,7 +170,8 @@ posts.post(
     }
     const multi = parsed.data;
 
-    const { organizationId } = c.var.apiKey;
+    const { organizationId, environment } = c.var.apiKey;
+    const sandbox = environment === "sandbox";
     const repo = new DrizzlePlatformAccountsRepository(c.var.db);
 
     if (multi.targets.length === 0) {
@@ -280,9 +331,8 @@ posts.post(
       // idempotency middleware short-circuits with the stored response), so a
       // retried key cannot double-charge. Infinity quotas (self_host,
       // grandfather, enterprise) skip the cap inside checkAndIncrementQuota.
-      await checkAndIncrementQuota(c.var.db, organizationId, resolved.length, {
-        webhookDispatcher: c.var.webhookDispatcher,
-      });
+      // Sandbox keys are unmetered and skip the gate entirely.
+      await chargeQuota(c, sandbox, organizationId, resolved.length);
 
       const batchId = randomUUID();
       const results: PostTargetResult[] = [];
@@ -332,6 +382,7 @@ posts.post(
                 profileId: account.profileId,
                 scheduledAt: when.toISOString(),
                 canceledAt: new Date().toISOString(),
+                ...(sandbox ? { sandbox: true } : {}),
               },
               ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
             })
@@ -339,7 +390,7 @@ posts.post(
               console.error("[posts] unwind: dispatch failed", dispatchErr);
             });
         }
-        await decrementQuota(c.var.db, organizationId, resolved.length);
+        await refundQuota(c.var.db, sandbox, organizationId, resolved.length);
       };
 
       // Every throw inside the loop unwinds — the insert failure and the
@@ -356,6 +407,7 @@ posts.post(
             text: input.text,
             mediaRefs: input.media ? [...input.media] : [],
             scheduledAt: when,
+            sandbox,
           })
           .returning();
         if (!row) {
@@ -414,6 +466,7 @@ posts.post(
             profileId: account.profileId,
             scheduledAt: when.toISOString(),
             queuedAt: row.createdAt.toISOString(),
+            ...(sandbox ? { sandbox: true } : {}),
           },
           ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
         });
@@ -454,10 +507,9 @@ posts.post(
     // Idempotent replays never reach here (the idempotency middleware
     // short-circuits with the stored response), so a retried key cannot
     // double-charge. Infinity quotas (self_host, grandfather, enterprise) skip
-    // the cap inside checkAndIncrementQuota.
-    await checkAndIncrementQuota(c.var.db, organizationId, resolved.length, {
-      webhookDispatcher: c.var.webhookDispatcher,
-    });
+    // the cap inside checkAndIncrementQuota. Sandbox keys are unmetered and
+    // skip the gate entirely.
+    await chargeQuota(c, sandbox, organizationId, resolved.length);
 
     // ─── Immediate path — fan out across targets ────────────────────────────
     // Persist a `publishing` row per target up front so the post log shows
@@ -477,6 +529,7 @@ posts.post(
           status: "publishing",
           text: input.text,
           mediaRefs: input.media ? [...input.media] : [],
+          sandbox,
         })
         .returning();
       if (!row) {
@@ -493,7 +546,7 @@ posts.post(
     const createdAt = new Date();
     const settled = await publishAcrossTargets(
       persisted.map(({ account, input }) => ({ account, input })),
-      { db: c.var.db },
+      { db: c.var.db, environment },
     );
 
     const results: PostTargetResult[] = [];
@@ -561,6 +614,7 @@ posts.post(
             firstCommentCid: result.firstCommentCid,
             publishedAt: publishedAt.toISOString(),
             warnings: result.warnings,
+            ...(sandbox ? { sandbox: true } : {}),
           },
           ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
         });
@@ -590,6 +644,7 @@ posts.post(
                 profileId: account.profileId,
                 error: letmepostErrorToRecord(err),
                 rejectedAt: new Date().toISOString(),
+                ...(sandbox ? { sandbox: true } : {}),
               },
               ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
             })
@@ -609,7 +664,7 @@ posts.post(
     // bill only sends that actually went out, so a fully-failed batch nets to
     // zero and a partial failure keeps only the successful targets charged.
     if (failCount > 0) {
-      await decrementQuota(c.var.db, organizationId, failCount);
+      await refundQuota(c.var.db, sandbox, organizationId, failCount);
     }
 
     // Accepted-but-pending TikTok targets count as non-failures for the batch
@@ -942,6 +997,7 @@ function publicView(post: PostWithAccount) {
     platformUri: post.platformUri,
     platformCid: post.platformCid,
     error: post.error,
+    sandbox: post.sandbox,
     createdAt: post.createdAt,
     updatedAt: post.updatedAt,
   };
@@ -1076,7 +1132,11 @@ async function loadModifiableScheduled(
   c: {
     var: {
       db: import("../db/index.js").DrizzleClient;
-      apiKey: { organizationId: string; profileId: string | null };
+      apiKey: {
+        organizationId: string;
+        profileId: string | null;
+        environment: "live" | "sandbox";
+      };
     };
     req: { param: (k: string) => string };
   },
@@ -1093,6 +1153,7 @@ async function loadModifiableScheduled(
     });
   }
   assertKeyCanAccessProfile(c.var.apiKey, post.account);
+  assertKeyCanMutatePost(c.var.apiKey, post);
   if (post.status !== "queued") {
     throw new LetmepostError({
       code: "validation_failed",
@@ -1166,6 +1227,7 @@ posts.patch("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) =>
       profileId: post.account.profileId,
       previousScheduledAt: post.scheduledAt?.toISOString(),
       scheduledAt: when.toISOString(),
+      ...(post.sandbox ? { sandbox: true } : {}),
     },
     ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
   });
@@ -1194,6 +1256,7 @@ posts.delete("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) =
       profileId: post.account.profileId,
       scheduledAt: post.scheduledAt?.toISOString(),
       canceledAt: new Date().toISOString(),
+      ...(post.sandbox ? { sandbox: true } : {}),
     },
     ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
   });
@@ -1246,6 +1309,7 @@ posts.post("/:id/retry", apiKeyOrSession(), requireScope("posts:write"), async (
     });
   }
   assertKeyCanAccessProfile(c.var.apiKey, post.account);
+  assertKeyCanMutatePost(c.var.apiKey, post);
 
   if (!RETRYABLE_STATUSES.includes(post.status as (typeof RETRYABLE_STATUSES)[number])) {
     throw new LetmepostError({
@@ -1280,9 +1344,9 @@ posts.post("/:id/retry", apiKeyOrSession(), requireScope("posts:write"), async (
     });
   }
 
-  await checkAndIncrementQuota(c.var.db, organizationId, 1, {
-    webhookDispatcher: c.var.webhookDispatcher,
-  });
+  // The row, not the calling key, decides metering: a sandbox post stays
+  // unmetered no matter who re-drives it.
+  await chargeQuota(c, post.sandbox, organizationId, 1);
 
   // Conditional on the status we read, so two concurrent retries can't both
   // enqueue the same post.
@@ -1297,7 +1361,7 @@ posts.post("/:id/retry", apiKeyOrSession(), requireScope("posts:write"), async (
     )
     .returning();
   if (moved.length === 0) {
-    await decrementQuota(c.var.db, organizationId, 1);
+    await refundQuota(c.var.db, post.sandbox, organizationId, 1);
     throw new LetmepostError({
       code: "validation_failed",
       status: 409,
@@ -1327,7 +1391,7 @@ posts.post("/:id/retry", apiKeyOrSession(), requireScope("posts:write"), async (
       .update(postsTable)
       .set({ status: "failed", error: errorRecord })
       .where(eq(postsTable.id, post.id));
-    await decrementQuota(c.var.db, organizationId, 1);
+    await refundQuota(c.var.db, post.sandbox, organizationId, 1);
     console.error("[posts] retry enqueue failed", err);
     throw new LetmepostError({
       code: "internal_error",
@@ -1347,6 +1411,7 @@ posts.post("/:id/retry", apiKeyOrSession(), requireScope("posts:write"), async (
       profileId: post.account.profileId,
       scheduledAt: when.toISOString(),
       queuedAt: new Date().toISOString(),
+      ...(post.sandbox ? { sandbox: true } : {}),
     },
     ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
   });

@@ -1,0 +1,1 @@
+ALTER TABLE "posts" ADD COLUMN "sandbox" boolean DEFAULT false NOT NULL;
