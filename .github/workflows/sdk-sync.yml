@@ -27,12 +27,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out letmepost.dev
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: letmepost.dev
 
       - name: Check out letmepost/sdk-python
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: letmepost/sdk-python
           token: ${{ secrets.LETMEPOST_SDK_SYNC_TOKEN }}
@@ -41,7 +41,7 @@ jobs:
           # surfaces a clean "repository not found" error in that case.
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -87,19 +87,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out letmepost.dev
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: letmepost.dev
 
       - name: Check out letmepost/sdk-go
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: letmepost/sdk-go
           token: ${{ secrets.LETMEPOST_SDK_SYNC_TOKEN }}
           path: sdk-go
 
       - name: Set up Java (required by openapi-generator-cli)
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
