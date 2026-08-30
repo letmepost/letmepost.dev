@@ -5,6 +5,15 @@ import { z } from "zod";
  * list small and stable. Every entry is a public contract with integrators.
  * Adding an event is cheap; removing one is a breaking change.
  *
+ *   post.updated:
+ *     Content of a queued post changed (caption, media, or both).
+ *     `post.rescheduled` remains time-only; a request that changes both the
+ *     time and the content emits both events.
+ *     { id, platform, accountId, profileId,
+ *       changed: Array<"text" | "media">,
+ *       scheduledAt: ISO string | null,
+ *       sandbox?: true }
+ *
  * Billing events (subscription.*, quota.*, billing.*) carry the following
  * `data` shapes:
  *
@@ -51,6 +60,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "post.failed",
   "post.canceled",
   "post.rescheduled",
+  "post.updated",
   "token.expiring",
   "token.revoked",
   "version.deprecated",

@@ -47,12 +47,17 @@ type PostStatus =
   | "failed"
   | "canceled";
 
+/** Mirrors WEBHOOK_EVENT_TYPES in `@/lib/webhooks`, which in turn mirrors
+ *  `@letmepost/schemas`. Three copies of one catalog; keep them in step. */
 type WebhookEventType =
   | "post.queued"
   | "post.validated"
   | "post.published"
   | "post.rejected"
   | "post.failed"
+  | "post.canceled"
+  | "post.rescheduled"
+  | "post.updated"
   | "token.expiring"
   | "token.revoked"
   | "version.deprecated";

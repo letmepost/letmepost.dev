@@ -8,6 +8,37 @@ The canonical record lives in the git history; this page summarises the mileston
 
 ## 2026-08
 
+### Added: edit a queued post's caption and media
+
+`PATCH /v1/posts/:id` took `scheduledAt` and nothing else, so the only way to fix
+a typo or swap an image on a scheduled post was to cancel it and compose it
+again from scratch. The dashboard drawer even labelled the affordance "Edit"
+while offering only reschedule and cancel.
+
+- **`PATCH /v1/posts/:id` now accepts `text` and `media`** alongside
+  `scheduledAt`. Every field is optional and at least one must be present. An
+  omitted field keeps its stored value; `media: []` clears the attachments.
+- **Edited content is preflighted** against the target account's platform using
+  the *effective* post — the merge of the request and the stored row — so
+  replacing a four-image set with a single video is validated as the video-only
+  post it becomes. Rejections return `400` with the platform's own rule and
+  change nothing. Deep checks (byte size, MIME) still run at publish time, as
+  on create.
+- **A content-only edit does no queue work.** The publish job carries just the
+  post id and the worker re-reads the row at fire time, so only a `scheduledAt`
+  change replaces the BullMQ job.
+- **The write is conditional on the row still being `queued`.** The minimum
+  schedule delay is one second, so a job can fire between the read and the
+  write; an edit that loses that race returns `409` instead of rewriting the
+  text of a post that already went out.
+- **New webhook [`post.updated`](/webhooks/post-updated)** with a `changed`
+  array naming which content fields moved.
+  [`post.rescheduled`](/webhooks/post-rescheduled) is unchanged and stays
+  time-only; a request that moves both fires both events.
+- **Dashboard**: the scheduled-post drawer now edits the caption and the media
+  strip in place, and saves only the fields that actually changed.
+
+
 ### Fixed: scheduled posts stayed queued and never published
 
 Scheduled publishing was broken end to end. Every `scheduledAt` post failed at

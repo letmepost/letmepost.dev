@@ -78,6 +78,34 @@ const DEFAULT_DATA: Record<WebhookEventType, unknown> = {
       message: "Post exceeds 3,000-grapheme limit.",
     },
   },
+  // The three post lifecycle events below carry the shape the API actually
+  // dispatches — `id` for the post, plus `accountId` / `profileId`. The older
+  // samples above say `postId`, which the API has never sent; left alone here
+  // rather than folded into an unrelated change.
+  "post.canceled": {
+    id: "00000000-0000-0000-0000-000000000000",
+    platform: "bluesky",
+    accountId: "00000000-0000-0000-0000-000000000000",
+    profileId: "00000000-0000-0000-0000-000000000000",
+    scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    canceledAt: new Date().toISOString(),
+  },
+  "post.rescheduled": {
+    id: "00000000-0000-0000-0000-000000000000",
+    platform: "bluesky",
+    accountId: "00000000-0000-0000-0000-000000000000",
+    profileId: "00000000-0000-0000-0000-000000000000",
+    previousScheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    scheduledAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+  },
+  "post.updated": {
+    id: "00000000-0000-0000-0000-000000000000",
+    platform: "bluesky",
+    accountId: "00000000-0000-0000-0000-000000000000",
+    profileId: "00000000-0000-0000-0000-000000000000",
+    changed: ["text", "media"],
+    scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  },
   "token.expiring": {
     accountId: "00000000-0000-0000-0000-000000000000",
     platform: "linkedin",

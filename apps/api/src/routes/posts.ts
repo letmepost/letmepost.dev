@@ -6,10 +6,10 @@ import { z } from "zod";
 import {
   CreatePostRequest,
   MAX_TARGETS_PER_REQUEST,
+  MediaInput,
   Platform,
   PostStatus,
   type CreatePostResponse,
-  type MediaInput,
   type PostTarget,
   type PostTargetResult,
   type PublishResult,
@@ -1124,9 +1124,27 @@ posts.get("/:id", apiKeyOrSession(), requireScope("posts:read"), async (c) => {
  * enforced identically to GET /v1/posts/:id (404 not 403).
  * ───────────────────────────────────────────────────────────────────────── */
 
-const PatchPostBody = z.object({
-  scheduledAt: z.string().datetime(),
-});
+/**
+ * Every field is optional and at least one must be present, so a caller can
+ * change the time, the copy, the media, or any combination, in one request.
+ *
+ * Omission and emptiness are deliberately different: a field left out keeps
+ * its stored value, while `media: []` clears the attachments. Without that
+ * distinction there is no way to express "drop the image but keep the text".
+ */
+const PatchPostBody = z
+  .object({
+    scheduledAt: z.string().datetime().optional(),
+    text: z.string().min(1).optional(),
+    media: z.array(MediaInput).optional(),
+  })
+  .refine(
+    (v) =>
+      v.scheduledAt !== undefined ||
+      v.text !== undefined ||
+      v.media !== undefined,
+    { message: "Send at least one of scheduledAt, text, or media." },
+  );
 
 async function loadModifiableScheduled(
   c: {
@@ -1187,53 +1205,150 @@ posts.patch("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) =>
     });
   }
   const post = await loadModifiableScheduled(c);
-  const when = new Date(parsed.data.scheduledAt);
-  const delayMs = when.getTime() - Date.now();
-  if (delayMs < MIN_FUTURE_DELAY_MS) {
-    throw new LetmepostError({
-      code: "validation_failed",
-      status: 400,
-      message: "scheduledAt must be at least 1 second in the future.",
-      rule: "scheduledAt.future",
-      remediation:
-        "Send a timestamp at least 1 second ahead of now.",
+  const { scheduledAt, text, media } = parsed.data;
+  const editsContent = text !== undefined || media !== undefined;
+
+  // ─── Preflight the edited content ────────────────────────────────────────
+  // Run the same shape checks POST /v1/posts runs at create time, against the
+  // *effective* post: a field omitted from the body keeps its stored value, so
+  // swapping a 4-image set for one video is validated as the video-only post
+  // it becomes. Without this an edit could park content the platform will
+  // reject in the queue, where it stays valid-looking until it fires weeks
+  // later — exactly the silent drip `scripts/preflight-queued.ts` exists to
+  // find after the fact.
+  //
+  // Deep checks (byte size, MIME sniffing) still belong to publish time, same
+  // as the create path: they need the resolved bytes.
+  if (editsContent) {
+    // preflightForAccount reads tokenMetadata for TikTok's audit-state
+    // privacy rules, so this needs the decrypted account, not the public
+    // summary hanging off the post row.
+    const account = post.accountId
+      ? await new DrizzlePlatformAccountsRepository(c.var.db).findById(
+          post.accountId,
+        )
+      : null;
+    if (!account) {
+      throw new LetmepostError({
+        code: "validation_failed",
+        status: 409,
+        message:
+          "This post's platform account was removed, so its content can't be edited.",
+        rule: "post.edit.account_missing",
+        remediation:
+          "Cancel this post and re-create it against a connected account.",
+      });
+    }
+    const nextMedia = (media ?? (post.mediaRefs as MediaInput[]) ?? []) as
+      MediaInput[];
+    preflightForAccount(account, {
+      text: text ?? post.text,
+      ...(nextMedia.length > 0 ? { media: nextMedia } : {}),
     });
   }
 
-  // Replace the BullMQ job first. If this fails the row stays as-is and the
-  // caller can retry; if we updated the row first and the queue op blew up
-  // we'd have a row out of sync with a job that still fires at the old time.
-  await c.var.publishEnqueuer.remove(post.id);
-  await c.var.publishEnqueuer.enqueue(
-    {
-      postId: post.id,
-      organizationId: post.organizationId,
-      ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-    },
-    { delayMs },
-  );
-  await c.var.db
-    .update(postsTable)
-    .set({ scheduledAt: when })
-    .where(eq(postsTable.id, post.id));
+  // ─── Reschedule ─────────────────────────────────────────────────────────
+  let when: Date | null = null;
+  if (scheduledAt !== undefined) {
+    when = new Date(scheduledAt);
+    const delayMs = when.getTime() - Date.now();
+    if (delayMs < MIN_FUTURE_DELAY_MS) {
+      throw new LetmepostError({
+        code: "validation_failed",
+        status: 400,
+        message: "scheduledAt must be at least 1 second in the future.",
+        rule: "scheduledAt.future",
+        remediation:
+          "Send a timestamp at least 1 second ahead of now.",
+      });
+    }
 
-  await c.var.webhookDispatcher.dispatch({
-    organizationId: post.organizationId,
-    type: "post.rescheduled",
-    data: {
-      id: post.id,
-      platform: post.account.platform,
-      accountId: post.accountId,
-      profileId: post.account.profileId,
+    // Replace the BullMQ job first. If this fails the row stays as-is and the
+    // caller can retry; if we updated the row first and the queue op blew up
+    // we'd have a row out of sync with a job that still fires at the old time.
+    await c.var.publishEnqueuer.remove(post.id);
+    await c.var.publishEnqueuer.enqueue(
+      {
+        postId: post.id,
+        organizationId: post.organizationId,
+        ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+      },
+      { delayMs },
+    );
+  }
+
+  // A content-only edit needs no queue work at all: the job carries just the
+  // post id, and the worker re-reads text + mediaRefs off the row when it
+  // fires.
+  //
+  // Conditional on the status we read. `loadModifiableScheduled` checked
+  // `queued` a few statements ago, but the minimum delay is one second — a
+  // job can fire in that gap, and overwriting the text of a post that has
+  // already gone out would leave the row disagreeing with what the platform
+  // actually published.
+  const [updated] = await c.var.db
+    .update(postsTable)
+    .set({
+      ...(when ? { scheduledAt: when } : {}),
+      ...(text !== undefined ? { text } : {}),
+      ...(media !== undefined ? { mediaRefs: [...media] } : {}),
+    })
+    .where(and(eq(postsTable.id, post.id), eq(postsTable.status, "queued")))
+    .returning();
+  if (!updated) {
+    throw new LetmepostError({
+      code: "validation_failed",
+      status: 409,
+      message:
+        "This post started publishing while the edit was in flight. Nothing was changed.",
+      rule: "post.status",
+      remediation:
+        "Re-read the post to see how it landed; use POST /v1/posts/:id/retry if it failed.",
+    });
+  }
+
+  // `post.rescheduled` stays exactly what it was — a time change — so existing
+  // consumers are untouched. Content edits get their own `post.updated`, and a
+  // request that does both emits both: they are independent facts, and folding
+  // them into one event would force consumers to diff to find out what moved.
+  const eventBase = {
+    id: post.id,
+    platform: post.account.platform,
+    accountId: post.accountId,
+    profileId: post.account.profileId,
+    ...(post.sandbox ? { sandbox: true } : {}),
+  };
+  const dispatch = (type: WebhookEventType, data: Record<string, unknown>) =>
+    c.var.webhookDispatcher.dispatch({
+      organizationId: post.organizationId,
+      type,
+      data,
+      ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+    });
+
+  if (when) {
+    await dispatch("post.rescheduled", {
+      ...eventBase,
       previousScheduledAt: post.scheduledAt?.toISOString(),
       scheduledAt: when.toISOString(),
-      ...(post.sandbox ? { sandbox: true } : {}),
-    },
-    ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-  });
+    });
+  }
+  if (editsContent) {
+    await dispatch("post.updated", {
+      ...eventBase,
+      changed: [
+        ...(text !== undefined ? ["text"] : []),
+        ...(media !== undefined ? ["media"] : []),
+      ],
+      scheduledAt: (when ?? post.scheduledAt)?.toISOString(),
+    });
+  }
 
+  // Serialize the row the update actually wrote rather than re-deriving it
+  // from the request, so the response can never claim a change the database
+  // did not take.
   return c.json({
-    ...publicView({ ...post, scheduledAt: when }),
+    ...publicView({ ...post, ...updated }),
   });
 });
 
