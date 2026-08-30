@@ -2127,8 +2127,8 @@
         "tags": [
           "Posts"
         ],
-        "summary": "Reschedule a queued post",
-        "description": "Move a scheduled post to a new firing time. Only allowed when `status=queued` AND `scheduledAt` is still in the future — once a post enters `publishing` or any terminal state, the window closes and the request returns `409`.\n\nThe operation is atomic: the API replaces the BullMQ job (removes the old delayed job, enqueues a new one at the updated delay) and only persists the new `scheduledAt` if the queue swap succeeded. A `post.rescheduled` webhook fires on success, carrying both the old and new timestamps.",
+        "summary": "Edit a queued post",
+        "description": "Change the caption, the media, the firing time, or any combination, on a post that has not gone out yet. Only allowed when `status=queued` AND `scheduledAt` is still in the future — once a post enters `publishing` or any terminal state, the window closes and the request returns `409`.\n\nSend only the fields you want to change. A field you omit keeps its stored value; `media: []` clears the attachments. At least one of `scheduledAt`, `text`, or `media` must be present.\n\nEdited content is preflighted against the target account's platform using the *effective* post — the merge of what you sent and what was already stored — so swapping a four-image set for a single video is validated as the video-only post it becomes. A rejection returns `400` carrying the platform's own rule (for example `bluesky.media.image_video_exclusive`) and changes nothing. Deep checks (byte size, MIME sniffing) still run at publish time, as they do for `POST /v1/posts`.\n\nRescheduling sequences the queue and the database so a half-applied change cannot publish at the wrong time: the API removes the existing delayed job, commits the row under a compare-and-swap on the state it validated, then enqueues the replacement at the new delay. Removing first means a job already picked up by a worker publishes the pre-edit content it legitimately claimed and the request returns `409`, rather than the old job waking up and publishing the freshly-edited content at the time you just moved away from. If the replacement cannot be enqueued the row is rolled back, a job is restored at the original time, and the request returns `500` — never a success the queue did not accept.\n\nA content-only edit does no queue work at all: the job carries just the post id and the worker re-reads the row when it fires.\n\nWebhooks: a time change fires `post.rescheduled` (carrying both timestamps) exactly as before; a content change fires `post.updated` with a `changed` array. A request that does both fires both.",
         "security": [
           {
             "bearer": []
@@ -2150,14 +2150,25 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "scheduledAt"
-                ],
+                "minProperties": 1,
+                "description": "At least one field is required. Omitted fields keep their stored value.",
                 "properties": {
                   "scheduledAt": {
                     "type": "string",
                     "format": "date-time",
                     "description": "ISO-8601 timestamp with timezone. Must be at least 1 second in the future."
+                  },
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Replacement caption. Preflighted against the account's platform limits."
+                  },
+                  "media": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/MediaInput"
+                    },
+                    "description": "Replaces the attachment set wholesale. Pass `[]` to clear it; omit the field to leave it untouched."
                   }
                 }
               }
@@ -2166,7 +2177,7 @@
         },
         "responses": {
           "200": {
-            "description": "Reschedule applied; row reflects the new `scheduledAt`.",
+            "description": "Edit applied; the row reflects every field that changed.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"

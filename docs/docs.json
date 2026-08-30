@@ -106,6 +106,7 @@
           "webhooks/post-failed",
           "webhooks/post-canceled",
           "webhooks/post-rescheduled",
+          "webhooks/post-updated",
           "webhooks/token-expiring",
           "webhooks/token-revoked",
           "webhooks/version-deprecated"

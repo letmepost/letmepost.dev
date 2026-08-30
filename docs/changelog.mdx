@@ -8,6 +8,45 @@ The canonical record lives in the git history; this page summarises the mileston
 
 ## 2026-08
 
+### Added: edit a queued post's caption and media
+
+`PATCH /v1/posts/:id` took `scheduledAt` and nothing else, so the only way to fix
+a typo or swap an image on a scheduled post was to cancel it and compose it
+again from scratch. The dashboard drawer even labelled the affordance "Edit"
+while offering only reschedule and cancel.
+
+- **`PATCH /v1/posts/:id` now accepts `text` and `media`** alongside
+  `scheduledAt`. Every field is optional and at least one must be present. An
+  omitted field keeps its stored value; `media: []` clears the attachments.
+- **Edited content is preflighted** against the target account's platform using
+  the *effective* post — the merge of the request and the stored row — so
+  replacing a four-image set with a single video is validated as the video-only
+  post it becomes. Rejections return `400` with the platform's own rule and
+  change nothing. Deep checks (byte size, MIME) still run at publish time, as
+  on create.
+- **A content-only edit does no queue work.** The publish job carries just the
+  post id and the worker re-reads the row at fire time, so only a `scheduledAt`
+  change replaces the BullMQ job.
+- **The write is a compare-and-swap** over every field preflight validated
+  against, not just the status. The minimum schedule delay is one second, so a
+  job can fire between the read and the write; and two overlapping edits would
+  otherwise each validate the same stale row and merge into a result neither
+  one checked. A losing writer gets a `409` and re-reads.
+- **Rescheduling removes the old job before it commits, and enqueues the
+  replacement after.** A job a worker has already claimed then publishes the
+  pre-edit content and the request returns `409` — rather than that job waking
+  up and publishing freshly-edited content at the time the caller just moved
+  away from. If the replacement cannot be enqueued, the row rolls back, a job
+  is restored at the original time, and the request returns `500` instead of a
+  success the queue never accepted.
+- **New webhook [`post.updated`](/webhooks/post-updated)** with a `changed`
+  array naming which content fields moved.
+  [`post.rescheduled`](/webhooks/post-rescheduled) is unchanged and stays
+  time-only; a request that moves both fires both events.
+- **Dashboard**: the scheduled-post drawer now edits the caption and the media
+  strip in place, and saves only the fields that actually changed.
+
+
 ### Fixed: scheduled posts stayed queued and never published
 
 Scheduled publishing was broken end to end. Every `scheduledAt` post failed at

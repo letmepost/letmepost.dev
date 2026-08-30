@@ -13,6 +13,10 @@
     "./platform-state": {
       "types": "./dist/platform-state.d.ts",
       "default": "./dist/platform-state.js"
+    },
+    "./webhook-event-types": {
+      "types": "./dist/webhook-event-types.d.ts",
+      "default": "./dist/webhook-event-types.js"
     }
   },
   "files": [
