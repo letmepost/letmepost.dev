@@ -35,12 +35,16 @@ const describeIfDb = canRunDbTests ? describe : describe.skip;
 
 type CapturedEnqueue = { data: PublishJobData; delayMs: number | undefined };
 
-function captureEnqueuer() {
+function captureEnqueuer(opts?: { failEnqueueAfter?: number }) {
   const calls: CapturedEnqueue[] = [];
   const removals: string[] = [];
+  const failAfter = opts?.failEnqueueAfter ?? Infinity;
   const enqueuer: PublishEnqueuer = {
-    async enqueue(data, opts) {
-      calls.push({ data, delayMs: opts?.delayMs });
+    async enqueue(data, o) {
+      if (calls.length >= failAfter) {
+        throw new Error("queue unavailable");
+      }
+      calls.push({ data, delayMs: o?.delayMs });
     },
     async remove(postId) {
       removals.push(postId);
@@ -332,6 +336,86 @@ describeIfDb("PATCH /v1/posts/:id — edit content", () => {
       expect(res.status).toBe(400);
       const body = (await res.json()) as { error: { message: string } };
       expect(body.error.message).toContain("at least one");
+    });
+  });
+
+  it("rolls the row back when the queue swap fails", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      // The POST that creates the post consumes the first enqueue; the
+      // reschedule's replacement is the one that blows up.
+      const { enqueuer, removals } = captureEnqueuer({ failEnqueueAfter: 1 });
+      const { dispatcher, events } = captureDispatcher();
+      const app = createApp({
+        db: tx,
+        publishEnqueuer: enqueuer,
+        webhookDispatcher: dispatcher,
+      });
+
+      const at = IN_AN_HOUR();
+      const { rowId } = await createScheduled(
+        app,
+        fixture.apiKey.plaintext,
+        fixture.accountId,
+        at,
+      );
+
+      const newAt = new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString();
+      const res = await patch(app, fixture.apiKey.plaintext, rowId, {
+        text: "new copy",
+        scheduledAt: newAt,
+      });
+      expect(res.status).toBe(500);
+
+      // The row must not claim a time or a caption no job will honour.
+      const [row] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.id, rowId));
+      expect(row?.text).toBe("scheduled");
+      expect(row?.scheduledAt?.toISOString()).toBe(at);
+      expect(row?.status).toBe("queued");
+
+      expect(removals).toContain(rowId);
+      // No success event may escape for a change that did not stick.
+      expect(events.find((e) => e.type === "post.rescheduled")).toBeUndefined();
+      expect(events.find((e) => e.type === "post.updated")).toBeUndefined();
+    });
+  });
+
+  it("edits a post that carries media, so the jsonb compare-and-swap matches", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      const { enqueuer } = captureEnqueuer();
+      const app = createApp({ db: tx, publishEnqueuer: enqueuer });
+
+      const { rowId } = await createScheduled(
+        app,
+        fixture.apiKey.plaintext,
+        fixture.accountId,
+        IN_AN_HOUR(),
+        [
+          { kind: "image", url: "https://example.com/a.jpg" },
+          { kind: "image", url: "https://example.com/b.jpg" },
+        ],
+      );
+
+      // The CAS predicate pins mediaRefs. If the stored jsonb did not compare
+      // equal to what the read handed back, every edit on a post carrying
+      // media would 409 instead of applying — the false negative this guards.
+      const res = await patch(app, fixture.apiKey.plaintext, rowId, {
+        text: "caption beside untouched media",
+      });
+      expect(res.status).toBe(200);
+
+      const [row] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.id, rowId));
+      expect(row?.text).toBe("caption beside untouched media");
+      expect(row?.mediaRefs).toHaveLength(2);
     });
   });
 

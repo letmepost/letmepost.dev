@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { WEBHOOK_EVENT_TYPES } from "./webhook-event-types.js";
 
 /**
- * Canonical catalog of webhook event types emitted by letmepost.dev. Keep this
- * list small and stable. Every entry is a public contract with integrators.
- * Adding an event is cheap; removing one is a breaking change.
+ * Zod surface over the webhook catalog: the event enum, the wire envelope, and
+ * the per-event `data` shapes. The catalog itself lives in
+ * `webhook-event-types.ts`, which is zod-free so client bundles can import it.
  *
  *   post.updated:
  *     Content of a queued post changed (caption, media, or both).
@@ -52,27 +53,14 @@ import { z } from "zod";
  *     { ls_subscription_id: string | null, recoveredAt: ISO string,
  *       tier: same enum }
  */
-export const WEBHOOK_EVENT_TYPES = [
-  "post.queued",
-  "post.validated",
-  "post.published",
-  "post.rejected",
-  "post.failed",
-  "post.canceled",
-  "post.rescheduled",
-  "post.updated",
-  "token.expiring",
-  "token.revoked",
-  "version.deprecated",
-  "subscription.activated",
-  "subscription.cancelled",
-  "subscription.tier_changed",
-  "quota.warning",
-  "quota.exceeded",
-  "billing.payment_failed",
-  "billing.delinquent",
-  "billing.recovered",
-] as const;
+// The list itself lives in the zod-free `webhook-event-types.ts` so client
+// bundles can import it via the `@letmepost/schemas/webhook-event-types`
+// subpath without pulling zod in. Re-exported here so `@letmepost/schemas`
+// stays the one import for server code.
+export {
+  WEBHOOK_EVENT_TYPES,
+  isWebhookEventType,
+} from "./webhook-event-types.js";
 
 export const WebhookEventType = z.enum(WEBHOOK_EVENT_TYPES);
 export type WebhookEventType = z.infer<typeof WebhookEventType>;

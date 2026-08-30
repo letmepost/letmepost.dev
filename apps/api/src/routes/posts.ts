@@ -1158,7 +1158,7 @@ async function loadModifiableScheduled(
     };
     req: { param: (k: string) => string };
   },
-): Promise<PostWithAccount> {
+): Promise<PostWithAccount & { scheduledAt: Date }> {
   const id = c.req.param("id");
   const { organizationId } = c.var.apiKey;
   const repo = new DrizzlePostsReadRepository(c.var.db);
@@ -1188,7 +1188,10 @@ async function loadModifiableScheduled(
       rule: "post.scheduledAt.window",
     });
   }
-  return post;
+  // The guard above proves scheduledAt is set; the cast hands that fact to
+  // callers so the PATCH handler can use it in a compare-and-swap predicate
+  // without re-checking a nullable it has already ruled out.
+  return post as PostWithAccount & { scheduledAt: Date };
 }
 
 posts.patch("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) => {
@@ -1247,11 +1250,12 @@ posts.patch("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) =>
     });
   }
 
-  // ─── Reschedule ─────────────────────────────────────────────────────────
+  // ─── Validate the new time ──────────────────────────────────────────────
   let when: Date | null = null;
+  let delayMs = 0;
   if (scheduledAt !== undefined) {
     when = new Date(scheduledAt);
-    const delayMs = when.getTime() - Date.now();
+    delayMs = when.getTime() - Date.now();
     if (delayMs < MIN_FUTURE_DELAY_MS) {
       throw new LetmepostError({
         code: "validation_failed",
@@ -1262,30 +1266,25 @@ posts.patch("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) =>
           "Send a timestamp at least 1 second ahead of now.",
       });
     }
-
-    // Replace the BullMQ job first. If this fails the row stays as-is and the
-    // caller can retry; if we updated the row first and the queue op blew up
-    // we'd have a row out of sync with a job that still fires at the old time.
-    await c.var.publishEnqueuer.remove(post.id);
-    await c.var.publishEnqueuer.enqueue(
-      {
-        postId: post.id,
-        organizationId: post.organizationId,
-        ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
-      },
-      { delayMs },
-    );
   }
 
+  // ─── Apply the edit (compare-and-swap) ──────────────────────────────────
   // A content-only edit needs no queue work at all: the job carries just the
   // post id, and the worker re-reads text + mediaRefs off the row when it
   // fires.
   //
-  // Conditional on the status we read. `loadModifiableScheduled` checked
-  // `queued` a few statements ago, but the minimum delay is one second — a
-  // job can fire in that gap, and overwriting the text of a post that has
-  // already gone out would leave the row disagreeing with what the platform
-  // actually published.
+  // The predicate pins every field preflight validated against, not just the
+  // status. Guarding on status alone is not enough: two overlapping PATCHes
+  // would each preflight the same stale row and each pass, and the merged
+  // result could break a rule neither request broke on its own — one clearing
+  // the media while the other rewrites the caption can leave a Facebook post
+  // with neither, which `facebook.text.required` would have rejected. Losing
+  // this CAS means re-read and retry, never a silent merge.
+  //
+  // It also covers the fired-mid-edit case that motivated the status check:
+  // the minimum delay is one second, so a job can fire between the read above
+  // and this write, and overwriting the text of a post that already went out
+  // would leave the row disagreeing with what the platform published.
   const [updated] = await c.var.db
     .update(postsTable)
     .set({
@@ -1293,18 +1292,75 @@ posts.patch("/:id", apiKeyOrSession(), requireScope("posts:write"), async (c) =>
       ...(text !== undefined ? { text } : {}),
       ...(media !== undefined ? { mediaRefs: [...media] } : {}),
     })
-    .where(and(eq(postsTable.id, post.id), eq(postsTable.status, "queued")))
+    .where(
+      and(
+        eq(postsTable.id, post.id),
+        eq(postsTable.status, "queued"),
+        eq(postsTable.text, post.text),
+        eq(postsTable.mediaRefs, post.mediaRefs),
+        eq(postsTable.scheduledAt, post.scheduledAt),
+      ),
+    )
     .returning();
   if (!updated) {
     throw new LetmepostError({
       code: "validation_failed",
       status: 409,
       message:
-        "This post started publishing while the edit was in flight. Nothing was changed.",
+        "This post changed while the edit was in flight — it either started publishing or was edited by another request. Nothing was changed.",
       rule: "post.status",
       remediation:
-        "Re-read the post to see how it landed; use POST /v1/posts/:id/retry if it failed.",
+        "Re-read the post and re-apply the edit against its current state; use POST /v1/posts/:id/retry if it failed.",
     });
+  }
+
+  // ─── Swap the queue job ─────────────────────────────────────────────────
+  // Strictly after the row is committed. Enqueueing first leaves an orphan
+  // behind whenever the CAS above fails: `remove()` cannot recall a job a
+  // worker has already picked up, and the worker's own guard admits
+  // `validated` as well as `queued`, so the replacement could still publish
+  // at a time the caller was told 409 for.
+  if (when) {
+    try {
+      await c.var.publishEnqueuer.remove(post.id);
+      await c.var.publishEnqueuer.enqueue(
+        {
+          postId: post.id,
+          organizationId: post.organizationId,
+          ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+        },
+        { delayMs },
+      );
+    } catch (err) {
+      // The row now claims a time no job will honour. Put it back, so the
+      // stored state matches whatever job is still out there, and report the
+      // failure rather than returning a success the queue never accepted.
+      // Guarded on `queued` so a row the worker has since claimed is left
+      // alone.
+      try {
+        await c.var.db
+          .update(postsTable)
+          .set({
+            scheduledAt: post.scheduledAt,
+            text: post.text,
+            mediaRefs: post.mediaRefs,
+          })
+          .where(
+            and(eq(postsTable.id, post.id), eq(postsTable.status, "queued")),
+          );
+      } catch (rollbackErr) {
+        console.error("[posts] patch rollback failed", rollbackErr);
+      }
+      console.error("[posts] patch enqueue failed", err);
+      throw new LetmepostError({
+        code: "internal_error",
+        status: 500,
+        message:
+          "Could not move the post to its new time — the publish queue is unavailable.",
+        remediation:
+          "The post is unchanged and still scheduled at its original time. Retry the request.",
+      });
+    }
   }
 
   // `post.rescheduled` stays exactly what it was — a time change — so existing
