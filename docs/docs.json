@@ -20,6 +20,11 @@
     "dark": "https://letmepost.dev/logo-dark.png",
     "href": "https://letmepost.dev"
   },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-XXXXXXXXXX"
+    }
+  },
   "seo": {
     "indexing": "navigable",
     "metatags": {

@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { PageviewTracker } from "./providers/pageview-tracker";
 import { AnalyticsClicks } from "./providers/analytics-clicks";
 import { Attribution } from "./providers/attribution";
+import { GoogleAnalytics } from "./providers/google-analytics";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -19,6 +20,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <AnalyticsClicks />
       <Attribution />
       <Analytics />
+      <GoogleAnalytics />
     </ThemeProvider>
   );
 }
