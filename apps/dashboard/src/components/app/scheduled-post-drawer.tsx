@@ -106,11 +106,18 @@ export function ScheduledPostDrawer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const open = post != null;
 
+  // Keyed on the post's identity, NOT the object. The `["posts"]` query hands
+  // back a fresh object on every refetch — window focus, or the invalidation
+  // this component fires after a media upload — and depending on `post` would
+  // re-run this effect and wipe a caption the user was midway through typing.
+  // Re-seeding is only correct when a different post is opened.
+  const postId = post?.id ?? null;
   useEffect(() => {
     setDraftWhen(post?.scheduledAt ? new Date(post.scheduledAt) : null);
     setDraftText(post?.text ?? "");
     setDraftMedia(post ? toDraftMedia(post.mediaRefs) : []);
-  }, [post]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId]);
 
   const uploadMedia = useMutation({
     mutationFn: async (file: File) => {

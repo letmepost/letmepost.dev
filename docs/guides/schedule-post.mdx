@@ -110,7 +110,7 @@ curl -X PATCH https://api.letmepost.dev/v1/posts/<postId> \
   -d '{"scheduledAt":"2026-05-09T15:00:00Z"}'
 ```
 
-The operation is atomic: the API removes the existing BullMQ job, enqueues a new one at the updated delay, then persists the new `scheduledAt`. If the queue swap fails the row stays as-is — no orphaned rows pointing at a job that never fires.
+The order is deliberate: the API removes the existing BullMQ job, commits the row under a compare-and-swap on the state it validated, then enqueues the replacement at the new delay. Removing first means a job a worker has already picked up publishes the pre-edit content it legitimately claimed and the request returns `409` — rather than that job waking up and publishing your freshly-edited content at the time you just moved away from. If the replacement cannot be enqueued, the row is rolled back, a job is restored at the original time, and you get a `500` instead of a success the queue never accepted.
 
 A `post.rescheduled` webhook fires on success with both the old and new timestamps.
 

@@ -27,10 +27,18 @@ while offering only reschedule and cancel.
 - **A content-only edit does no queue work.** The publish job carries just the
   post id and the worker re-reads the row at fire time, so only a `scheduledAt`
   change replaces the BullMQ job.
-- **The write is conditional on the row still being `queued`.** The minimum
-  schedule delay is one second, so a job can fire between the read and the
-  write; an edit that loses that race returns `409` instead of rewriting the
-  text of a post that already went out.
+- **The write is a compare-and-swap** over every field preflight validated
+  against, not just the status. The minimum schedule delay is one second, so a
+  job can fire between the read and the write; and two overlapping edits would
+  otherwise each validate the same stale row and merge into a result neither
+  one checked. A losing writer gets a `409` and re-reads.
+- **Rescheduling removes the old job before it commits, and enqueues the
+  replacement after.** A job a worker has already claimed then publishes the
+  pre-edit content and the request returns `409` — rather than that job waking
+  up and publishing freshly-edited content at the time the caller just moved
+  away from. If the replacement cannot be enqueued, the row rolls back, a job
+  is restored at the original time, and the request returns `500` instead of a
+  success the queue never accepted.
 - **New webhook [`post.updated`](/webhooks/post-updated)** with a `changed`
   array naming which content fields moved.
   [`post.rescheduled`](/webhooks/post-rescheduled) is unchanged and stays

@@ -35,15 +35,22 @@ const describeIfDb = canRunDbTests ? describe : describe.skip;
 
 type CapturedEnqueue = { data: PublishJobData; delayMs: number | undefined };
 
-function captureEnqueuer(opts?: { failEnqueueAfter?: number }) {
+/**
+ * `failEnqueueOn` names attempt indices (0-based, counting every call including
+ * the failed ones) that should throw. Failing one specific attempt is what
+ * separates "the queue is down" from "the replacement enqueue blipped" — the
+ * latter has to leave a restored job behind, and that only shows up if the
+ * restore attempt is allowed to succeed.
+ */
+function captureEnqueuer(opts?: { failEnqueueOn?: number[] }) {
   const calls: CapturedEnqueue[] = [];
   const removals: string[] = [];
-  const failAfter = opts?.failEnqueueAfter ?? Infinity;
+  const failOn = new Set(opts?.failEnqueueOn ?? []);
+  let attempts = 0;
   const enqueuer: PublishEnqueuer = {
     async enqueue(data, o) {
-      if (calls.length >= failAfter) {
-        throw new Error("queue unavailable");
-      }
+      const attempt = attempts++;
+      if (failOn.has(attempt)) throw new Error("queue unavailable");
       calls.push({ data, delayMs: o?.delayMs });
     },
     async remove(postId) {
@@ -339,13 +346,69 @@ describeIfDb("PATCH /v1/posts/:id — edit content", () => {
     });
   });
 
-  it("rolls the row back when the queue swap fails", async () => {
+  it("restores a job at the original time when the replacement enqueue fails", async () => {
     const { db } = await getTestDb();
     await runInTransaction(db, async (tx) => {
       const fixture = await seed(tx);
-      // The POST that creates the post consumes the first enqueue; the
-      // reschedule's replacement is the one that blows up.
-      const { enqueuer, removals } = captureEnqueuer({ failEnqueueAfter: 1 });
+      // Attempt 0 is the create. Attempt 1 is the reschedule's replacement —
+      // the one that fails. Attempt 2 is the restore, which is allowed to
+      // land: without it the post would sit `queued` with no job at all and
+      // miss its slot, since reconcile only re-drives a row once it is past
+      // due.
+      const { enqueuer, calls, removals } = captureEnqueuer({
+        failEnqueueOn: [1],
+      });
+      const { dispatcher, events } = captureDispatcher();
+      const app = createApp({
+        db: tx,
+        publishEnqueuer: enqueuer,
+        webhookDispatcher: dispatcher,
+      });
+
+      const at = IN_AN_HOUR();
+      const { rowId } = await createScheduled(
+        app,
+        fixture.apiKey.plaintext,
+        fixture.accountId,
+        at,
+      );
+
+      const newAt = new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString();
+      const res = await patch(app, fixture.apiKey.plaintext, rowId, {
+        text: "new copy",
+        scheduledAt: newAt,
+      });
+      expect(res.status).toBe(500);
+
+      const [row] = await tx
+        .select()
+        .from(postsTable)
+        .where(eq(postsTable.id, rowId));
+      expect(row?.text).toBe("scheduled");
+      expect(row?.scheduledAt?.toISOString()).toBe(at);
+      expect(row?.status).toBe("queued");
+
+      // The restore landed, and at the ORIGINAL time — the row and the queue
+      // agree again.
+      expect(removals).toContain(rowId);
+      expect(calls).toHaveLength(2);
+      const restored = calls[1]!;
+      expect(restored.data.postId).toBe(rowId);
+      expect(restored.delayMs).toBeLessThanOrEqual(60 * 60 * 1000);
+      expect(restored.delayMs).toBeGreaterThan(55 * 60 * 1000);
+
+      expect(events.find((e) => e.type === "post.rescheduled")).toBeUndefined();
+      expect(events.find((e) => e.type === "post.updated")).toBeUndefined();
+    });
+  });
+
+  it("rolls the row back when the queue is down entirely", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const fixture = await seed(tx);
+      // Both the replacement and the restore fail. The row must still end up
+      // describing its pre-edit state rather than a change that never took.
+      const { enqueuer, removals } = captureEnqueuer({ failEnqueueOn: [1, 2] });
       const { dispatcher, events } = captureDispatcher();
       const app = createApp({
         db: tx,
