@@ -114,7 +114,7 @@ export default function Agents() {
                 className={buttonClass({ lg: true })}
                 href="https://dashboard.letmepost.dev"
                 data-analytics-event="cta.clicked"
-                data-analytics-props='{"from_page":"agents","location":"agents-hero","target":"dashboard"}'
+                data-analytics-props='{"location":"hero-secondary","target":"dashboard","page":"other","label":"Get an API key"}'
               >
                 Get an API key ↗
               </a>

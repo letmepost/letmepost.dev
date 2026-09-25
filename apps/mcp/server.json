@@ -3,11 +3,6 @@
   "name": "io.github.rosekamallove/letmepost",
   "description": "MCP server for letmepost.dev. Publish across 8 social platforms from any agent.",
   "version": "0.2.1",
-  "repository": {
-    "url": "https://letmepost.dev",
-    "source": "github",
-    "subfolder": "apps/mcp"
-  },
   "websiteUrl": "https://letmepost.dev/agents",
   "packages": [
     {
