@@ -164,7 +164,7 @@ curl https://api.letmepost.dev/health
 #    - Watch the post log fill in
 ```
 
-## Self-host parity
+## Portability
 
 The Docker image runs on any container host. Compose / Kubernetes setup is
 out of scope for this doc — point `DATABASE_URL` and `REDIS_URL` at any

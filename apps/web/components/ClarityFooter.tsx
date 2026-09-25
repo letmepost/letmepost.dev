@@ -1,9 +1,7 @@
 import Link from "next/link";
 import { PLATFORMS } from "@/data/platforms";
 import { ClarityBrand } from "./ClarityBrand";
-import { GitHubStars } from "./GitHubStars";
 
-const GITHUB = "https://github.com/letmepost/letmepost.dev";
 const colLink =
   "inline-flex items-center gap-[7px] text-sm text-mut transition-colors hover:text-ink";
 const colHead =
@@ -27,10 +25,8 @@ export function ClarityFooter() {
               <ClarityBrand size={22} />
             </div>
             <p className="mb-4 max-w-[30ch] text-[13.5px] leading-[1.55] text-mut">
-              Open-source social publishing API. One POST, eight platforms.
-              Apache-2.0.
+              Social publishing API. One POST, eight platforms.
             </p>
-            <GitHubStars />
           </div>
 
           <div>
@@ -130,11 +126,6 @@ export function ClarityFooter() {
             <h4 className={colHead}>Community</h4>
             <ul className="m-0 list-none p-0">
               <li className="mb-[9px]">
-                <a href={GITHUB} target="_blank" rel="noopener" className={colLink}>
-                  GitHub
-                </a>
-              </li>
-              <li className="mb-[9px]">
                 <a
                   href="https://bsky.app/profile/letmepost.dev"
                   target="_blank"
@@ -159,23 +150,13 @@ export function ClarityFooter() {
                   RSS feed
                 </a>
               </li>
-              <li className="mb-[9px]">
-                <a
-                  href={`${GITHUB}/blob/main/CONTRIBUTING.md`}
-                  target="_blank"
-                  rel="noopener"
-                  className={colLink}
-                >
-                  Contribute
-                </a>
-              </li>
             </ul>
           </div>
         </div>
 
         <div className="mt-10 flex items-center justify-between border-t border-line pt-6 font-mono text-xs text-faint max-[560px]:flex-col max-[560px]:items-start max-[560px]:gap-3">
           <span>
-            letmepost.dev · © {year} · Apache-2.0 · built by Rose Kamal Love
+            letmepost.dev · © {year} · built by Rose Kamal Love
           </span>
           <span>
             <Link href="/privacy" className="ml-[18px] text-faint hover:text-ink">

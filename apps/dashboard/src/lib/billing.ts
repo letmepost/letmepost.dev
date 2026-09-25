@@ -108,11 +108,11 @@ export const TIERS = {
     ],
   },
   self_host: {
-    name: "Self-host",
+    name: "Unmetered",
     price: 0,
     quotaPerMonth: null,
     logRetentionDays: null,
-    tagline: "Run your own under Apache 2.0.",
+    tagline: "Billing is disabled on this instance.",
     features: [],
   },
 } as const satisfies Record<

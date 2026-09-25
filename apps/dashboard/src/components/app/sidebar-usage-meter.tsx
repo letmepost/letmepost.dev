@@ -8,8 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 // Monthly usage meter pinned to the sidebar footer. Polls every 60s via
-// useUsage defaults and links to /billing on click. Hidden on self-host
-// since billing is disabled there. Hidden in icon-collapsed mode (no
+// useUsage defaults and links to /billing on click. Hidden when billing
+// is disabled on the instance. Hidden in icon-collapsed mode (no
 // useful rendering for a percentage at 48px wide).
 export function SidebarUsageMeter() {
   const sub = useSubscription();

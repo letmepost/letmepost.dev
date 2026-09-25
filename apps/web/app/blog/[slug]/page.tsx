@@ -104,7 +104,7 @@ export default async function BlogPost({
               Post to every network with one API call.
             </p>
             <p className="mb-[18px] text-[13.5px] leading-[1.55] text-mut">
-              The open-source social publishing API. One{" "}
+              The social publishing API. One{" "}
               <span className="font-mono">POST</span> fans out to eight platforms, with
               preflight validation, idempotency, and structured errors built in.
             </p>

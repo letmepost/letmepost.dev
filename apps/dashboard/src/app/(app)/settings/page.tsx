@@ -17,7 +17,7 @@ const TIER_LABELS: Record<string, string> = {
   pro: "Pro",
   business: "Business",
   enterprise: "Enterprise",
-  self_host: "Self-host",
+  self_host: "Unmetered",
 };
 import { Button } from "@/components/ui/button";
 import {

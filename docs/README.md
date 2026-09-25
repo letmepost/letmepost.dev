@@ -39,8 +39,7 @@ docs/
 │   ├── connect-account.mdx
 │   ├── publish-post.mdx
 │   ├── schedule-post.mdx
-│   ├── upload-media.mdx
-│   └── self-host.mdx
+│   └── upload-media.mdx
 ├── errors/                  ← one page per error code (11)
 │   ├── index.mdx
 │   ├── validation_failed.mdx

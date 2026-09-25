@@ -179,8 +179,8 @@ export const auth = betterAuth({
   },
   emailAndPassword: {
     enabled: true,
-    // Only enforce verification when Resend is wired. Self-host
-    // instances without email infrastructure get a frictionless signup
+    // Only enforce verification when Resend is wired. Instances
+    // without email infrastructure get a frictionless signup
     // (and never receive onboarding emails either — both gates flip
     // together on `emailEnabled`).
     requireEmailVerification: emailEnabled(),

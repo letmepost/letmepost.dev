@@ -40,7 +40,7 @@
     "publishing-api",
     "agents"
   ],
-  "license": "Apache-2.0",
+  "license": "UNLICENSED",
   "homepage": "https://docs.letmepost.dev/agents/mcp",
   "repository": {
     "type": "git",

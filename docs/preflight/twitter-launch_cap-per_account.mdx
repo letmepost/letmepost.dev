@@ -9,7 +9,7 @@ To keep cost predictable during the X Pay Per Use launch window, letmepost enfor
 
 - **Wait for the cap window to roll over.** The `Retry-After` header tells you how many seconds until the oldest billable post falls out of the 30-day window.
 - **Reduce volume** if you're hitting the cap by accident — every retry on a transient failure still counts as billable.
-- **Lift the cap.** Self-host instances can bump `TWITTER_LAUNCH_CAP_PER_ACCOUNT` via env. Hosted users on the Business tier with sustained X volume should reach out; the cap is a launch backstop, not a permanent policy.
+- **Lift the cap.** Business-tier users with sustained X volume should reach out; the cap is a launch backstop, not a permanent policy.
 
 ## Why we cap
 

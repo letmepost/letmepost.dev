@@ -174,7 +174,7 @@ export function getProvider(platform: string): AccountProvider {
       status: 400,
       message: `No account provider registered for platform: ${platform}.`,
       remediation:
-        "Ensure the platform is one of the v1 supported list. If you're self-hosting, check that the platform's provider module was imported at boot.",
+        "Ensure the platform is one of the v1 supported list.",
     });
   }
   return provider;

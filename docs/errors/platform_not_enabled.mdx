@@ -22,7 +22,7 @@ The status is `403`.
     "code": "platform_not_enabled",
     "platform": "tiktok",
     "message": "tiktok is pending platform approval and not yet connectable.",
-    "remediation": "Subscribe to changelog updates for launch notifications, or self-host with your own platform credentials.",
+    "remediation": "Subscribe to changelog updates for launch notifications.",
     "docUrl": "https://docs.letmepost.dev/errors/platform_not_enabled",
     "requestId": "req_..."
   }
@@ -32,10 +32,8 @@ The status is `403`.
 ## What to do
 
 - **For approval-gated platforms** (Meta family, TikTok) — wait for the review to clear. Subscribe to the [changelog](/changelog) for launch notifications, and check the [platforms overview](/platforms-overview) for the current per-platform status. Every `POST /v1/accounts/connect/:platform` response also carries a `state` field (`live`, `trial`, or `pending`) once a platform is connectable.
-- **For self-host deployments** — check that the platform's OAuth credentials are present in your environment (e.g. `META_APP_ID`, `TWITTER_CLIENT_ID`). The platform stays disabled if its credentials are unset. You can also flip a platform live yourself with `PLATFORM_STATE_OVERRIDES` (e.g. `PLATFORM_STATE_OVERRIDES=tiktok:live`).
 - **For the meantime** — Bluesky has no upstream review gate and works for every signup today. The API surface (`POST /v1/posts`) is identical, so any code you write against Bluesky carries over.
 
 ## Related
 
 - [Platforms overview](/platforms-overview) — current support status.
-- [Self-host environment](/self-host/environment) — environment variables that gate each platform.
