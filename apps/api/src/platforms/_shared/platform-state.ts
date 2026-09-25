@@ -60,7 +60,7 @@ export function assertPlatformEnabled(platform: Platform): void {
       message: `${platform} is pending platform approval and not yet connectable.`,
       platform,
       remediation:
-        "Subscribe to changelog updates for launch notifications, or self-host with your own platform credentials.",
+        "Subscribe to changelog updates for launch notifications.",
     });
   }
 }

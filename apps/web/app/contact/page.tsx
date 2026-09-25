@@ -36,7 +36,7 @@ export default function Contact() {
           <p>
             letmepost.dev is operated by M/S Rose Creator (trading as
             letmepost.dev), a sole proprietorship based in India. Solo-dev shop.
-            Apache 2.0 source on GitHub: file an issue, send a PR, fork it.
+            Email reaches the person who writes the code.
           </p>
 
           <h2>Email</h2>
@@ -48,22 +48,7 @@ export default function Contact() {
           <h2>Security disclosures</h2>
           <p>
             Found a vulnerability? Please email the address above with{" "}
-            <code>[security]</code> in the subject line. Please don&apos;t file a
-            public GitHub issue for security reports.
-          </p>
-
-          <h2>Open source</h2>
-          <p>
-            <a
-              href="https://github.com/rosekamallove/letmepost.dev"
-              rel="noopener"
-              target="_blank"
-              data-analytics-event="external.github_clicked"
-              data-analytics-props='{"from_page":"contact","location":"contact-body"}'
-            >
-              github.com/rosekamallove/letmepost.dev
-            </a>{" "}
-            — file issues, send PRs, read the roadmap.
+            <code>[security]</code> in the subject line.
           </p>
 
           <h2>Business address</h2>

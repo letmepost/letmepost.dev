@@ -43,8 +43,7 @@ export default function Terms() {
             letmepost.dev is an API for publishing content to third-party social platforms
             that you control or are authorised to post to. It is operated by M/S Rose Creator
             (trading as letmepost.dev), a sole proprietorship based in India. It is provided
-            "as is", without warranty of any kind. The core code is open source under the
-            Apache 2.0 license; the hosted service runs that same code.
+            "as is", without warranty of any kind.
           </p>
 
           <h2>2. Your account</h2>

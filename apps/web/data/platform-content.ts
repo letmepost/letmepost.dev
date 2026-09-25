@@ -262,10 +262,6 @@ for (const r of result.targets) {
       tag: "Webhook timing",
       body: "<code>post.published</code> typically fires within <b>2–3 seconds</b>. Slowest measured is 4.1s during PDS load spikes.",
     },
-    {
-      tag: "Self-host",
-      body: 'Self-hosters point directly at any PDS (yours or bsky.network). No "BYO app" needed — AT Proto has no OAuth app to register.',
-    },
   ],
 
   colophon: "<b>AT Proto.</b> Open. Federated. The easiest platform to ship to. Day-zero for letmepost.",
@@ -576,7 +572,7 @@ for (const r of result.targets) {
     },
     {
       q: "What's Standard Access vs Trial Access?",
-      a: "Trial = sandbox-only (test pins don't appear on the public site). Standard = production. Our hosted app already has Standard Access; self-host users apply for their own.",
+      a: "Trial = sandbox-only (test pins don't appear on the public site). Standard = production. Our app already has Standard Access, so you publish to the real site from day one.",
     },
     {
       q: "How do video pins work?",
@@ -623,10 +619,6 @@ for (const r of result.targets) {
       tag: "Webhook timing",
       body: "Image pins: <b>2–4 seconds</b>. Video pins: <b>20–90 seconds</b> depending on duration (Pinterest processing time).",
     },
-    {
-      tag: "Self-host",
-      body: "Self-hosters apply for their own Pinterest Standard Access (4-week review) and use their own credentials.",
-    },
   ],
 
   colophon: "<b>Pinterest v5.</b> Image + video pins. Standard Access covered.",
@@ -659,7 +651,7 @@ const linkedin: PlatformContent = {
     { body: "Version header pinned in one config value; we own deprecations" },
     { body: "<code>version.deprecated</code> webhook fires before sunset" },
     { body: "URN encoding handled, error envelope normalized" },
-    { body: "Our MDP review covers hosted users; self-host applies their own" },
+    { body: "Our MDP review covers you; nothing to file yourself" },
     { body: "Personal posts in v1; org via MDP — same endpoint" },
     { body: "Audit-state errors mapped to stable preflight rules" },
   ],
@@ -672,7 +664,7 @@ const linkedin: PlatformContent = {
 
   playground: {
     steps: ["Connect", "Configure", "Execute"],
-    body: "OAuth on linkedin.com. Personal posts work today (in review). Org posts unlock once our MDP review clears — self-host users can BYO MDP entry today.",
+    body: "OAuth on linkedin.com. Personal posts work today (in review). Org posts unlock once our MDP review clears.",
     cta: { href: "https://dashboard.letmepost.dev/accounts?connect=1", label: "CONNECT LINKEDIN →" },
     result: "Approval-gated.",
     resultCaption: "MDP IN REVIEW · DAY 12 / ~84",
@@ -743,7 +735,7 @@ const result = await lmp.posts.create({
   faqs: [
     {
       q: "When does LinkedIn go live on letmepost?",
-      a: "Personal posting flips live the day our MDP review clears (typically 8–12 weeks). Org publishing requires the full MDP grant. Self-host with your own MDP entry to use it today.",
+      a: "Personal posting flips live the day our MDP review clears (typically 8–12 weeks). Org publishing requires the full MDP grant.",
     },
     {
       q: "What about the version churn?",
@@ -751,7 +743,7 @@ const result = await lmp.posts.create({
     },
     {
       q: "Can I post to a Company Page?",
-      a: "Yes, once your MDP grant covers org posting. Pass <code>organizationUrn: \"urn:li:organization:...\"</code>. Self-host with your own MDP is the fastest path.",
+      a: "Yes, once our MDP grant covers org posting. Pass <code>organizationUrn: \"urn:li:organization:...\"</code>.",
     },
     {
       q: "What's URN encoding?",
@@ -765,7 +757,7 @@ const result = await lmp.posts.create({
 
   finalCtaH2: "READY FOR LINKEDIN PUBLISHING?",
   finalCtaLede:
-    "Personal commentary live the day MDP clears. Self-host with your own MDP entry to publish today. <b>Either way, the same one POST.</b>",
+    "Personal commentary live the day MDP clears. <b>Same one POST either way.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/linkedin",
@@ -789,10 +781,6 @@ const result = await lmp.posts.create({
     {
       tag: "URN encoding",
       body: 'LinkedIn IDs require percent-encoded URNs. We handle this; handled server-side.',
-    },
-    {
-      tag: "Self-host",
-      body: "Self-host users register their own MDP entry and use it today. No waiting on our queue.",
     },
   ],
 
@@ -908,7 +896,7 @@ const result = await lmp.posts.create({
   faqs: [
     {
       q: "When does Threads go live?",
-      a: "Publisher is shipped, waiting on Meta App Review for the Threads surface. Typical timeline 4–8 weeks. Self-host with your own Meta app to use it today.",
+      a: "Publisher is shipped, waiting on Meta App Review for the Threads surface. Typical timeline 4–8 weeks.",
     },
     {
       q: "Does Threads use Facebook Login?",
@@ -955,10 +943,6 @@ const result = await lmp.posts.create({
       tag: "Containers",
       body: "Threads containers expire after 24h. We track TTL and recreate transparently.",
     },
-    {
-      tag: "Self-host",
-      body: "BYO Meta App with Threads surface enabled to skip our review queue. Same publisher code.",
-    },
   ],
 
   colophon: "<b>Threads Graph.</b> Standalone OAuth. 2–20 carousels. Two-step abstracted.",
@@ -993,7 +977,6 @@ const instagram: PlatformContent = {
     { body: "URL reachability checked in preflight; never a silent 2207052" },
     { body: "Container creation + finalize abstracted to one POST" },
     { body: "Reels + carousels through the same endpoint" },
-    { body: "Self-host with your own Meta app to skip the queue entirely" },
   ],
   costBanner: {
     tone: "good",
@@ -1003,7 +986,7 @@ const instagram: PlatformContent = {
   highlight: {
     tone: "good",
     title: "✓  Meta App Review absorbed",
-    body: "Our hosted Meta app covers Instagram, Facebook Pages, and Threads through a single shared review. <b>You inherit that work.</b> Self-hosters can BYO Meta app if they need their own reviewer-of-record.",
+    body: "Our Meta app covers Instagram, Facebook Pages, and Threads through a single shared review. <b>You inherit that work.</b>",
   },
 
   playground: {
@@ -1086,11 +1069,11 @@ const result = await lmp.posts.create({
   faqs: [
     {
       q: "When does Instagram go live?",
-      a: 'Publisher shipped; in Meta App Review. Typical 8–12 weeks. <a href="/blog/why-we-ate-meta-app-review">Read the postmortem</a> for what that process looks like. Self-host with your own Meta app to use it today.',
+      a: 'Publisher shipped; in Meta App Review. Typical 8–12 weeks. <a href="/blog/why-we-ate-meta-app-review">Read the postmortem</a> for what that process looks like.',
     },
     {
       q: "Do I need to file Meta App Review?",
-      a: 'No for hosted users — you publish through our reviewed app. Yes for self-host users who want their own reviewer-of-record. The config switch is <code>LMP_META_APP_MODE=byo</code>.',
+      a: "No. You publish through our reviewed app — we are the reviewer-of-record, so you never touch a Meta developer portal.",
     },
     {
       q: "What's OAuthException 2207052?",
@@ -1112,7 +1095,7 @@ const result = await lmp.posts.create({
 
   finalCtaH2: "READY FOR INSTAGRAM?",
   finalCtaLede:
-    "Connect now, queue posts now, publish the day Meta approval clears. Or self-host with your own Meta app — <b>that surface is live today</b>.",
+    "Connect now, queue posts now, publish the day Meta approval clears. <b>No paperwork on your side.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/instagram",
@@ -1135,7 +1118,7 @@ const result = await lmp.posts.create({
     },
     {
       tag: "App Review",
-      body: '<b>We do it. You inherit it.</b> Self-host with <code>LMP_META_APP_MODE=byo</code> for your own grant.',
+      body: "<b>We do it. You inherit it.</b> One shared review across Instagram, Facebook Pages, and Threads.",
     },
     {
       tag: "Webhook timing",
@@ -1278,7 +1261,7 @@ const result = await lmp.posts.create({
 
   finalCtaH2: "READY FOR FACEBOOK PAGES?",
   finalCtaLede:
-    "Pages + IG Business + Threads on one consent. <b>Live the day Meta approval clears.</b> Or self-host today with your own Meta app.",
+    "Pages + IG Business + Threads on one consent. <b>Live the day Meta approval clears.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/facebook",
@@ -1301,11 +1284,7 @@ const result = await lmp.posts.create({
     },
     {
       tag: "App Review",
-      body: 'Shared review with IG + Threads. Self-host with <code>LMP_META_APP_MODE=byo</code> for your own grant.',
-    },
-    {
-      tag: "Self-host",
-      body: "BYO Meta App with the right Page permissions to skip the queue.",
+      body: "Shared review with IG + Threads. One consent covers all three surfaces.",
     },
   ],
 
@@ -1316,7 +1295,7 @@ const tiktok: PlatformContent = {
   heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "Content Posting API. OAuth 2.0 PKCE.",
   heroLede:
-    "TikTok's Content Posting API + creator OAuth flow, gated by TikTok's two-track app review (Upload + Direct Post). <b>letmepost</b> has the publisher shipped — push_by_file inbox upload with chunked status polling. Hosted users wait on review; self-hosters with their own TikTok developer app can publish today.",
+    "TikTok's Content Posting API + creator OAuth flow, gated by TikTok's two-track app review (Upload + Direct Post). <b>letmepost</b> has the publisher shipped — push_by_file inbox upload with chunked status polling, live the day our review clears.",
   reassurance:
     'In review · Content Posting API · <a href="https://docs.letmepost.dev/platforms/tiktok">read the docs →</a>',
   miniCode: `{
@@ -1347,12 +1326,12 @@ const tiktok: PlatformContent = {
   highlight: {
     tone: "warn",
     title: "⚠  TikTok's review gates production",
-    body: "TikTok runs <b>two separate audits</b> — Upload (push_by_file → inbox, SELF_ONLY) and Direct Post (video.publish → public). letmepost has the publisher built for both. Hosted users wait on review; self-host users with their own TikTok app can publish today.",
+    body: "TikTok runs <b>two separate audits</b> — Upload (push_by_file → inbox, SELF_ONLY) and Direct Post (video.publish → public). letmepost has the publisher built for both, live the day our review clears.",
   },
 
   playground: {
     steps: ["Connect", "Configure", "Execute"],
-    body: "TikTok OAuth 2.0 PKCE + account pick. Audit-gated for hosted users; self-host today with your own TikTok developer app.",
+    body: "TikTok OAuth 2.0 PKCE + account pick. Gated on TikTok's audit of our app.",
     cta: { href: "https://dashboard.letmepost.dev/accounts?connect=1", label: "CONNECT TIKTOK →" },
     result: "Approval-gated.",
     resultCaption: "APP REVIEW · IN FLIGHT",
@@ -1381,7 +1360,7 @@ const tiktok: PlatformContent = {
     {
       icon: "shield-check",
       title: "Audit-aware",
-      body: "Hosted users wait on our TikTok review; self-host users plug their own TikTok developer app and use it today. Same publisher code, your audit record.",
+      body: "Gated on our TikTok review. The publisher is built and ships the moment the audit clears.",
     },
     {
       icon: "cloud-arrow-up",
@@ -1422,7 +1401,7 @@ const result = await lmp.posts.create({
   faqs: [
     {
       q: "When does TikTok go live?",
-      a: "Hosted users wait on TikTok app review (4–10 weeks per scope). Self-host with your own TikTok developer app today — same publisher code, your audit record.",
+      a: "TikTok app review runs 4–10 weeks per scope. The publisher is built for both tracks and flips live the day each audit clears.",
     },
     {
       q: "What audits does TikTok require?",
@@ -1444,7 +1423,7 @@ const result = await lmp.posts.create({
 
   finalCtaH2: "READY FOR TIKTOK?",
   finalCtaLede:
-    "Self-host today with your own TikTok developer app. Hosted users queue up; live when TikTok app review clears. <b>Same publisher either way.</b>",
+    "Connect now, queue posts now. <b>Live when TikTok app review clears.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/tiktok",
@@ -1466,16 +1445,12 @@ const result = await lmp.posts.create({
       body: "<code>PUBLIC_TO_EVERYONE</code>, <code>MUTUAL_FOLLOW_FRIENDS</code>, <code>FOLLOWER_OF_CREATOR</code>, <code>SELF_ONLY</code>. Sandbox forces SELF_ONLY until Direct Post clears.",
     },
     {
-      tag: "Self-host",
-      body: "BYO TikTok developer app and use it today. Same publisher code, your audit record.",
-    },
-    {
       tag: "Webhook timing",
       body: "<code>post.published</code> fires when TikTok finalizes processing. Status-poll backoff is <b>5s → 30s → 120s</b> up to a 30-min deadline.",
     },
   ],
 
-  colophon: "<b>Content Posting API.</b> TikTok-review-gated. Self-host today, hosted when review clears.",
+  colophon: "<b>Content Posting API.</b> TikTok-review-gated. Publisher shipped for both audit tracks.",
 };
 
 export const PLATFORM_CONTENT: Record<string, PlatformContent> = {

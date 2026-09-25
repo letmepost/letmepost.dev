@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     template: "%s · letmepost.dev",
   },
   description:
-    "Open-source social media publishing API for developers and agents. Failures are loud, preventable, and documented.",
+    "Social media publishing API for developers and agents. Failures are loud, preventable, and documented.",
 };
 
 export default function RootLayout({

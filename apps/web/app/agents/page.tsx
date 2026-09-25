@@ -10,7 +10,7 @@ import { highlight } from "@/lib/highlight";
 export const metadata: Metadata = {
   title: "MCP server for social media publishing",
   description:
-    "Native MCP server for social publishing. Claude, Cursor, Claude Code, opencode: any MCP-aware client drives the entire letmepost API through 21 OpenAPI-generated tools. OAuth 2.1 with Dynamic Client Registration (RFC 7591). Apache 2.0 source.",
+    "Native MCP server for social publishing. Claude, Cursor, Claude Code, opencode: any MCP-aware client drives the entire letmepost API through 21 OpenAPI-generated tools. OAuth 2.1 with Dynamic Client Registration (RFC 7591).",
   alternates: { canonical: "/agents/" },
 };
 
@@ -28,8 +28,8 @@ const faqs = [
     a: 'If the same idempotency key was used, the cached response comes back (within 24h). No double-post. If a different idempotency key was used, you get an <code class="inl">idempotency_conflict</code> response (HTTP 409).',
   },
   {
-    q: "Can my agent self-host the MCP server?",
-    a: 'Yes. The MCP server is part of the open-source Docker image. <code class="inl">docker compose up</code> runs it locally on port 4001. Same tool surface, your platform credentials.',
+    q: "Can my agent run the MCP server locally?",
+    a: 'Yes. <code class="inl">npx @letmepost/mcp</code> runs the stdio server on your machine against your API key. Same tool surface as the hosted endpoint.',
   },
   {
     q: "What about audit logs?",
@@ -37,7 +37,7 @@ const faqs = [
   },
   {
     q: "Where do I report bugs in the MCP server?",
-    a: 'Open an issue on <a href="https://github.com/letmepost/letmepost.dev">the repo</a> and tag it <code class="inl">mcp</code>. We respond within 24h on weekdays during alpha.',
+    a: 'Email <a href="mailto:support@letmepost.dev">support@letmepost.dev</a> with <code class="inl">[mcp]</code> in the subject. We respond within 24h on weekdays during alpha.',
   },
 ];
 
@@ -112,13 +112,11 @@ export default function Agents() {
               </a>
               <a
                 className={buttonClass({ lg: true })}
-                href="https://github.com/letmepost/letmepost.dev"
-                target="_blank"
-                rel="noopener"
-                data-analytics-event="external.github_clicked"
-                data-analytics-props='{"from_page":"agents","location":"agents-hero"}'
+                href="https://dashboard.letmepost.dev"
+                data-analytics-event="cta.clicked"
+                data-analytics-props='{"from_page":"agents","location":"agents-hero","target":"dashboard"}'
               >
-                GitHub ↗
+                Get an API key ↗
               </a>
             </div>
           </div>

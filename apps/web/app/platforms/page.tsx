@@ -111,8 +111,7 @@ export default function Platforms() {
           <p className={CALLOUT_P}>
             <b>Live</b> means published end-to-end today. <b>In review</b> means
             the publisher is shipped and tested against developer-tier accounts;
-            approval flips it live with no code change on your side. Self-hosters
-            can BYO platform credentials and skip our shared review entirely.
+            approval flips it live with no code change on your side.
           </p>
         </div>
       </section>
@@ -154,8 +153,8 @@ export default function Platforms() {
             The roadmap is long. Mastodon, Reddit, YouTube, Telegram, Snapchat,
             Google Business, and the Meta + LinkedIn + TikTok ad APIs are all
             under consideration.{" "}
-            <a href="https://github.com/letmepost/letmepost.dev/issues/new">
-              Open an issue with the platform you need next →
+            <a href="mailto:support@letmepost.dev?subject=Platform%20request">
+              Email us the platform you need next →
             </a>
           </p>
         </div>

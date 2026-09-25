@@ -37,7 +37,7 @@ Mint an API key in the [dashboard](https://dashboard.letmepost.dev) and pass it 
 ```ts
 const lmp = new Letmepost({
   apiKey: process.env.LMP_API_KEY!,
-  baseUrl: "https://api.letmepost.dev", // override for self-hosted
+  baseUrl: "https://api.letmepost.dev", // override the API host
   retries: 3,                           // default
   fetch: globalThis.fetch,              // override to inject tracing
 });
@@ -113,10 +113,6 @@ await lmp.posts.create(
 
 5xx and 429 responses are retried with exponential backoff (3 attempts by default). `Retry-After` headers are honored, capped at 30s per retry. Disable retries per call via `{ retries: 0 }`.
 
-## Self-hosting
-
-letmepost.dev is Apache 2.0. Point the SDK at your own deployment with `baseUrl`. The hosted and self-hosted APIs are identical: same wire shape, same error envelope.
-
 ```ts
 const lmp = new Letmepost({
   apiKey: "…",
@@ -124,8 +120,8 @@ const lmp = new Letmepost({
 });
 ```
 
-Source: [github.com/rosekamallove/letmepost.dev](https://github.com/rosekamallove/letmepost.dev). Docs: [docs.letmepost.dev](https://docs.letmepost.dev).
+Docs: [docs.letmepost.dev](https://docs.letmepost.dev).
 
 ## License
 
-[Apache 2.0](../../LICENSE).
+Proprietary. See [`LICENSE`](../../LICENSE).

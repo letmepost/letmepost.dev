@@ -33,7 +33,7 @@ Cursor / Cline / any MCP client:
 | Variable        | Required | Default                          | Description                                       |
 | --------------- | -------- | -------------------------------- | ------------------------------------------------- |
 | `LMP_API_KEY`   | yes      | —                                | Bearer token from https://dashboard.letmepost.dev |
-| `LMP_API_BASE`  | no       | `https://api.letmepost.dev`      | Override for self-hosted deployments              |
+| `LMP_API_BASE`  | no       | `https://api.letmepost.dev`      | Override the API host (staging, testing)          |
 
 ## Tools
 
@@ -51,10 +51,6 @@ Tool names follow `{method}_{path}` with `{param}` segments rewritten as `by_{pa
 
 Each tool's `inputSchema` is a flat JSON schema with path / query / body fields merged into one object — the agent doesn't need to know which slot a field lives in. Idempotency keys are auto-injected on writes.
 
-## Self-host
-
-Self-host bypasses every platform approval gate. Bring your own credentials, every platform works the day you clone the repo. See [docs.letmepost.dev/self-host/quick-start](https://docs.letmepost.dev/self-host/quick-start).
-
 ## License
 
-Apache 2.0.
+Proprietary. See [`LICENSE`](../../LICENSE).

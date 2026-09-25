@@ -8,7 +8,7 @@ import { faqPageSchema, pricingProductSchema } from "@/lib/seo";
 export const metadata: Metadata = {
   title: "Pricing: flat per-org, no per-profile tax",
   description:
-    "Three paid tiers plus self-host, one flat number per month. Free 50/mo, Pro $79 / 5,000, Business $299 / 25,000, self-host unlimited. Profiles, accounts, team members, webhooks, and API keys are all free. Hard caps, never overage surprises.",
+    "Three tiers, one flat number per month. Free 50/mo, Pro $79 / 5,000, Business $299 / 25,000. Profiles, accounts, team members, webhooks, and API keys are all free. Hard caps, never overage surprises.",
   alternates: { canonical: "/pricing/" },
 };
 
@@ -16,7 +16,6 @@ const pricing = [
   { tier: "Free", who: "Personal projects · single-platform automations", price: "$0", sub: "forever", posts: "50 posts / mo", cta: "Start for free", href: "https://dashboard.letmepost.dev" },
   { tier: "Pro", who: "Indie SaaS · agencies under 50 clients", price: "$79", sub: "/ mo", posts: "5,000 posts / mo", cta: "Start Pro", href: "https://dashboard.letmepost.dev", hi: true },
   { tier: "Business", who: "Embedded social · uptime SLA · white-label OAuth", price: "$299", sub: "/ mo", posts: "25,000 posts / mo", cta: "Start Business", href: "https://dashboard.letmepost.dev" },
-  { tier: "Self-host", who: "Same image · BYO Postgres + Redis · Apache-2.0", price: "$0", sub: "Apache-2.0", posts: "Unlimited", cta: "Self-host docs", href: "https://docs.letmepost.dev/self-host" },
 ];
 
 const freeAtEveryTier = [
@@ -103,7 +102,7 @@ export default function Pricing() {
       </header>
 
       <section className={`${wrap} pt-10 pb-[72px] max-[860px]:pb-16`}>
-        <div className="mt-10 grid grid-cols-4 gap-[14px] max-[860px]:grid-cols-1">
+        <div className="mt-10 grid grid-cols-3 gap-[14px] max-[860px]:grid-cols-1">
           {pricing.map((p) => (
             <div
               className={`flex flex-col rounded-[14px] border bg-panel px-[22px] py-[26px] ${p.hi ? "border-acc shadow-[0_0_0_1px_var(--color-acc)]" : "border-line"}`}

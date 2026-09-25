@@ -1,10 +1,9 @@
 # letmepost.dev
 
-> Open-source social media publishing API for developers and AI agents.
+> Social media publishing API for developers and AI agents.
 > One POST endpoint publishes across eight platforms. Native MCP server,
 > idempotency by default, version-pinned upstream APIs, transparent
-> error responses. Apache 2.0. The hosted SaaS runs the same image you
-> can self-host.
+> error responses.
 
 ## What it is
 
@@ -50,12 +49,6 @@ Built for two audiences:
 - Media: https://letmepost.dev/api/media
 - Webhooks: https://letmepost.dev/api/webhooks
 - Full docs: https://docs.letmepost.dev
-
-## Source code
-
-- GitHub: https://github.com/letmepost/letmepost.dev
-- Licence: Apache 2.0
-- Self-host: https://docs.letmepost.dev/self-host
 
 ## Contact
 

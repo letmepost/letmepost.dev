@@ -62,12 +62,6 @@ lmp post "hello" --to=bluesky --profile prof_01HX...
 - `1` — config / auth / argument error
 - `2` — API call failed (full or partial — useful for shell pipelines)
 
-## Self-host
-
-```bash
-LMP_API_BASE=https://api.yourdomain.com lmp login
-```
-
 ## Docs
 
 - Full reference: https://docs.letmepost.dev/agents/cli
@@ -76,4 +70,4 @@ LMP_API_BASE=https://api.yourdomain.com lmp login
 
 ## License
 
-Apache 2.0.
+Proprietary. See [`LICENSE`](../../LICENSE).
