@@ -1,6 +1,6 @@
 # letmepost.dev
 
-> Social media publishing API that fails loudly instead of silently.
+> Open-source social media publishing API that fails loudly instead of silently.
 
 ## What this doc is
 
@@ -10,7 +10,7 @@ Internal product description. Source of truth for positioning, ICP, scope, and p
 
 A developer-grade HTTP API for publishing to social media platforms. A single endpoint contract (`POST /v1/posts`) that routes to Bluesky, LinkedIn, Twitter/X, Instagram, Facebook, Threads, Pinterest, and TikTok, with **preflight validation, transparent errors, stable API versioning, and idempotency keys** as first-class contracts.
 
-Closed source, hosted SaaS as the sole commercial offering. Every tier gets the full API surface — no feature gate between tiers.
+Apache 2.0 core, hosted SaaS as the primary commercial offering, self-host as a first-class community option. Same code, same API, no feature gate between the two.
 
 Also shipped as an **MCP server** (hosted at `api.letmepost.dev/mcp` and as a stdio binary on npm) and a **CLI** (`npm i -g @letmepost/cli`). Agent-builder ergonomics are a first-class concern, not a port.
 
@@ -38,7 +38,7 @@ From the 2025-2026 research corpus (150+ citations across GitHub, Trustpilot, Ca
 
 5. **Per-profile / per-seat pricing is universally hated.** Buffer $6-12/channel, Ayrshare $8.99/profile/mo, Sprout $299-399/seat/year. Complaints dominate competitor Trustpilot scores (Hootsuite 1.4/5, Later 1.4/5, Sprout 1.9/5).
 
-6. **Double-posting loops from retry storms.** The OSS benchmark (Postiz) shipped an infinite double-posting bug in Temporal workflows; the maintainer's own recommended fix was "idempotency keys with the external APIs."
+6. **Double-posting loops from retry storms.** The open-source benchmark (Postiz) shipped an infinite double-posting bug in Temporal workflows; the maintainer's own recommended fix was "idempotency keys with the external APIs."
 
 The consistent signal across the corpus: **developers aren't complaining about scheduling — they're complaining about the invisibility of failure.**
 
@@ -83,9 +83,9 @@ Platform API versions are pinned, tracked, and abstracted behind our interface. 
 
 Every `POST /posts` accepts an idempotency key. Retries are safe. This is a first-class contract, not an afterthought — directly answers the Postiz double-posting bug (issue #1321) that the Postiz maintainer flagged as critical.
 
-### 5. No feature gates
+### 5. Open source, all the way
 
-Every tier gets the full API surface: every platform, every webhook event, the MCP server, the CLI, the SDKs. Tiers differ on volume and support, never on capability. Nothing is held back to force an upgrade.
+Core is open source from day one. Hosted SaaS runs the same code. Self-hosters get the same API. No feature gate between OSS and hosted. The hosted tier wins on infrastructure and managed OAuth, not on locked-away features.
 
 ### 6. World-class documentation
 
@@ -105,6 +105,8 @@ The API contract, the SDK ergonomics, the error messages, the dashboard, the doc
 - **Business+** — enquiry-driven for volume / SSO / SCIM / custom SLA / white-labelling / DPA.
 
 Profiles are free at every tier. Per-profile and per-seat pricing are *rejected*, not deferred — they are the antithesis of the wedge.
+
+**Self-host** — first-class community option. Docker Compose, bring-your-own-credentials, identical API surface, unlimited posts. `BILLING_ENABLED=false` skips the billing surface entirely. This is how we out-trust Zernio (closed) and out-ship Postiz (unreliable) at the same time.
 
 ## Platform scope — v1 is the Publisher
 
@@ -137,20 +139,20 @@ Profiles are free at every tier. Per-profile and per-seat pricing are *rejected*
 
 | vs. | Their weakness | Our wedge |
 |---|---|---|
-| **Zernio** (closed, positioning-only) | Thin wrapper, no preflight, new brand (rebranded from "Late") | Preflight catalog, transparent errors, published roadmap |
+| **Zernio** (closed, positioning-only) | No community trust, closed source, new brand (rebranded from "Late") | Apache 2.0, public code, transparent roadmap |
 | **Postiz** (OSS benchmark) | Silent failures, double-posting loops, single-tenant architecture blocks SaaS use | Idempotency keys, preflight validation, multi-tenant from day one |
 | **Ayrshare** (category leader) | Per-profile pricing, opaque error 138s, broad OAuth scopes | Flat per-org pricing (Free 50/mo, Pro $79 / 5k, Business $299 / 25k), rule-specific errors, scoped OAuth |
 | **Buffer / Publer / Hypefury** (creator tools) | Creator-focused dashboards, no real API, per-channel pricing | API-first primitive, no dashboard tax |
 | **Hootsuite / Sprout / Later** (enterprise) | Contract lock-in, per-seat pricing, auto-renewal abuse | No contracts, no seat tax, no lock-in |
 
-**Open source alone does not win** — Postiz proves it. The winning combination is preflight + transparent errors + idempotency + stable versions + native MCP, positioned to the automation-builder and AI-agent-builder cohort first. Creators come later, via UI partners.
+**Open-source alone does not win** — Postiz proves it. The winning combination is open source + preflight + transparent errors + idempotency + stable versions + native MCP, positioned to the automation-builder and AI-agent-builder cohort first. Creators come later, via UI partners.
 
 ## Resolved questions
 
 What was open in the original draft and is now locked in:
 
-- **Pricing.** Three tiers, flat per-org, metered on *posts published*: Free (50/mo), Pro ($79 / 5k), Business ($299 / 25k). Hard cap, no overages — quota.warning fires at 80%, quota.exceeded at 100%, and the post queues rather than publishing. Locked May 2026. Profiles free at every tier.
-- **License.** Proprietary, all rights reserved. Hosted SaaS is the only distribution.
+- **Pricing.** Three tiers, flat per-org, metered on *posts published*: Free (50/mo), Pro ($79 / 5k), Business ($299 / 25k), self-host unlimited. Hard cap, no overages — quota.warning fires at 80%, quota.exceeded at 100%, and the post queues rather than publishing. Locked May 2026. Profiles free at every tier.
+- **License.** Apache 2.0. Same image self-host vs. hosted.
 - **MCP server.** Shipped — hosted (`api.letmepost.dev/mcp`, streamable HTTP, stateless, OAuth 2.1 + DCR) and stdio (`@letmepost/mcp` on npm). 21 tools generated from the OpenAPI spec at startup.
 - **CLI.** Shipped — `@letmepost/cli`, `lmp` binary.
 - **SDKs.** Shipped — TypeScript (`@letmepost/sdk`, hand-written), Python (`letmepost` on PyPI, generated), Go (`github.com/letmepost/letmepost-go`, generated).

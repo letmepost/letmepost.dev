@@ -39,7 +39,7 @@ function readDatabaseUrl(): string {
 /**
  * Build a Drizzle client. The driver is selected at runtime:
  *   - `.neon.tech` hostname → `@neondatabase/serverless` (WebSocket Pool, ideal for serverless)
- *   - anything else        → `postgres.js` (raw TCP, works for local dev / other Postgres)
+ *   - anything else        → `postgres.js` (raw TCP, works for local dev / self-host / other Postgres)
  *
  * Both expose the same Drizzle query API, so callers never need to branch on `kind`.
  */

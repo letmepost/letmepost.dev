@@ -45,7 +45,7 @@
     "instagram",
     "facebook"
   ],
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "homepage": "https://docs.letmepost.dev",
   "repository": {
     "type": "git",

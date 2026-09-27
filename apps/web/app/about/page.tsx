@@ -5,9 +5,9 @@ import { FinalCta, finalButtonClass } from "@/components/ui/final-cta";
 import { ROSE_PERSON_SCHEMA } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "About letmepost.dev: solo, built in public",
+  title: "About letmepost.dev: solo, open source, built in public",
   description:
-    "letmepost.dev is built by Rose Kamal Love (ex-GrooveHQ, Kroto). Solo-dev shop, transparent about what works and what doesn't.",
+    "letmepost.dev is built by Rose Kamal Love (ex-GrooveHQ, Kroto). Apache 2.0, solo-dev shop, transparent about what works and what doesn't.",
   alternates: { canonical: "/about/" },
 };
 
@@ -27,7 +27,7 @@ export default function About() {
           About
         </p>
         <h1 className="mb-[26px] max-w-[16ch] font-disp text-[64px] font-semibold leading-[1.04] tracking-[-0.03em] text-balance max-[860px]:text-[46px] max-[560px]:text-[36px]">
-          One operator. One inbox. <span className="text-acc">No runaround.</span>
+          One operator. One inbox. <span className="text-acc">Open source.</span>
         </h1>
         <p className="max-w-[58ch] text-[21px] leading-[1.55] text-mut">
           letmepost.dev is a solo-dev shop building the social media publishing
@@ -77,8 +77,9 @@ export default function About() {
           </p>
           <p>
             letmepost.dev is the version where failure is loud, billing is
-            per-org, and version pinning is the contract. Every tier gets the
-            full API surface. No feature gate.
+            per-org, version pinning is the contract, and the entire stack is
+            Apache 2.0. The hosted SaaS runs the exact image you can self-host.
+            No open-core trick.
           </p>
         </div>
       </section>
@@ -110,9 +111,11 @@ export default function About() {
               but you don&apos;t have to.
             </li>
             <li>
-              <b>No feature gates.</b> Every tier gets the full API surface,
-              every platform, the MCP server, and the CLI. Tiers differ on
-              volume and support, never on capability.
+              <b>Open source from day one.</b>{" "}
+              <a href="https://github.com/letmepost/letmepost.dev">
+                github.com/letmepost
+              </a>
+              . Apache 2.0. Self-host the same image that runs the hosted SaaS.
             </li>
           </ul>
         </div>
@@ -120,8 +123,8 @@ export default function About() {
 
       <section className={wrap}>
         <FinalCta
-          title="Send your first post."
-          lede="Free tier, public pricing, no sales call. Email us if you need something the docs don't cover."
+          title="Build on it, or read the source."
+          lede="Open an issue, send a PR, or just send your first post. We build in the open."
           actions={
             <>
               <a
@@ -132,9 +135,9 @@ export default function About() {
               </a>
               <a
                 className={finalButtonClass("ghost")}
-                href="https://docs.letmepost.dev"
+                href="https://github.com/letmepost/letmepost.dev"
               >
-                Read the docs ↗
+                View source ↗
               </a>
             </>
           }

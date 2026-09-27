@@ -20,8 +20,8 @@ TypeScript throughout the stack. TDD is mandatory — every API endpoint has mul
 | External HTTP mocking | **MSW** (Mock Service Worker) | Intercepts `fetch` globally; the modern replacement for `nock`; same mocks usable in Node tests and browser previews. |
 | Versioning | **Changesets** | For `sdk-ts` and `cli` publish flow. |
 | Python / Go SDKs | **Separate repos**, auto-generated from the OpenAPI spec | `pip install` and `go get` have to work the idiomatic way; Python/Go contributors shouldn't need Node. Monorepo CI regenerates and PRs to the sibling repos. |
-| CI cache | **GitHub Actions cache** initially → **self-managed** (`ducktors/turborepo-remote-cache` on Cloudflare R2) once cache churn bites. | Vendor-neutral, no Vercel lock-in. |
-| Database | **NeonDB** (Postgres) | Serverless Postgres, branch-per-preview for CI, vendor-neutral (it's just Postgres — we can point at any Postgres). |
+| CI cache | **GitHub Actions cache** initially → **self-hosted** (`ducktors/turborepo-remote-cache` on Cloudflare R2) once cache churn bites. | OSS-friendly, no Vercel lock-in. |
+| Database | **NeonDB** (Postgres) | Serverless Postgres, branch-per-preview for CI, vendor-neutral (it's just Postgres — self-hosters can point at any Postgres). |
 | ORM | **Drizzle** (use the relational queries API) | TS-native, no codegen step, schema lives in `.ts` files. Relational queries API (`db.query.*.findMany({ with: ... })`) is Prisma-adjacent ergonomics with none of the Prisma client overhead. |
 | Job queue | **BullMQ** on **Upstash Redis** | MIT. Upstash free tier covers early traffic; ~$5/mo tier when outgrown. Rejected pg-boss because Neon's serverless connection model fights LISTEN/NOTIFY. |
 | Auth | **better-auth** | First-class TypeScript, API keys plugin (unifies dashboard sessions + public API auth), organizations plugin for future agency tier, fully self-hostable. Familiar from adjacent work — velocity advantage. |
@@ -82,12 +82,12 @@ Non-negotiable, stated here so future sessions can't re-litigate without a reaso
 ## What we considered and rejected
 
 - **Fastify** (API) — more mature plugin ecosystem, but Node-only and noisier OpenAPI pipeline. Strong runner-up if a niche Node plugin need pulls us.
-- **Elysia + Bun** (API) — genuinely excellent DX and best-in-class TS inference. Rejected because (a) Hono has a materially larger production footprint and ecosystem in 2026, and (b) the perf argument that favors Elysia in synthetic benchmarks is irrelevant to our workload — upstream platform API latency (200–2000 ms per post) dominates end-to-end by 99%+, so framework req/s is not a meaningful axis. Not rejected on deployment friction; Docker resolves that.
-- **NestJS** (API) — decorator-driven OpenAPI creates drift between validator classes, TS types, and the spec, which directly conflicts with our "schemas are the single source of truth" principle. Additionally: DI + module system is drag on solo-dev velocity at 30–50 endpoints, and Docker image weight matters for deploy times.
+- **Elysia + Bun** (API) — genuinely excellent DX and best-in-class TS inference. Rejected because (a) Hono has a materially larger production footprint and ecosystem in 2026, and (b) the perf argument that favors Elysia in synthetic benchmarks is irrelevant to our workload — upstream platform API latency (200–2000 ms per post) dominates end-to-end by 99%+, so framework req/s is not a meaningful axis. Not rejected because of self-host friction; Docker resolves that.
+- **NestJS** (API) — decorator-driven OpenAPI creates drift between validator classes, TS types, and the spec, which directly conflicts with our "schemas are the single source of truth" principle. Additionally: DI + module system is drag on solo-dev velocity at 30–50 endpoints, and Docker image weight matters for self-hosters.
 - **tRPC / ts-rest** (API) — wrong shape; we're publishing a REST API for third-party developers, not an internal client.
 - **Express** (API) — no type story, no validation, no OpenAPI without heavy glue. Not competitive in 2026.
 - **Next.js + Fumadocs** (landing + docs) — strong alternative if the landing site were to grow heavy interactive surfaces. Revisit if that happens.
-- **Mintlify** (docs) — gorgeous but hosted SaaS with vendor lock-in; a PR-based docs workflow needs files in the repo.
+- **Mintlify** (docs) — gorgeous but hosted SaaS with vendor lock-in; PR-based docs workflow for an OSS project needs files in the repo.
 - **Nextra / Docusaurus** (docs) — momentum has moved to Starlight and Fumadocs.
 - **Nx** (monorepo) — overkill at our scale.
 - **Moon** (monorepo) — interesting but ecosystem gravity is Turbo's.

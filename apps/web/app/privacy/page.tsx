@@ -34,7 +34,7 @@ export default function Privacy() {
       <section className={`${wrap} pt-7 pb-[72px] max-[860px]:pb-16`}>
         <div className="prose">
           <p>
-            letmepost.dev ("we", "us", "the service") is a social media
+            letmepost.dev ("we", "us", "the service") is an open-source social media
             publishing API operated by M/S Rose Creator (trading as letmepost.dev), a sole
             proprietorship based in India. This policy explains what we collect, why, and
             how you can have your data deleted.

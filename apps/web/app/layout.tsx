@@ -8,7 +8,7 @@ import { PageTransition } from "@/components/PageTransition";
 
 const SITE = "https://letmepost.dev";
 const DEFAULT_DESCRIPTION =
-  "Social media publishing API for developers and AI agents. Preflight validation, transparent errors, stable versions, idempotency by default.";
+  "Open-source social media publishing API for developers and AI agents. Preflight validation, transparent errors, stable versions, idempotency by default.";
 const OG_ALT = "letmepost.dev. Social media publishing that fails loudly.";
 
 export const metadata: Metadata = {
@@ -67,8 +67,11 @@ const DEFAULT_GRAPHS: Record<string, unknown>[] = [
     url: SITE,
     logo: `${SITE}/og-image.png`,
     description:
-      "Social media publishing API for developers and AI agents.",
-    sameAs: ["https://x.com/letmepostdotdev"],
+      "Open-source social media publishing API for developers and AI agents.",
+    sameAs: [
+      "https://github.com/rosekamallove/letmepost.dev",
+      "https://x.com/letmepostdotdev",
+    ],
   },
   {
     "@context": "https://schema.org",

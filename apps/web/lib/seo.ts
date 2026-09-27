@@ -51,7 +51,7 @@ export function pricingProductSchema(offers: PricingOffer[]) {
     "@id": `${SITE}/#product`,
     name: "letmepost.dev",
     description:
-      "Social media publishing API for developers and AI agents.",
+      "Open-source social media publishing API for developers and AI agents.",
     brand: { "@type": "Brand", name: "letmepost.dev" },
     image: `${SITE}/og-image.png`,
     url: `${SITE}/`,

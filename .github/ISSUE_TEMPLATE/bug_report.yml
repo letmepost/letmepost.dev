@@ -1,0 +1,106 @@
+name: Bug report
+description: Something in letmepost.dev is misbehaving. Use this for runtime issues, API misbehavior, dashboard bugs, or platform-publish failures.
+title: "bug: <short description>"
+labels: ["type:bug", "status:needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug. The more concrete the repro,
+        the faster we can land a fix — especially the **raw error envelope**
+        from a failing API response (we built the contract; help us use it).
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      description: Which part of the stack is misbehaving?
+      multiple: true
+      options:
+        - api (apps/api — HTTP / worker / publishers)
+        - dashboard (dashboard.letmepost.dev)
+        - web (letmepost.dev — marketing)
+        - docs (docs.letmepost.dev)
+        - sdk (TypeScript / Python / Go)
+        - mcp (hosted or stdio)
+        - cli (`lmp`)
+        - self-host
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform involved
+      description: If this is a publish bug, which social platform?
+      options:
+        - Not platform-specific
+        - Bluesky
+        - X / Twitter
+        - LinkedIn
+        - Facebook
+        - Instagram
+        - Threads
+        - Pinterest
+        - TikTok
+
+  - type: dropdown
+    id: env
+    attributes:
+      label: Environment
+      options:
+        - Hosted (letmepost.dev)
+        - Self-host
+        - Local dev
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: One paragraph — observed behavior, what you expected, why the gap matters.
+      placeholder: e.g., POST /v1/posts returned 200 but the post never showed up in the dashboard.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Numbered steps. A curl command or code snippet beats prose every time.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Error response envelope (if applicable)
+      description: |
+        The full JSON body returned by the API. The `code`, `rule`, `platform_response`,
+        and `request_id` fields are what we need most.
+      render: json
+
+  - type: input
+    id: request_id
+    attributes:
+      label: request_id
+      description: From the error envelope or `X-Request-Id` response header — lets us find the trace.
+      placeholder: req_01HY6X4AWBJM2K9F2PTQMRD9JQ
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: SDK version, dashboard build, or commit SHA you're on.
+      placeholder: e.g., @letmepost/sdk@0.4.2 or commit abc1234
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Screenshots, console logs, related issues, workarounds you tried.

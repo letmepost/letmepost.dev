@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
 // Wrap with Sentry so production builds upload source maps. Without this
 // the client-side Sentry config still captures errors but you see
 // minified frames in the dashboard. Inactive unless the three SENTRY_*
-// auth env vars are set, so local builds stay quiet.
+// auth env vars are set, so local builds and self-host stay quiet.
 export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,

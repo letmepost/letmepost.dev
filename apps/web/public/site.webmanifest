@@ -1,7 +1,7 @@
 {
   "name": "letmepost.dev",
   "short_name": "letmepost",
-  "description": "Social media publishing API that fails loudly.",
+  "description": "Open-source social media publishing API that fails loudly.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

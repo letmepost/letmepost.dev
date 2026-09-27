@@ -6,7 +6,7 @@ icon: arrow-right-arrow-left
 
 ## Why migrate
 
-[Ayrshare](https://ayrshare.com) is a SaaS social media API that has been around for years; it works well for plenty of teams. letmepost is an alternative for teams that want the same kind of API surface with two properties Ayrshare doesn't offer: a structured error envelope with stable rule ids and remediation, and request-level idempotency. If those properties matter to you, the migration is mostly a field rename.
+[Ayrshare](https://ayrshare.com) is a closed-source SaaS social media API that has been around for years; it works well for plenty of teams. letmepost is an alternative for teams that want the same kind of API surface with three properties Ayrshare doesn't offer: open source under Apache-2.0 with a self-host path as an escape hatch, a structured error envelope with stable rule ids and remediation, and request-level idempotency. If those properties matter to you, the migration is mostly a field rename.
 
 ## What changes
 
@@ -65,7 +65,7 @@ The biggest shape difference: Ayrshare implicitly picks the right connected acco
 
 <Steps>
 <Step title="Sign up and connect your accounts">
-- Create an account at [dashboard.letmepost.dev](https://dashboard.letmepost.dev).
+- Create an account at [dashboard.letmepost.dev](https://dashboard.letmepost.dev). If you want a self-host escape hatch, see [self-host](/self-host/quick-start) — same image, same contracts.
 - Mint an API key (Settings → API keys).
 - Connect each platform you currently publish to. letmepost uses each platform's OAuth flow; you'll re-authorize the same accounts against the letmepost app.
 - Copy each connected account's `id` from the dashboard — these become your `targets[].accountId` values.
@@ -104,6 +104,8 @@ Cancel your Ayrshare plan once parallel runs match. We're glad to have you.
 | Capability | Ayrshare | letmepost.dev |
 |---|---|---|
 | Hosted REST API | ✓ | ✓ |
+| Open source | — | ✓ (Apache-2.0) |
+| Self-hostable | — | ✓ ([guide](/self-host/quick-start)) |
 | Multi-target post in one request | ✓ (`platforms[]`) | ✓ (`targets[]`) |
 | Scheduled posts | ✓ | ✓ |
 | Preflight catalog with stable rule ids | — | ✓ ([preflight](/preflight)) |
@@ -121,4 +123,4 @@ letmepost is a publisher in v1 — analytics, inbox, and DMs are out of scope. I
 
 ## Need help
 
-Email rose@letmepost.dev. If you're migrating from Ayrshare, we'll prioritize debugging help.
+Open an issue on [GitHub](https://github.com/letmepost/letmepost.dev) or email rose@letmepost.dev. If you're migrating from Ayrshare, we'll prioritize debugging help.

@@ -54,9 +54,9 @@ export default function BillingPage() {
   const subQuery = useSubscription();
   const sub = subQuery.data;
 
-  // Instances with billing disabled render a calm informational state with
-  // zero CTAs. The /billing route still resolves (we don't 404) so deep links
-  // from docs or sidebar don't break — they just land on this short message.
+  // Self-host instances render a calm informational state with zero CTAs.
+  // The /billing route still resolves (we don't 404) so deep links from
+  // docs or sidebar don't break — they just land on this short message.
   if (sub?.tier === "self_host") {
     return (
       <div className="space-y-6">
@@ -68,10 +68,11 @@ export default function BillingPage() {
         </FadeIn>
         <Card>
           <CardHeader>
-            <CardTitle>Billing is disabled on this instance.</CardTitle>
+            <CardTitle>Self-hosted. Free, forever, by design.</CardTitle>
             <CardDescription>
-              Nothing to charge for, nothing to upgrade. The hosted service,
-              with managed Postgres, Redis, and platform app review, is at{" "}
+              You're running letmepost under Apache 2.0. Nothing to charge
+              for, nothing to upgrade. If you'd rather offload Postgres,
+              Redis, and Meta App Review to us, the hosted version is at{" "}
               <Link href="https://letmepost.dev" className="underline">
                 letmepost.dev
               </Link>

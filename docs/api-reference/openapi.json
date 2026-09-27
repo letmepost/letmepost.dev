@@ -3,11 +3,14 @@
   "info": {
     "title": "letmepost.dev API",
     "version": "v1",
-    "description": "Social media publishing API. Preflight validation, transparent errors, idempotency, stable platform versions.\n\nThe full developer documentation lives at [letmepost.dev/docs/](https://letmepost.dev/docs/). This reference is generated from the canonical Zod schemas at `packages/schemas/`.\n\n**Auth:** Bearer key in the `Authorization` header. See [Authentication](https://letmepost.dev/docs/authentication/).\n**Idempotency:** every write accepts `Idempotency-Key`. See [Idempotency](https://letmepost.dev/docs/idempotency/).\n**Errors:** stable envelope with `code`, `rule`, `platformResponse`, `remediation`, `docUrl`, `ruleUrl`. See [Errors](https://letmepost.dev/docs/errors/).",
+    "description": "Open-source social media publishing API. Preflight validation, transparent errors, idempotency, stable platform versions.\n\nThe full developer documentation lives at [letmepost.dev/docs/](https://letmepost.dev/docs/). This reference is generated from the canonical Zod schemas at `packages/schemas/`.\n\n**Auth:** Bearer key in the `Authorization` header. See [Authentication](https://letmepost.dev/docs/authentication/).\n**Idempotency:** every write accepts `Idempotency-Key`. See [Idempotency](https://letmepost.dev/docs/idempotency/).\n**Errors:** stable envelope with `code`, `rule`, `platformResponse`, `remediation`, `docUrl`, `ruleUrl`. See [Errors](https://letmepost.dev/docs/errors/).",
     "contact": {
       "name": "letmepost.dev",
-      "url": "https://letmepost.dev/contact",
-      "email": "support@letmepost.dev"
+      "url": "https://github.com/rosekamallove/letmepost.dev"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
     }
   },
   "servers": [

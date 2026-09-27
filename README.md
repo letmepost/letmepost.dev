@@ -1,11 +1,11 @@
 # letmepost.dev
 
-> **A social media publishing API that fails loudly.**
+> **An open-source social media publishing API that fails loudly.**
 > One `POST /v1/posts` across every platform. Stable error codes, the rule that failed, the raw platform body, and a remediation — on every failure. Never an empty `{ body: {} }`. No per-profile tax.
 
 An alternative to: **Ayrshare**, **Postiz**, **Buffer**, **Hootsuite**, **Hypefury**.
 
-> **Proprietary and confidential.** See [`LICENSE`](./LICENSE).
+[![CI](https://img.shields.io/github/actions/workflow/status/letmepost/letmepost.dev/ci.yml?branch=main&style=flat-square&color=2D7A4D&label=ci)](https://github.com/letmepost/letmepost.dev/actions/workflows/ci.yml) [![npm](https://img.shields.io/npm/v/@letmepost/sdk?style=flat-square&color=2D7A4D&label=%40letmepost%2Fsdk)](https://www.npmjs.com/package/@letmepost/sdk) [![License](https://img.shields.io/badge/License-Apache_2.0-2D7A4D.svg?style=flat-square)](https://opensource.org/license/apache-2-0) [![Stars](https://img.shields.io/github/stars/letmepost/letmepost.dev?style=flat-square&color=2D7A4D)](https://github.com/letmepost/letmepost.dev/stargazers) [![Issues](https://img.shields.io/github/issues/letmepost/letmepost.dev?style=flat-square&color=2D7A4D)](https://github.com/letmepost/letmepost.dev/issues) [![Good first issues](https://img.shields.io/github/issues/letmepost/letmepost.dev/good-first-issue?style=flat-square&color=7057ff&label=good%20first%20issues)](https://github.com/letmepost/letmepost.dev/issues?q=is%3Aissue+is%3Aopen+label%3Agood-first-issue) [![Docs](https://img.shields.io/badge/docs-letmepost.dev-2D7A4D.svg?style=flat-square)](https://docs.letmepost.dev)
 
 **[Website](https://letmepost.dev)** · **[Docs](https://docs.letmepost.dev)** · **[Quickstart](https://docs.letmepost.dev/quickstart)** · **[Dashboard](https://dashboard.letmepost.dev)** · **[API Reference](https://docs.letmepost.dev/api-reference)**
 
@@ -102,9 +102,36 @@ curl -X POST https://api.letmepost.dev/v1/posts \
 
 90-second walkthrough at [docs.letmepost.dev/quickstart](https://docs.letmepost.dev/quickstart).
 
-## Internal references
+## Contributing
 
-[`SECURITY.md`](./SECURITY.md) (vulnerability disclosure) · [`PRODUCT.md`](./PRODUCT.md) (the seven product principles) · [`TECH.md`](./TECH.md) (stack contract) · [`DEPLOY.md`](./DEPLOY.md) (production deploy) · [`plan.md`](./plan.md) (v1 status + pre-launch checklist).
+We build in the open. Outside contributions are how this becomes a primitive for **every** social platform, not just the eight we shipped first.
+
+**Pick a starting point:**
+
+- **[Good first issues](https://github.com/letmepost/letmepost.dev/issues?q=is%3Aissue+is%3Aopen+label%3Agood-first-issue)** — scoped, isolated, no DB-migration archeology required.
+- **[Help wanted](https://github.com/letmepost/letmepost.dev/issues?q=is%3Aissue+is%3Aopen+label%3Ahelp-wanted)** — medium tasks the maintainers can't get to.
+- **[Platform requests](https://github.com/letmepost/letmepost.dev/issues?q=is%3Aissue+is%3Aopen+label%3Atype%3Aplatform)** — Reddit, Mastodon, YouTube, Telegram, Discord, Google Business. Each issue mirrors the same publisher shape (provider + publisher + preflight + client). The walkthrough in [`CONTRIBUTING.md` §3](./CONTRIBUTING.md#3-platform-addition) is the canonical recipe — most additions are < 500 LOC.
+- **Found a bug?** Open one via the [bug-report template](https://github.com/letmepost/letmepost.dev/issues/new?template=bug_report.yml) — auto-applies the right labels and asks for the platform + repro + raw error envelope so triage doesn't ping-pong.
+
+**Before you open a PR**, skim [`CONTRIBUTING.md`](./CONTRIBUTING.md) — it documents the layering rules, the error contract, the pre-publish gate pattern, the testing approach (MSW + transaction rollback), and the commit style we follow. It's how new code reviews itself.
+
+[`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) · [`SECURITY.md`](./SECURITY.md) (vulnerability disclosure) · [`PRODUCT.md`](./PRODUCT.md) (the seven product principles) · [`TECH.md`](./TECH.md) (stack contract) · [`plan.md`](./plan.md) (v1 status + pre-launch checklist).
+
+## Self-host
+
+Apache 2.0 from day 0. The same code that runs `api.letmepost.dev` runs on your own infra — no feature gate, no open-core trick.
+
+```bash
+git clone https://github.com/rosekamallove/letmepost.dev
+cd letmepost.dev
+pnpm install
+cp apps/api/.env.example apps/api/.env             # fill in your platform OAuth credentials
+docker compose -f docker-compose.dev.yml up -d     # spins up Postgres + Redis only
+pnpm --filter @letmepost/api db:migrate
+pnpm dev                                           # API + dashboard in watch mode
+```
+
+The dev compose file ships Postgres + Redis. The API, worker, and dashboard run via `pnpm` — see [docs.letmepost.dev/self-host/quick-start](https://docs.letmepost.dev/self-host/quick-start) for the full walkthrough and [self-host/deploying](https://docs.letmepost.dev/self-host/deploying) for production patterns. BYO Postgres (or Neon), BYO Redis (or Upstash), BYO platform credentials. Hosted is permanently optional.
 
 ## Running locally (development)
 
@@ -112,9 +139,6 @@ curl -X POST https://api.letmepost.dev/v1/posts \
 
 ```bash
 pnpm install
-cp apps/api/.env.example apps/api/.env             # fill in platform OAuth credentials
-docker compose -f docker-compose.dev.yml up -d     # spins up Postgres + Redis only
-pnpm --filter @letmepost/api db:migrate
 pnpm dev            # API + web + dashboard in watch mode (turbo)
 pnpm test           # vitest across the workspace
 pnpm typecheck
@@ -142,7 +166,7 @@ packages/
   config-tsconfig/
 ```
 
-Landing as the stack grows: `packages/openapi/` (generated 3.1 spec), plus the `sdk-python` and `sdk-go` clients auto-generated from the spec. See [`TECH.md`](./TECH.md) for the full target tree.
+Landing as the stack grows: `packages/openapi/` (generated 3.1 spec), plus sibling repos `letmepost/sdk-python` and `letmepost/sdk-go` auto-generated from the spec. See [`TECH.md`](./TECH.md) for the full target tree.
 
 ## Tech stack
 
@@ -152,12 +176,17 @@ API contract details in [`TECH.md`](./TECH.md). Product principles in [`PRODUCT.
 
 ## Compliance
 
-- letmepost.dev is a social media publishing API.
+- letmepost.dev is an open-source, self-hosted-capable social media publishing API.
 - The hosted service uses **official, platform-approved OAuth flows** for every platform (Bluesky app-password is the documented Bluesky-supported alternative; everything else is OAuth 2.0 or OAuth 2.0 + PKCE).
 - letmepost.dev **does not scrape** content from social media platforms — every read or write is through the platform's documented API.
 - letmepost.dev **does not collect, store, or proxy** API keys or access tokens belonging to the integrating developer's end-users. Users authenticate directly with the social platform; tokens are AES-256-GCM encrypted at rest with per-row data keys.
 - letmepost.dev **never asks users to paste API keys** into the hosted product UI.
+- Self-host users supply their own platform credentials; no telemetry, no license check, no phone-home.
+
+## Star history
+
+[![Star History Chart](https://api.star-history.com/svg?repos=rosekamallove/letmepost.dev&type=Date)](https://www.star-history.com/#rosekamallove/letmepost.dev&Date)
 
 ## License
 
-Proprietary. Copyright (c) 2026 letmepost.dev. All rights reserved. See [`LICENSE`](./LICENSE).
+[Apache 2.0](./LICENSE). Permissive by design — you can build a commercial product on top of letmepost.dev without copyleft contagion. Same code in hosted and self-host.

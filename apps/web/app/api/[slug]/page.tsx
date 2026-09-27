@@ -84,7 +84,7 @@ export default async function ApiDetail({
   const learnMore = [
     { title: "API reference", body: "Full schema + examples", href: "https://docs.letmepost.dev/api-reference" },
     { title: "Quickstart", body: "90 seconds to first request", href: "https://docs.letmepost.dev/quickstart" },
-    { title: "Errors", body: "Every code, every remediation", href: "https://docs.letmepost.dev/errors" },
+    { title: "Self-host", body: "Same image, your infra", href: "https://docs.letmepost.dev/self-host" },
   ];
 
   const breadcrumbJsonLd = {
