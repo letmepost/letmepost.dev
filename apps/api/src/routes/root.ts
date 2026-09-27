@@ -1,28 +1,55 @@
 import { Hono, type Context } from "hono";
 import { docsBase } from "../errors.js";
 
+/** First hop of a possibly comma-chained forwarded header. */
+function firstHop(value: string | undefined): string | undefined {
+  return value?.split(",")[0]?.trim() || undefined;
+}
+
+/** `http` / `https` only — anything else is a malformed or hostile header. */
+function validProto(value: string | undefined): string | undefined {
+  return value === "http" || value === "https" ? value : undefined;
+}
+
+/** host[:port], no scheme, path, spaces or credentials. */
+function validHost(value: string | undefined): string | undefined {
+  return value && /^[A-Za-z0-9.\-]+(:\d{1,5})?$/.test(value)
+    ? value
+    : undefined;
+}
+
 /**
- * Public origin of the request, as the caller sees it.
+ * Public origin to advertise in the index, in order of trust:
  *
- * TLS terminates at the platform proxy, so `c.req.url` is plain `http://`
- * with the internal host — advertising it verbatim hands callers `http://`
- * links to an HTTPS-only API. Prefer the `X-Forwarded-*` pair the proxy
- * sets, falling back to the request URL for local dev where there is none.
+ *  1. `BETTER_AUTH_URL` — the configured public origin. Already required in
+ *     production and already the authority behind the `.well-known`
+ *     discovery documents, so sourcing it here keeps the OAuth link in this
+ *     index consistent with what those documents declare.
+ *  2. `X-Forwarded-Proto` / `X-Forwarded-Host` — for deployments that leave
+ *     the env unset. Taken as a pair: a forwarded proto combined with the
+ *     internal request host would advertise `https://internal:3000`, so
+ *     unless both are present and well-formed, neither is used.
+ *  3. The request URL — local dev, where no proxy is in front.
  *
- * Both headers may carry a comma-separated proxy chain; the first entry is
- * the original client-facing value. These are only echoed back into this
- * caller's own response, so a spoofed header misleads nobody but the sender.
+ * TLS terminates at the platform proxy, so the request URL alone is plain
+ * `http://` with the internal host; advertising it verbatim handed callers
+ * `http://` links to an HTTPS-only API.
  */
 function publicOrigin(c: Context): string {
-  const url = new URL(c.req.url);
-  const first = (value: string | undefined) =>
-    value?.split(",")[0]?.trim() || undefined;
+  const configured = process.env.BETTER_AUTH_URL?.trim();
+  if (configured) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      // Malformed env — fall through rather than emit a broken origin.
+    }
+  }
 
-  const proto = first(c.req.header("x-forwarded-proto")) ??
-    url.protocol.replace(/:$/, "");
-  const host = first(c.req.header("x-forwarded-host")) ?? url.host;
+  const proto = validProto(firstHop(c.req.header("x-forwarded-proto")));
+  const host = validHost(firstHop(c.req.header("x-forwarded-host")));
+  if (proto && host) return `${proto}://${host}`;
 
-  return `${proto}://${host}`;
+  return new URL(c.req.url).origin;
 }
 
 /**

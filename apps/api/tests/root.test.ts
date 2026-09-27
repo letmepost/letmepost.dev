@@ -19,9 +19,31 @@ type RootIndex = {
 const docsBase = () =>
   process.env.DOCS_BASE_URL ?? "https://docs.letmepost.dev";
 
-async function getRoot(url = "/") {
-  const res = await createApp().request(url);
+async function getRoot(url = "/", headers?: Record<string, string>) {
+  const res = await createApp().request(url, headers ? { headers } : undefined);
   return { res, body: (await res.json()) as RootIndex };
+}
+
+/** Run `fn` with env vars set to the given values, restoring them afterwards. */
+async function withEnv(
+  vars: Record<string, string | undefined>,
+  fn: () => Promise<void>,
+) {
+  const previous = new Map(
+    Object.keys(vars).map((k) => [k, process.env[k]] as const),
+  );
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    await fn();
+  } finally {
+    for (const [k, v] of previous) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 }
 
 describe("GET /", () => {
@@ -94,47 +116,79 @@ describe("GET /", () => {
     }
   });
 
-  it("derives self-referencing links from the request origin", async () => {
-    const { body } = await getRoot("http://localhost:3000/");
+  it("prefers the configured public origin", async () => {
+    await withEnv({ BETTER_AUTH_URL: "https://api.letmepost.dev" }, async () => {
+      const { body } = await getRoot("http://internal:3000/");
 
-    expect(body.endpoints.posts).toBe("http://localhost:3000/v1/posts");
-    expect(body.endpoints.health).toBe("http://localhost:3000/health");
-    expect(body.authentication.oauth.discovery).toBe(
-      "http://localhost:3000/.well-known/oauth-protected-resource/mcp",
-    );
+      expect(body.endpoints.posts).toBe("https://api.letmepost.dev/v1/posts");
+      expect(body.authentication.oauth.discovery).toBe(
+        "https://api.letmepost.dev/.well-known/oauth-protected-resource/mcp",
+      );
+    });
   });
 
   // Regression guard: TLS terminates at the Railway proxy, so c.req.url is
   // plain http:// with the internal host. The first deploy of this route
   // advertised "http://api.letmepost.dev/v1/posts" on an HTTPS-only API
   // because the tests set the scheme directly and never simulated a proxy.
-  it("advertises https when the proxy forwards it", async () => {
-    const res = await createApp().request("http://internal:3000/", {
-      headers: {
+  it("advertises https from the forwarded pair when no origin is configured", async () => {
+    await withEnv({ BETTER_AUTH_URL: undefined }, async () => {
+      const { body } = await getRoot("http://internal:3000/", {
         "x-forwarded-proto": "https",
         "x-forwarded-host": "api.letmepost.dev",
-      },
-    });
-    const body = (await res.json()) as RootIndex;
+      });
 
-    expect(body.endpoints.posts).toBe("https://api.letmepost.dev/v1/posts");
-    expect(body.endpoints.health).toBe("https://api.letmepost.dev/health");
-    expect(body.authentication.oauth.discovery).toBe(
-      "https://api.letmepost.dev/.well-known/oauth-protected-resource/mcp",
-    );
-    expect(JSON.stringify(body.endpoints)).not.toContain("http://");
+      expect(body.endpoints.posts).toBe("https://api.letmepost.dev/v1/posts");
+      expect(body.endpoints.health).toBe("https://api.letmepost.dev/health");
+      expect(JSON.stringify(body.endpoints)).not.toContain("http://");
+    });
   });
 
   it("takes the first hop when the proxy chain has several", async () => {
-    const res = await createApp().request("http://internal:3000/", {
-      headers: {
+    await withEnv({ BETTER_AUTH_URL: undefined }, async () => {
+      const { body } = await getRoot("http://internal:3000/", {
         "x-forwarded-proto": "https, http",
         "x-forwarded-host": "api.letmepost.dev, internal:3000",
-      },
-    });
-    const body = (await res.json()) as RootIndex;
+      });
 
-    expect(body.endpoints.posts).toBe("https://api.letmepost.dev/v1/posts");
+      expect(body.endpoints.posts).toBe("https://api.letmepost.dev/v1/posts");
+    });
+  });
+
+  // A forwarded proto with no forwarded host would otherwise pair https with
+  // the internal request host and publish "https://internal:3000/v1/posts".
+  it("ignores a forwarded proto that arrives without a host", async () => {
+    await withEnv({ BETTER_AUTH_URL: undefined }, async () => {
+      const { body } = await getRoot("http://internal:3000/", {
+        "x-forwarded-proto": "https",
+      });
+
+      expect(body.endpoints.posts).toBe("http://internal:3000/v1/posts");
+      expect(JSON.stringify(body.endpoints)).not.toContain("https://internal");
+    });
+  });
+
+  it("ignores malformed forwarded values rather than emitting broken links", async () => {
+    await withEnv({ BETTER_AUTH_URL: undefined }, async () => {
+      for (const headers of [
+        { "x-forwarded-proto": "ht tps", "x-forwarded-host": "api.letmepost.dev" },
+        { "x-forwarded-proto": "javascript", "x-forwarded-host": "api.letmepost.dev" },
+        { "x-forwarded-proto": "https", "x-forwarded-host": "evil.com/path" },
+        { "x-forwarded-proto": "https", "x-forwarded-host": "has space" },
+      ]) {
+        const { body } = await getRoot("http://internal:3000/", headers);
+        expect(body.endpoints.posts).toBe("http://internal:3000/v1/posts");
+      }
+    });
+  });
+
+  it("falls back to the request origin in local dev", async () => {
+    await withEnv({ BETTER_AUTH_URL: undefined }, async () => {
+      const { body } = await getRoot("http://localhost:3000/");
+
+      expect(body.endpoints.posts).toBe("http://localhost:3000/v1/posts");
+      expect(body.endpoints.health).toBe("http://localhost:3000/health");
+    });
   });
 
   it("honours DOCS_BASE_URL so staging describes itself", async () => {
