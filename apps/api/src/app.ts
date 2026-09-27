@@ -33,6 +33,7 @@ import { deauth } from "./routes/deauth.js";
 import { health } from "./routes/health.js";
 import { lemonSqueezy } from "./routes/lemonsqueezy.js";
 import { resendWebhook } from "./routes/resend.js";
+import { root } from "./routes/root.js";
 import { mcp } from "./routes/mcp.js";
 import { media } from "./routes/media.js";
 import { oauthExchange } from "./routes/oauth-exchange.js";
@@ -198,6 +199,9 @@ export function createApp(options: AppOptions = {}) {
     app.route("/v1/billing", billingRoutes);
   }
 
+  // Service index at the bare origin. Only matches `/` exactly, so it never
+  // shadows the mounts below.
+  app.route("/", root);
   app.route("/health", health);
   app.route("/posts", posts);
   app.route("/v1/posts", posts);

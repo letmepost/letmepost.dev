@@ -8,7 +8,7 @@ import { captureUnexpected } from "./observability/sentry.js";
  * Base URL for the public docs. Overridable via `DOCS_BASE_URL` so staging /
  * preview deploys can point at a docs branch without rebuilding the API.
  */
-function docsBase(): string {
+export function docsBase(): string {
   return process.env.DOCS_BASE_URL ?? "https://docs.letmepost.dev";
 }
 
