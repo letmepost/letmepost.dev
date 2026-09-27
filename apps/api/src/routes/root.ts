@@ -31,34 +31,39 @@ root.get("/", (c) => {
       openapi: `${docs}/api-reference/openapi.json`,
       errors: `${docs}/errors`,
     },
-    // Each entry states its own auth requirement. Not every surface takes an
-    // API key: the org-management routes are dashboard-session only, so a
-    // flat "use Bearer" hint here would send callers into a 401.
+    // URLs only. Auth varies by operation, not by path — GET /v1/accounts
+    // takes a Bearer key while DELETE /v1/accounts/:id is dashboard-session
+    // only — and the OpenAPI spec already encodes that per operation via
+    // `security`. Restating it here would be a second source of truth that
+    // silently rots, so callers are pointed at the spec instead.
     endpoints: {
-      posts: { url: `${origin}/v1/posts`, auth: "api_key_or_session" },
-      media: { url: `${origin}/v1/media`, auth: "api_key_or_session" },
-      webhookEndpoints: {
-        url: `${origin}/v1/webhook-endpoints`,
-        auth: "api_key_or_session",
-      },
-      mcp: { url: `${origin}/mcp`, auth: "api_key" },
-      accounts: { url: `${origin}/v1/accounts`, auth: "session" },
-      profiles: { url: `${origin}/v1/profiles`, auth: "session" },
-      apiKeys: { url: `${origin}/v1/api-keys`, auth: "session" },
-      billing: { url: `${origin}/v1/billing`, auth: "session" },
-      health: { url: `${origin}/health`, auth: "none" },
+      posts: `${origin}/v1/posts`,
+      media: `${origin}/v1/media`,
+      accounts: `${origin}/v1/accounts`,
+      profiles: `${origin}/v1/profiles`,
+      webhookEndpoints: `${origin}/v1/webhook-endpoints`,
+      apiKeys: `${origin}/v1/api-keys`,
+      billing: `${origin}/v1/billing`,
+      mcp: `${origin}/mcp`,
+      health: `${origin}/health`,
     },
     authentication: {
-      api_key: {
+      apiKey: {
         scheme: "Bearer",
         header: "Authorization: Bearer lmp_live_…",
         mint: "https://dashboard.letmepost.dev",
       },
       session: {
         description:
-          "better-auth session cookie. Org-management endpoints are dashboard-only and do not accept API keys.",
+          "better-auth session cookie. Org-management operations (connecting or disconnecting an account, profiles, API keys, billing) are dashboard-only.",
         dashboard: "https://dashboard.letmepost.dev",
       },
+      oauth: {
+        description:
+          "OAuth 2.1 with Dynamic Client Registration, for MCP clients. Discovery lives under /.well-known.",
+        discovery: `${origin}/.well-known/oauth-protected-resource`,
+      },
+      perOperation: `${docs}/api-reference/openapi.json`,
       docs: `${docs}/authentication`,
     },
     source: "https://github.com/letmepost/letmepost.dev",

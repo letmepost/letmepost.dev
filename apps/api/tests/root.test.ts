@@ -1,28 +1,17 @@
 import { describe, it, expect } from "vitest";
 import { createApp } from "../src/app.js";
 
-type Endpoint = { url: string; auth: string };
-
-type EndpointName =
-  | "posts"
-  | "media"
-  | "webhookEndpoints"
-  | "mcp"
-  | "accounts"
-  | "profiles"
-  | "apiKeys"
-  | "billing"
-  | "health";
-
 type RootIndex = {
   name: string;
   version: string;
   status: string;
-  documentation: Record<string, string>;
-  endpoints: Record<EndpointName, Endpoint>;
+  documentation: Record<string, string | undefined>;
+  endpoints: Record<string, string | undefined>;
   authentication: {
-    api_key: Record<string, string>;
-    session: Record<string, string>;
+    apiKey: { scheme: string; header: string; mint: string };
+    session: { description: string; dashboard: string };
+    oauth: { description: string; discovery: string };
+    perOperation: string;
     docs: string;
   };
 };
@@ -53,44 +42,63 @@ describe("GET /", () => {
     expect(body.documentation.openapi).toBe(
       `${docsBase()}/api-reference/openapi.json`,
     );
-    expect(body.endpoints.posts.url).toMatch(/\/v1\/posts$/);
-    expect(body.endpoints.mcp.url).toMatch(/\/mcp$/);
+    expect(body.endpoints.posts).toMatch(/\/v1\/posts$/);
+    expect(body.endpoints.mcp).toMatch(/\/mcp$/);
   });
 
-  // Regression guard: an earlier draft advertised a single Bearer scheme for
-  // every endpoint, which would send callers to /v1/api-keys into a 401.
-  it("labels session-only endpoints so callers don't send an API key", async () => {
+  it("lists every public surface", async () => {
     const { body } = await getRoot();
 
-    expect(body.endpoints.accounts.auth).toBe("session");
-    expect(body.endpoints.profiles.auth).toBe("session");
-    expect(body.endpoints.apiKeys.auth).toBe("session");
-    expect(body.endpoints.billing.auth).toBe("session");
-
-    expect(body.endpoints.posts.auth).toBe("api_key_or_session");
-    expect(body.endpoints.media.auth).toBe("api_key_or_session");
-    expect(body.endpoints.webhookEndpoints.auth).toBe("api_key_or_session");
-    expect(body.endpoints.mcp.auth).toBe("api_key");
-    expect(body.endpoints.health.auth).toBe("none");
-  });
-
-  it("every endpoint declares a recognised auth mode", async () => {
-    const { body } = await getRoot();
-    const allowed = ["api_key", "session", "api_key_or_session", "none"];
-
-    for (const [name, entry] of Object.entries(body.endpoints)) {
-      expect(allowed, `${name} has an unrecognised auth mode`).toContain(
-        entry.auth,
+    for (const name of [
+      "posts",
+      "media",
+      "accounts",
+      "profiles",
+      "webhookEndpoints",
+      "apiKeys",
+      "billing",
+      "mcp",
+      "health",
+    ]) {
+      expect(body.endpoints[name], `${name} is missing`).toMatch(
+        /^https?:\/\//,
       );
-      expect(entry.url, `${name} is missing a url`).toMatch(/^https?:\/\//);
+    }
+  });
+
+  // Regression guard: earlier drafts claimed a per-path auth mode here and got
+  // it wrong twice — auth varies by operation (GET /v1/accounts takes a Bearer
+  // key, DELETE /v1/accounts/:id does not). The spec is the authority; the
+  // index must name all three schemes and point at it rather than restate it.
+  it("names every auth scheme and defers per-operation detail to the spec", async () => {
+    const { body } = await getRoot();
+
+    expect(body.authentication.apiKey.scheme).toBe("Bearer");
+    expect(body.authentication.session.dashboard).toContain("dashboard");
+    expect(body.authentication.oauth.discovery).toMatch(
+      /\/\.well-known\/oauth-protected-resource$/,
+    );
+    expect(body.authentication.perOperation).toBe(
+      `${docsBase()}/api-reference/openapi.json`,
+    );
+  });
+
+  it("does not restate a per-path auth mode that would drift from the spec", async () => {
+    const { body } = await getRoot();
+
+    for (const value of Object.values(body.endpoints)) {
+      expect(typeof value).toBe("string");
     }
   });
 
   it("derives self-referencing links from the request origin", async () => {
     const { body } = await getRoot("http://localhost:3000/");
 
-    expect(body.endpoints.posts.url).toBe("http://localhost:3000/v1/posts");
-    expect(body.endpoints.health.url).toBe("http://localhost:3000/health");
+    expect(body.endpoints.posts).toBe("http://localhost:3000/v1/posts");
+    expect(body.endpoints.health).toBe("http://localhost:3000/health");
+    expect(body.authentication.oauth.discovery).toBe(
+      "http://localhost:3000/.well-known/oauth-protected-resource",
+    );
   });
 
   it("honours DOCS_BASE_URL so staging describes itself", async () => {
