@@ -60,10 +60,13 @@ root.get("/", (c) => {
       },
       oauth: {
         description:
-          "OAuth 2.1 with Dynamic Client Registration, for MCP clients. Discovery lives under /.well-known.",
-        discovery: `${origin}/.well-known/oauth-protected-resource`,
+          "OAuth 2.1 with Dynamic Client Registration, for MCP clients. The resource identifier is /mcp, so discovery is the /mcp-suffixed document per RFC 9728.",
+        discovery: `${origin}/.well-known/oauth-protected-resource/mcp`,
       },
-      perOperation: `${docs}/api-reference/openapi.json`,
+      // Deliberately points at the prose docs, not the OpenAPI spec: the spec
+      // only models the Bearer scheme, so it marks dashboard-session-only
+      // operations as `security: []`, which a spec reader would take to mean
+      // "public" rather than "session required".
       docs: `${docs}/authentication`,
     },
     source: "https://github.com/letmepost/letmepost.dev",

@@ -11,7 +11,6 @@ type RootIndex = {
     apiKey: { scheme: string; header: string; mint: string };
     session: { description: string; dashboard: string };
     oauth: { description: string; discovery: string };
-    perOperation: string;
     docs: string;
   };
 };
@@ -68,19 +67,23 @@ describe("GET /", () => {
 
   // Regression guard: earlier drafts claimed a per-path auth mode here and got
   // it wrong twice — auth varies by operation (GET /v1/accounts takes a Bearer
-  // key, DELETE /v1/accounts/:id does not). The spec is the authority; the
-  // index must name all three schemes and point at it rather than restate it.
-  it("names every auth scheme and defers per-operation detail to the spec", async () => {
+  // key, DELETE /v1/accounts/:id does not). The index must name all three
+  // schemes and defer to the prose docs rather than restate the matrix.
+  it("names every auth scheme and defers detail to the prose docs", async () => {
     const { body } = await getRoot();
 
     expect(body.authentication.apiKey.scheme).toBe("Bearer");
     expect(body.authentication.session.dashboard).toContain("dashboard");
-    expect(body.authentication.oauth.discovery).toMatch(
-      /\/\.well-known\/oauth-protected-resource$/,
-    );
-    expect(body.authentication.perOperation).toBe(
-      `${docsBase()}/api-reference/openapi.json`,
-    );
+    expect(body.authentication.docs).toBe(`${docsBase()}/authentication`);
+  });
+
+  // The OpenAPI spec models only the Bearer scheme and marks session-only
+  // operations `security: []`, which reads as "public". The index must not
+  // send callers there for the auth answer.
+  it("does not name the OpenAPI spec as the authentication authority", async () => {
+    const { body } = await getRoot();
+
+    expect(JSON.stringify(body.authentication)).not.toContain("openapi.json");
   });
 
   it("does not restate a per-path auth mode that would drift from the spec", async () => {
@@ -97,7 +100,7 @@ describe("GET /", () => {
     expect(body.endpoints.posts).toBe("http://localhost:3000/v1/posts");
     expect(body.endpoints.health).toBe("http://localhost:3000/health");
     expect(body.authentication.oauth.discovery).toBe(
-      "http://localhost:3000/.well-known/oauth-protected-resource",
+      "http://localhost:3000/.well-known/oauth-protected-resource/mcp",
     );
   });
 
