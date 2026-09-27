@@ -1,14 +1,35 @@
 import { describe, it, expect } from "vitest";
 import { createApp } from "../src/app.js";
 
+type Endpoint = { url: string; auth: string };
+
+type EndpointName =
+  | "posts"
+  | "media"
+  | "webhookEndpoints"
+  | "mcp"
+  | "accounts"
+  | "profiles"
+  | "apiKeys"
+  | "billing"
+  | "health";
+
 type RootIndex = {
   name: string;
   version: string;
   status: string;
   documentation: Record<string, string>;
-  endpoints: Record<string, string>;
-  authentication: Record<string, string>;
+  endpoints: Record<EndpointName, Endpoint>;
+  authentication: {
+    api_key: Record<string, string>;
+    session: Record<string, string>;
+    docs: string;
+  };
 };
+
+/** Mirrors the route's own default so the suite passes with or without the override set. */
+const docsBase = () =>
+  process.env.DOCS_BASE_URL ?? "https://docs.letmepost.dev";
 
 async function getRoot(url = "/") {
   const res = await createApp().request(url);
@@ -30,18 +51,46 @@ describe("GET /", () => {
     const { body } = await getRoot();
 
     expect(body.documentation.openapi).toBe(
-      "https://docs.letmepost.dev/api-reference/openapi.json",
+      `${docsBase()}/api-reference/openapi.json`,
     );
-    expect(body.endpoints.posts).toMatch(/\/v1\/posts$/);
-    expect(body.endpoints.mcp).toMatch(/\/mcp$/);
-    expect(body.authentication.scheme).toBe("Bearer");
+    expect(body.endpoints.posts.url).toMatch(/\/v1\/posts$/);
+    expect(body.endpoints.mcp.url).toMatch(/\/mcp$/);
+  });
+
+  // Regression guard: an earlier draft advertised a single Bearer scheme for
+  // every endpoint, which would send callers to /v1/api-keys into a 401.
+  it("labels session-only endpoints so callers don't send an API key", async () => {
+    const { body } = await getRoot();
+
+    expect(body.endpoints.accounts.auth).toBe("session");
+    expect(body.endpoints.profiles.auth).toBe("session");
+    expect(body.endpoints.apiKeys.auth).toBe("session");
+    expect(body.endpoints.billing.auth).toBe("session");
+
+    expect(body.endpoints.posts.auth).toBe("api_key_or_session");
+    expect(body.endpoints.media.auth).toBe("api_key_or_session");
+    expect(body.endpoints.webhookEndpoints.auth).toBe("api_key_or_session");
+    expect(body.endpoints.mcp.auth).toBe("api_key");
+    expect(body.endpoints.health.auth).toBe("none");
+  });
+
+  it("every endpoint declares a recognised auth mode", async () => {
+    const { body } = await getRoot();
+    const allowed = ["api_key", "session", "api_key_or_session", "none"];
+
+    for (const [name, entry] of Object.entries(body.endpoints)) {
+      expect(allowed, `${name} has an unrecognised auth mode`).toContain(
+        entry.auth,
+      );
+      expect(entry.url, `${name} is missing a url`).toMatch(/^https?:\/\//);
+    }
   });
 
   it("derives self-referencing links from the request origin", async () => {
     const { body } = await getRoot("http://localhost:3000/");
 
-    expect(body.endpoints.posts).toBe("http://localhost:3000/v1/posts");
-    expect(body.endpoints.health).toBe("http://localhost:3000/health");
+    expect(body.endpoints.posts.url).toBe("http://localhost:3000/v1/posts");
+    expect(body.endpoints.health.url).toBe("http://localhost:3000/health");
   });
 
   it("honours DOCS_BASE_URL so staging describes itself", async () => {
