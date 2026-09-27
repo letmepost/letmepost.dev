@@ -104,6 +104,39 @@ describe("GET /", () => {
     );
   });
 
+  // Regression guard: TLS terminates at the Railway proxy, so c.req.url is
+  // plain http:// with the internal host. The first deploy of this route
+  // advertised "http://api.letmepost.dev/v1/posts" on an HTTPS-only API
+  // because the tests set the scheme directly and never simulated a proxy.
+  it("advertises https when the proxy forwards it", async () => {
+    const res = await createApp().request("http://internal:3000/", {
+      headers: {
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "api.letmepost.dev",
+      },
+    });
+    const body = (await res.json()) as RootIndex;
+
+    expect(body.endpoints.posts).toBe("https://api.letmepost.dev/v1/posts");
+    expect(body.endpoints.health).toBe("https://api.letmepost.dev/health");
+    expect(body.authentication.oauth.discovery).toBe(
+      "https://api.letmepost.dev/.well-known/oauth-protected-resource/mcp",
+    );
+    expect(JSON.stringify(body.endpoints)).not.toContain("http://");
+  });
+
+  it("takes the first hop when the proxy chain has several", async () => {
+    const res = await createApp().request("http://internal:3000/", {
+      headers: {
+        "x-forwarded-proto": "https, http",
+        "x-forwarded-host": "api.letmepost.dev, internal:3000",
+      },
+    });
+    const body = (await res.json()) as RootIndex;
+
+    expect(body.endpoints.posts).toBe("https://api.letmepost.dev/v1/posts");
+  });
+
   it("honours DOCS_BASE_URL so staging describes itself", async () => {
     const previous = process.env.DOCS_BASE_URL;
     process.env.DOCS_BASE_URL = "https://docs-staging.letmepost.dev";

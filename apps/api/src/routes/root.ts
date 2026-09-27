@@ -1,5 +1,29 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { docsBase } from "../errors.js";
+
+/**
+ * Public origin of the request, as the caller sees it.
+ *
+ * TLS terminates at the platform proxy, so `c.req.url` is plain `http://`
+ * with the internal host — advertising it verbatim hands callers `http://`
+ * links to an HTTPS-only API. Prefer the `X-Forwarded-*` pair the proxy
+ * sets, falling back to the request URL for local dev where there is none.
+ *
+ * Both headers may carry a comma-separated proxy chain; the first entry is
+ * the original client-facing value. These are only echoed back into this
+ * caller's own response, so a spoofed header misleads nobody but the sender.
+ */
+function publicOrigin(c: Context): string {
+  const url = new URL(c.req.url);
+  const first = (value: string | undefined) =>
+    value?.split(",")[0]?.trim() || undefined;
+
+  const proto = first(c.req.header("x-forwarded-proto")) ??
+    url.protocol.replace(/:$/, "");
+  const host = first(c.req.header("x-forwarded-host")) ?? url.host;
+
+  return `${proto}://${host}`;
+}
 
 /**
  * Service index for the bare API origin. `GET https://api.letmepost.dev/`
@@ -15,7 +39,7 @@ import { docsBase } from "../errors.js";
 export const root = new Hono();
 
 root.get("/", (c) => {
-  const origin = new URL(c.req.url).origin;
+  const origin = publicOrigin(c);
   const docs = docsBase();
 
   return c.json({
