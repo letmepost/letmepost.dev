@@ -1,0 +1,15 @@
+name: letmepost.dev
+website_url: https://letmepost.dev
+source_code_url: https://github.com/letmepost/letmepost.dev
+description: Social media publishing API and MCP server. Post to Bluesky, X,
+  LinkedIn, Instagram, Facebook, Threads, and Pinterest from one endpoint with
+  preflight validation, transparent error contracts, idempotent retries, and
+  webhook receipts (alternative to Buffer, Hootsuite, Ayrshare).
+licenses:
+  - Apache-2.0
+platforms:
+  - Docker
+  - Nodejs
+tags:
+  - Automation
+depends_3rdparty: true

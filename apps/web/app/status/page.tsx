@@ -57,9 +57,15 @@ export default function Status() {
           <h2>Subscribing</h2>
           <p>
             Once the status endpoints are wired, you&apos;ll be able to subscribe
-            via RSS, email, or a webhook. Until then, the{" "}
-            <a href="https://docs.letmepost.dev/changelog">changelog</a> is the
-            source of truth.
+            via RSS, email, or a webhook. Until then,{" "}
+            <a
+              href="https://github.com/rosekamallove/letmepost.dev"
+              rel="noopener"
+              target="_blank"
+            >
+              the GitHub repo
+            </a>{" "}
+            is the source of truth.
           </p>
         </div>
       </section>

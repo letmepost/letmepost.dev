@@ -3,6 +3,11 @@
   "name": "io.github.rosekamallove/letmepost",
   "description": "MCP server for letmepost.dev. Publish across 8 social platforms from any agent.",
   "version": "0.2.1",
+  "repository": {
+    "url": "https://github.com/letmepost/letmepost.dev",
+    "source": "github",
+    "subfolder": "apps/mcp"
+  },
   "websiteUrl": "https://letmepost.dev/agents",
   "packages": [
     {
@@ -22,7 +27,7 @@
         },
         {
           "name": "LMP_API_BASE",
-          "description": "Override the API host. Defaults to https://api.letmepost.dev.",
+          "description": "Override for self-hosted deployments. Defaults to https://api.letmepost.dev.",
           "isRequired": false,
           "format": "string",
           "isSecret": false

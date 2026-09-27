@@ -1,0 +1,102 @@
+name: Platform request
+description: Request a new social platform integration (Reddit, Mastodon, YouTube, etc.).
+title: "platform: add <platform-name> publisher"
+labels: ["type:platform", "status:needs-triage", "help-wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Each platform follows the same shape — provider + publisher + preflight + client.
+        The walkthrough in
+        **[`CONTRIBUTING.md` §3](https://github.com/letmepost/letmepost.dev/blob/main/CONTRIBUTING.md#3-platform-addition)**
+        is the canonical recipe. Most platform additions are < 500 LOC of new code
+        once the upstream account + scopes are sorted.
+
+        If you're requesting **and** willing to implement, please say so below —
+        we'll prioritize review and unblock anything that needs maintainer attention.
+
+  - type: input
+    id: name
+    attributes:
+      label: Platform name
+      description: The display name as users would recognize it.
+      placeholder: e.g., Reddit, Mastodon, YouTube
+    validations:
+      required: true
+
+  - type: input
+    id: slug
+    attributes:
+      label: Proposed slug
+      description: The kebab-case identifier we'd add to the `Platform` enum and route under `/v1/accounts/connect/<slug>`.
+      placeholder: e.g., reddit, mastodon, youtube
+    validations:
+      required: true
+
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Auth model
+      options:
+        - OAuth 2.0
+        - OAuth 2.0 + PKCE
+        - OAuth 1.0a
+        - API key / token
+        - Username + app-password
+        - Other (describe below)
+    validations:
+      required: true
+
+  - type: input
+    id: docs
+    attributes:
+      label: Upstream API documentation
+      description: Link to the official platform docs for the publish/post endpoint.
+      placeholder: https://...
+    validations:
+      required: true
+
+  - type: textarea
+    id: scopes
+    attributes:
+      label: Required OAuth scopes
+      description: List the scopes you'd need to request from the user during connect.
+      placeholder: |
+        - identity
+        - submit
+        - read
+
+  - type: textarea
+    id: caps
+    attributes:
+      label: Content capabilities & preflight rules
+      description: |
+        What content types does this platform accept? Text limits, media constraints,
+        platform-specific gotchas worth surfacing as preflight rules.
+      placeholder: |
+        - Text: 40,000 chars max
+        - Image: jpg/png/gif up to 20MB
+        - Video: mp4 up to 1GB, 15-min cap
+        - Subreddit must be set; flair required for some subs
+
+  - type: textarea
+    id: approval
+    attributes:
+      label: Approval / audit requirements
+      description: Does the platform require an app review, business verification, restricted scopes, or production-tier signup before publishing to non-developer accounts?
+      placeholder: e.g., "Reddit OAuth client requires a personal account; no formal review for r/* posts."
+
+  - type: checkboxes
+    id: willing
+    attributes:
+      label: Implementation
+      options:
+        - label: I'd like to implement this myself (follow `CONTRIBUTING.md` §3)
+        - label: I have a working developer account on this platform and can test
+        - label: I'd help with review / testing if someone else picks it up
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Prior art (how other tools publish to this platform), limitations, dealbreakers.

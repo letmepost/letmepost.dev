@@ -1,0 +1,151 @@
+---
+title: Troubleshooting
+description: Common boot failures, what they mean, and how to fix them.
+icon: stethoscope
+---
+
+If something's wrong, the API tends to fail loudly and early — a missing required env var crashes on boot with the variable name in the message, not a silent misroute. This page collects the recurring problems we've seen.
+
+If your issue isn't here, [open one on GitHub](https://github.com/rosekamallove/letmepost.dev/issues) with the error message and your environment (host platform, Postgres + Redis providers, anything non-default).
+
+## Boot failures
+
+### `KEK_MASTER env var is required`
+
+Generate one:
+
+```bash
+openssl rand -base64 32
+```
+
+Paste it into `KEK_MASTER` in your `.env` (dev) or your platform's variable store (prod). Make sure the **api** and **worker** services have the **same** value — the worker decrypts tokens the api wrote.
+
+If you change `KEK_MASTER` on an instance that already has connected accounts, every encrypted token becomes unreadable. There is no automatic re-wrap today; rotation requires a script that decrypts with the old key and re-encrypts with the new.
+
+### `S3_BUCKET env var is required for the media upload service`
+
+You hit a code path that needs media S3 before configuring the bucket. Set the full set in [environment](/self-host/environment#media-s3):
+
+```bash
+AWS_REGION=us-east-1
+S3_BUCKET=your-bucket
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+MEDIA_PUBLIC_BASE_URL=https://your-bucket.s3.us-east-1.amazonaws.com
+MEDIA_ENV_PREFIX=prod
+```
+
+The S3 client is lazy — text-only posts don't require these vars to boot the server, but any media upload will.
+
+### `connection refused` to Postgres or Redis on local dev
+
+The dev compose maps containers to non-standard host ports so they don't collide with anything already running on `:5432` / `:6379`:
+
+| Service  | Host port | Container port |
+|----------|-----------|----------------|
+| Postgres | `5433`    | `5432`         |
+| Redis    | `6380`    | `6379`         |
+
+Your `DATABASE_URL` and `REDIS_URL` need to use the host port:
+
+```bash
+DATABASE_URL=postgres://letmepost:letmepost@localhost:5433/letmepost
+REDIS_URL=redis://localhost:6380
+```
+
+Verify the containers are up:
+
+```bash
+docker compose -f docker-compose.dev.yml ps
+```
+
+### Migrations don't apply on deploy
+
+Both `start:api` and `start:worker` are wired with very different boot sequences:
+
+- `start:api` runs `node dist/db/migrate.js && node dist/server.js` — migrations then server.
+- `start:worker` runs `node dist/queue/worker.js` — no migrations.
+
+If you accidentally point both services at `start:worker`, neither will apply pending migrations and the API will fail on the first request that touches a new column. Check the worker's start command — it should be `pnpm --filter @letmepost/api start:worker` and **the api's** should be `pnpm --filter @letmepost/api start:api`.
+
+## OAuth and connect flows
+
+### `platform_auth_failed` immediately after redirecting from the provider
+
+The most common cause is a redirect URI mismatch. The OAuth provider compares the `redirect_uri` you sent against the one registered on the app — they must match **character for character**, including scheme, port, trailing slash, and case.
+
+Check that the redirect URI registered on the platform's developer portal matches:
+
+```
+${BETTER_AUTH_URL}/v1/accounts/oauth/<platform>/callback
+```
+
+Where `${BETTER_AUTH_URL}` is whatever the API has set in env (e.g. `http://localhost:3000` in dev, `https://api.your-domain.example` in prod). The trailing path `/v1/accounts/oauth/<platform>/callback` is the same on every platform — only the platform name changes.
+
+See [platform credentials](/self-host/platform-credentials) for the exact redirect URI per platform. Common gotchas:
+
+- **Facebook:** the path is `/facebook/callback`, **not** `/meta/callback`. Older docs were wrong about this.
+- **Instagram:** uses a **separate** OAuth app from Facebook Pages — its own client id, its own redirect URI, its own scope namespace.
+- **Threads:** authorize URL is `https://threads.net/oauth/authorize`, not `facebook.com/dialog/oauth`. It has its own client credentials too.
+
+### Pinterest: "use sandbox" error on pin creation
+
+Pinterest's developer apps start in **Trial Access** and pin creation against production (`api.pinterest.com`) is hard-blocked with an explicit "use sandbox" error until Standard Access is approved. While you wait:
+
+```bash
+PINTEREST_API_BASE=https://api-sandbox.pinterest.com/v5
+```
+
+This affects every `/v5/*` call **and** the OAuth token-exchange endpoint, since both live under the same host. Clear the variable once Standard Access is approved — it defaults back to `https://api.pinterest.com/v5`.
+
+### Meta App Review takes forever and posts fail
+
+Meta App Review takes 2–8 weeks per cycle and rejections are normal. While you wait, build against **Development Mode + Tester accounts** — same Graph API endpoints, same response shapes; review only lifts the testers-only gate. Add your test users as Testers on the app, and the production Graph API will accept their tokens immediately.
+
+Business verification is required before submitting for review.
+
+## Runtime
+
+### Worker not picking up jobs
+
+Posts stay `queued` indefinitely. Check:
+
+1. **The worker process is running.** A common cause is starting both services with `start:api`, leaving no consumer on the queues. The worker should be running `pnpm --filter @letmepost/api start:worker`.
+2. **`REDIS_URL` is the same on both services.** They communicate exclusively through Redis — different URLs means no jobs flow between them.
+3. **The worker can reach Redis.** Check its logs for `ECONNREFUSED` or BullMQ errors. Managed Redis providers sometimes need `rediss://` (TLS) instead of `redis://`.
+
+### Posts publish but the dashboard log is empty
+
+Check `CORS_ORIGINS` and `TRUSTED_ORIGINS` — the dashboard fetches the post log via the API, and a missing origin will block the request. The dashboard origin must be in both lists. In a cross-subdomain prod setup, `COOKIE_DOMAIN` also needs to be set to the parent domain with a leading dot (e.g. `.your-domain.example`) so the session cookie is readable by the dashboard host.
+
+### Error `docUrl` and `ruleUrl` point at the wrong site
+
+Set `DOCS_BASE_URL` to your docs origin. The default is `https://docs.letmepost.dev` — every error envelope stamps `error.docUrl` and `error.ruleUrl` (when a preflight rule fires) using this prefix.
+
+```bash
+DOCS_BASE_URL=https://docs.your-domain.example
+```
+
+## Infrastructure
+
+### S3-compatible storage
+
+The current build instantiates the AWS S3 client without an `endpoint` override, so by default it talks only to AWS S3. Self-hosting with Cloudflare R2, MinIO, Wasabi, or any S3-compatible provider needs a small code change to pass `endpoint` into the `S3Client` constructor in `apps/api/src/media/s3.ts`. The fields you'd want from env: `S3_ENDPOINT` (or similar) wired through `getS3Client()`.
+
+Drop an issue or PR on the repo if you need this — it's a known gap and the fix is small.
+
+### Postgres + Redis must persist
+
+The dev compose ships ephemeral volumes — fine for local development, **never** ship that to prod. Use managed Postgres (Neon, RDS, Supabase, Postgres you operate) and managed Redis (Upstash, ElastiCache, Redis you operate) with real durability. Both stores are load-bearing: Postgres holds every account, post, key, and webhook endpoint; Redis holds in-flight job state and the idempotency replay cache.
+
+### Same `KEK_MASTER` on every replica
+
+If you scale the api or worker horizontally, every replica needs the same `KEK_MASTER`. They're all decrypting the same tokens from the same database. A mismatch produces opaque crypto errors on the post path — usually `unsupported state or unable to authenticate data` from the AES-GCM verifier.
+
+## Getting help
+
+Still stuck:
+
+- Re-read the error message. The API tries to make boot-time failures self-describing — the exact variable name or platform call is usually in the message.
+- Check the `requestId` on any error envelope and grep your logs.
+- Open an issue at [github.com/rosekamallove/letmepost.dev/issues](https://github.com/rosekamallove/letmepost.dev/issues) with the error, your host platform, and which step you were on.

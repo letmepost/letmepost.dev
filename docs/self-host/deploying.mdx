@@ -1,0 +1,118 @@
+---
+title: Deploying
+description: Two-service split, managed Postgres + Redis, custom domain, zero-downtime migrations.
+icon: ship
+---
+
+The hosted service runs on Railway with a managed Neon (Postgres) + Upstash (Redis) stack. The same `apps/api/Dockerfile` is the artifact you ship — there is no separate "OSS" image. Whether you use Railway, Fly, Render, ECS, or plain Kubernetes, the moving parts are the same.
+
+## Architecture: two services, one image
+
+The API container has two entry points and you run them as **two separate services** in production:
+
+| Service | Start command | Public port | What it does |
+|---|---|---|---|
+| **api** | `pnpm --filter @letmepost/api start:api` | `:3000` | HTTP, runs migrations on boot, then `node dist/server.js` |
+| **worker** | `pnpm --filter @letmepost/api start:worker` | none | BullMQ consumer: publish, validate, refresh-token, webhook-deliver queues. `node dist/queue/worker.js` |
+
+Both share the same image and the same env vars. Only the start command and the public-networking flag differ.
+
+Why split: a queue backlog (Twitter rate limit, Instagram container processing) keeps the worker busy. If the worker shared a process with the HTTP listener, that backlog would starve `POST /v1/posts`. Splitting lets you scale them independently and ensures the HTTP path stays responsive under queue pressure.
+
+## What you need
+
+- A container host (Railway, Fly, Render, ECS, Kubernetes — anywhere Docker runs)
+- Managed Postgres — Neon, RDS, Supabase, or a Postgres you operate
+- Managed Redis — Upstash, ElastiCache, or a Redis you operate
+- An S3 bucket configured per the [media spec](/self-host/environment#media-s3)
+- DNS control for the hostname your API will live on
+- Your own platform OAuth credentials (see [platform credentials](/self-host/platform-credentials))
+
+## Build the image
+
+The repo-root `apps/api/Dockerfile` builds a single image from the monorepo:
+
+```bash
+docker build -f apps/api/Dockerfile -t letmepost-api:latest .
+```
+
+**The build context must be the monorepo root**, not `apps/api/`. The Dockerfile copies `pnpm-lock.yaml`, every workspace `package.json`, and the `packages/schemas/` source — none of which exist inside `apps/api/`.
+
+## Environment variables
+
+Set these on **both** services (api and worker):
+
+| Variable | Value |
+|---|---|
+| `DATABASE_URL` | Managed Postgres connection string |
+| `REDIS_URL` | Managed Redis connection string |
+| `KEK_MASTER` | `openssl rand -base64 32` — **same value on both services**. Rotating without re-wrapping all encrypted tokens locks every connected account out. |
+| `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
+| `BETTER_AUTH_URL` | `https://api.your-domain.example` |
+| `PUBLIC_API_BASE_URL` | `https://api.your-domain.example` |
+| `TRUSTED_ORIGINS` | `https://dashboard.your-domain.example` |
+| `CORS_ORIGINS` | `https://dashboard.your-domain.example` |
+| `COOKIE_DOMAIN` | `.your-domain.example` — leading dot, so the session cookie is readable by both the api and dashboard subdomains. |
+| `DOCS_BASE_URL` | Default `https://docs.letmepost.dev`. Override only if you host a separate docs site. |
+| `AWS_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `MEDIA_PUBLIC_BASE_URL`, `MEDIA_ENV_PREFIX` | Media bucket config — see [environment](/self-host/environment#media-s3). |
+| Platform OAuth | Add `LINKEDIN_CLIENT_ID/SECRET`, `TWITTER_CLIENT_ID/SECRET`, etc. as the developer apps come back from review. |
+
+The dashboard hosts elsewhere (Vercel, Cloudflare Pages, your own static host) and needs `NEXT_PUBLIC_API_URL=https://api.your-domain.example` on _its_ environment.
+
+## Health check
+
+The API exposes `GET /health`:
+
+```bash
+curl https://api.your-domain.example/health
+# {"status":"ok"}
+```
+
+Configure your platform's health check to hit `/health` on the api service with a 30s timeout. The worker doesn't bind a port — disable its health check.
+
+## Migrations
+
+The api service runs migrations on boot (`node dist/db/migrate.js && node dist/server.js`). The worker does **not** run migrations — the api owns that responsibility so two replicas don't race.
+
+For a schema change in your fork:
+
+```bash
+pnpm --filter @letmepost/api db:generate   # writes a new SQL file under apps/api/drizzle/
+git add apps/api/drizzle/
+git commit -m "db: <whatever changed>"
+```
+
+Push — the api service applies the new migration on the way up, then the new code starts serving.
+
+For zero-downtime deploys, follow the standard pattern: **additive in one release, destructive in a follow-up**. Add the new column / table, ship the code that writes to both old and new, deploy. Once you've verified the migration backfilled and the new code is healthy, ship a follow-up that drops the old column.
+
+## Reference: Railway
+
+Step-by-step setup for our production deploy (api + worker on Railway, Neon for Postgres, Upstash for Redis) lives in [`DEPLOY.md`](https://github.com/rosekamallove/letmepost.dev/blob/main/DEPLOY.md) in the repo. The two non-obvious things to know if you mirror it:
+
+1. **Root Directory: blank / `/`** on both services. Not `/apps/api`. The Dockerfile needs the monorepo root as its build context.
+2. **Same `KEK_MASTER` on both services.** They're separate Railway services, so it's two env-var copies — but the value must be identical or the worker can't decrypt tokens the api wrote.
+
+## Rollback
+
+Container platforms handle rollback by redeploying a previous image. Migrations are forward-only — if you need to roll back across a schema change, restore the database from a point-in-time snapshot first, then redeploy the previous image.
+
+## Smoke test after deploy
+
+```bash
+# 1. Health
+curl https://api.your-domain.example/health
+
+# 2. Sign up + dashboard handshake (in a browser, on your dashboard host)
+#    - Create an org
+#    - Mint an API key (copy the plaintext — only shown once)
+#    - Connect Bluesky (no OAuth review required)
+#    - Send a test post from the dashboard
+#    - Watch the post log fill in
+```
+
+If the worker is wired up correctly, the post moves from `queued` → `published` within a few seconds. If it stays `queued`, the worker isn't consuming — see [troubleshooting](/self-host/troubleshooting#worker-not-picking-up-jobs).
+
+## Self-host parity
+
+There is no feature gate between the OSS image and `api.letmepost.dev`. Same code, same API surface, same error envelope. The hosted tier's only differentiation is managed OAuth apps (you don't have to register your own with each platform) and managed infrastructure.

@@ -424,7 +424,7 @@ async function main() {
       organizationId: orgRow.id,
       accountId: linkedinAccount.id,
       status: "published",
-      text: "We just shipped our publishing layer. Failures are loud, preventable, documented. → letmepost.dev",
+      text: "We just open-sourced our publishing layer. Failures are loud, preventable, documented. → letmepost.dev",
       publishedAt: ago(2 * ONE_DAY_MS),
       platformUri: "urn:li:share:7000000000000000001",
       createdAt: ago(2 * ONE_DAY_MS + 60_000),

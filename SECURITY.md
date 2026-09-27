@@ -4,8 +4,14 @@
 
 Please report security vulnerabilities **privately**, not via public issues.
 
-**Email** — `kamal@letmepost.dev`. PGP not required; the inbox is
-monitored daily.
+**Two reporting channels — pick whichever you prefer:**
+
+1. **GitHub private security advisory** (recommended) —
+   [open a draft advisory](https://github.com/letmepost/letmepost.dev/security/advisories/new)
+   on this repo. Lets us collaborate on a fix in private and coordinate a CVE if needed.
+
+2. **Email** — `kamal@letmepost.dev`. PGP not required; the inbox is
+   monitored daily.
 
 Please include:
 
@@ -38,6 +44,7 @@ If the issue is being actively exploited, we will expedite both the fix and the 
 - `apps/cli` — the `@letmepost/cli` package
 - `packages/sdk-ts` — the official TypeScript SDK
 - The generated Python (`letmepost`) and Go (`github.com/letmepost/letmepost-go`) SDKs
+- Docker images published from this repo (self-host)
 
 **Out of scope** (please report to the upstream vendor directly):
 
@@ -48,6 +55,8 @@ If the issue is being actively exploited, we will expedite both the fix and the 
   Lemon Squeezy, Sentry, Axiom, PostHog)
 - DoS / volumetric attacks against the hosted service (file abuse reports
   to the hosting provider)
+- Self-hosted deployments where the operator has bypassed the documented
+  configuration (e.g. running with `BETTER_AUTH_SECRET` unset)
 
 ## Safe harbor
 

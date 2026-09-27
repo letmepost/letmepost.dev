@@ -4,7 +4,7 @@ description: Reverse-chronological release notes covering API surface, schema, b
 icon: clock-rotate-left
 ---
 
-This page summarises the milestones a caller needs to know about. Every entry that changes the wire contract calls out the migration path.
+The canonical record lives in the git history; this page summarises the milestones a caller needs to know about. Subscribe to [GitHub releases](https://github.com/rosekamallove/letmepost.dev/releases) for tagged cuts, or follow [the open source repo](https://github.com/rosekamallove/letmepost.dev) for the running history.
 
 ## 2026-08
 
@@ -146,13 +146,13 @@ The window is also measured from publication rather than creation.
 
 ### Added: billing (Lemon Squeezy)
 
-- **Three tiers: Free (50 posts/mo), Pro ($79/mo for 5k), Business ($299/mo for 25k).** Enterprise was dropped from the tier ladder until a sales path exists.
+- **Three tiers: Free (50 posts/mo), Pro ($79/mo for 5k), Business ($299/mo for 25k).** Self-host is unlimited; enterprise was dropped from the tier ladder until a sales path exists.
 - **`POST /v1/billing/checkout`** mints a Lemon Squeezy checkout URL via their Checkouts API (not the legacy `/buy/` URL).
 - **Webhook handler** at `POST /v1/lemonsqueezy/webhook`: CSRF-hardened, status-aware (respects LS's order/subscription state), event-id derived from body hash since Lemon Squeezy has no `X-Event-Id` header. Dispatches `subscription.activated`, `subscription.cancelled`, `subscription.tier_changed`, `billing.payment_failed`, `billing.delinquent`, `billing.recovered`, `quota.warning`, `quota.exceeded`.
 - **Quota gate on `POST /v1/posts`.** Idempotent replays skip the counter (the idempotency middleware short-circuits before the handler). Infinity-quota tiers (self_host, grandfather) bypass the cap entirely.
 - **Dashboard billing surface**: plan card, usage meter (animated counter + bar, polled every 60s), upgrade flow, invoices list, eager-written cancel + reactivate state.
 - **Dunning + retention jobs** run on the billing queue: hourly past_due → delinquent sweep, nightly per-org log cleanup respecting tier retention windows.
-- **`BILLING_ENABLED` env gate** so non-metered instances can skip the entire surface without a code branch.
+- **`BILLING_ENABLED` env gate** so self-host instances can skip the entire surface without a code branch.
 
 ### Added: official SDKs
 
@@ -238,6 +238,7 @@ The window is also measured from publication rather than creation.
 
 - Mintlify docs site at [docs.letmepost.dev](https://docs.letmepost.dev) with 7 platform pages (each with Quick Reference, Common Errors, Wisdom callouts, "What you can't do"), the full preflight rule catalog, and a Best Practices guide for the error contract.
 - Migration guides for [Postiz](/guides/migrate-from-postiz), [Ayrshare](/guides/migrate-from-ayrshare), and [Buffer](/guides/migrate-from-buffer): field rename tables + side-by-side curl + cutover playbook.
+- [Self-host section](/self-host/quick-start) with 5 detailed pages (quick-start, environment, platform-credentials, deploying, troubleshooting), written against the real `apps/api/.env.example`.
 - OpenAPI spec rewritten end-to-end to match the v1 wire shape. Spec size went from 1,413 lines to 3,313 lines. Every error references a unified `ApiError` schema with `docUrl` / `ruleUrl`, every write documents the `Idempotency-Key` parameter, and the previously-undocumented Pinterest sub-resources and webhook endpoint detail routes are now in the spec.
 
 ### Added: landing surface

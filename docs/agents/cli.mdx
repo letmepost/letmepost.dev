@@ -44,7 +44,7 @@ lmp version        # CLI version + active API base
 | Variable        | Description                                                                       |
 | --------------- | --------------------------------------------------------------------------------- |
 | `LMP_API_KEY`   | Skip the stored credential entirely and use this Bearer key for the call.         |
-| `LMP_API_BASE`  | Override the API host (defaults to `https://api.letmepost.dev`). |
+| `LMP_API_BASE`  | Override the API host (defaults to `https://api.letmepost.dev`). For self-hosted. |
 
 ## Profiles
 
@@ -112,6 +112,17 @@ lmp posts list --limit 100 --status rejected  # filter
 lmp posts get pst_01HX...                     # one post + all attempts
 ```
 
+## Self-host
+
+Point the CLI at your own deployment by setting `LMP_API_BASE`:
+
+```bash
+LMP_API_BASE=https://api.yourdomain.com lmp login
+LMP_API_BASE=https://api.yourdomain.com lmp post "hello" --to=bluesky
+```
+
+Or persist it: after `lmp login` the chosen base URL is saved alongside the credential, so subsequent calls reuse it without the env var.
+
 ## Use from opencode / shell agents
 
 The CLI prints structured output and uses standard exit codes, so it composes cleanly into agentic tool definitions:
@@ -130,7 +141,9 @@ The CLI prints structured output and uses standard exit codes, so it composes cl
 
 For tighter integration, use the [MCP server](/agents/mcp) directly. It wraps the same API and exposes one tool per OpenAPI operation.
 
-## Roadmap
+## Source + roadmap
 
+- Source: [github.com/letmepost/letmepost.dev/tree/main/apps/cli](https://github.com/letmepost/letmepost.dev/tree/main/apps/cli)
+- Apache 2.0
 - v0.1 ships with: `login`, `logout`, `whoami`, `version`, `accounts list/disconnect`, `post`, `posts list/get`, `profiles list/use/current`
 - v0.2 will add: `media upload`, `webhooks` subcommands, `keys` (mint/list/revoke API keys), refresh-token rotation for OAuth-only auth

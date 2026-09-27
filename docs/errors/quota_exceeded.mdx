@@ -13,7 +13,7 @@ This is distinct from [`rate_limited`](/errors/rate_limited): rate limiting is a
 - A `POST /v1/posts` request whose target count would push the organization past its monthly post cap.
 - A single request whose target count alone exceeds the entire monthly quota (rejected up front before any target is persisted).
 
-The check is atomic — two concurrent requests can't double-spend the last slot under the cap. Unlimited tiers skip the gate entirely.
+The check is atomic — two concurrent requests can't double-spend the last slot under the cap. Self-hosted and unlimited tiers skip the gate entirely.
 
 ## Response shape
 

@@ -13,10 +13,10 @@ import { highlight } from "@/lib/highlight";
 import { getPublishedPosts } from "@/lib/notion";
 
 const description =
-  "One POST, eight platforms. X, Bluesky, and Pinterest live today; the rest in review. 80 preflight rules, idempotency, structured errors, native MCP server. Real free tier.";
+  "One POST, eight platforms. X, Bluesky, and Pinterest live today; the rest in review. 80 preflight rules, idempotency, structured errors, native MCP server. Apache 2.0, real free tier.";
 
 export const metadata: Metadata = {
-  title: "Social media publishing API",
+  title: "Open-source social media publishing API",
   description,
   alternates: { canonical: "/" },
 };
@@ -42,9 +42,9 @@ const pillars = [
   },
   {
     n: "04",
-    h: "Priced per org, not per profile",
-    p: "One flat price for your whole organization. Connect every account, every Page, every team member at no extra cost. Never per profile, never per seat.",
-    tg: "flat per-org pricing",
+    h: "Open source, priced per org",
+    p: "Apache-2.0 from the first commit. The hosted image is the exact one you can self-host. Flat price per organization. Never per profile, never per seat.",
+    tg: "self-host free forever",
   },
 ];
 
@@ -52,6 +52,7 @@ const pricing = [
   { tier: "Free", who: "Personal automations & side projects", price: "$0", sub: "forever", posts: "50 posts / mo", cta: "Start for free", href: "https://dashboard.letmepost.dev" },
   { tier: "Pro", who: "Indie SaaS · small agencies", price: "$79", sub: "/ mo", posts: "5,000 posts / mo", cta: "Start Pro", href: "https://dashboard.letmepost.dev", hi: true },
   { tier: "Business", who: "Embedded social · SLA · white-label OAuth", price: "$299", sub: "/ mo", posts: "25,000 posts / mo", cta: "Start Business", href: "https://dashboard.letmepost.dev" },
+  { tier: "Self-host", who: "Your infra · BYO Postgres + Redis", price: "$0", sub: "Apache-2.0", posts: "Unlimited", cta: "Self-host docs", href: "https://docs.letmepost.dev/self-host" },
 ];
 
 const faqs = [
@@ -61,15 +62,19 @@ const faqs = [
   },
   {
     q: "Why another social media API?",
-    a: "Because the existing ones fail silently, charge per-profile, and break every six months when a platform sunsets a version. This one fails loudly, charges per-org, and pins the version internally.",
+    a: "Because the existing ones fail silently, charge per-profile, and break every six months when a platform sunsets a version. This one fails loudly, charges per-org, and pins the version internally. Apache 2.0 from day one.",
   },
   {
     q: "How much does it cost?",
     a: 'Flat-rate per org. A real free tier covers 50 posts a month. <a href="/pricing">Full pricing →</a>',
   },
   {
+    q: "Is it really open source?",
+    a: "Apache 2.0. The hosted SaaS runs the exact same image you can self-host. No feature gate, no open-core trick.",
+  },
+  {
     q: "Do I have to handle Meta App Review myself?",
-    a: "No. Connect through our OAuth flow and you publish through our reviewed app. We are the reviewer-of-record, so you never touch a developer portal.",
+    a: "No. Connect through our OAuth flow and you publish through our reviewed app. Self-hosters can BYO Meta app if they want their own reviewer-of-record.",
   },
   {
     q: "Can my AI agent drive this?",
@@ -171,10 +176,10 @@ export default async function Home() {
           <div className="grid grid-cols-[1.02fr_0.98fr] items-center gap-[52px] max-[980px]:grid-cols-1 max-[980px]:gap-9">
             <div>
               <p className="mb-[22px] font-mono text-xs uppercase tracking-[0.18em] text-acc">
-                Social publishing API
+                Open-source social publishing API
               </p>
               <h1 className="mb-[22px] max-w-[16ch] font-disp text-[54px] font-semibold leading-[1.04] tracking-[-0.03em] text-balance max-[980px]:max-w-none max-[980px]:text-[44px] max-[560px]:text-[34px]">
-                Social media API.
+                OSS social media API.
                 <br />
                 <span className="text-acc">
                   Built for developers and AI agents.
@@ -184,7 +189,8 @@ export default async function Home() {
                 Ship social features in <b>minutes, not months</b>. One{" "}
                 <span className="font-mono">POST</span> fans out to eight
                 platforms with scheduling, webhooks, and idempotency built in. It
-                speaks native MCP for your agents.
+                speaks native MCP for your agents, and it&apos;s{" "}
+                <b>Apache 2.0</b>.
               </p>
               <div className="mt-[30px] flex flex-wrap items-center gap-3">
                 <a
@@ -302,14 +308,14 @@ export default async function Home() {
 
       <Reveal>
         <section className={`${wrap} py-24 max-[860px]:py-16`}>
-          <p className={kicker}>Honest pricing</p>
-          <h2 className={h2}>Flat per org. No per-profile tax.</h2>
+          <p className={kicker}>Open source · honest pricing</p>
+          <h2 className={h2}>Flat per org. Self-host free forever.</h2>
           <p className={lead}>
             Profiles, connected accounts, team members, webhooks and API keys are
             all free. The only metered thing is posts published, with hard caps
             and webhooks at 80% and 100%. Never a surprise bill.
           </p>
-          <div className="mt-10 grid grid-cols-3 gap-[14px] max-[860px]:grid-cols-1">
+          <div className="mt-10 grid grid-cols-4 gap-[14px] max-[860px]:grid-cols-1">
             {pricing.map((p) => (
               <div
                 className={`flex flex-col rounded-[14px] border bg-panel px-[22px] py-[26px] ${p.hi ? "border-acc shadow-[0_0_0_1px_var(--color-acc)]" : "border-line"}`}

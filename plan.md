@@ -88,14 +88,14 @@ Canonical state lives in `packages/schemas/src/platform-state.ts`; the dashboard
 
 ### Billing (Lemon Squeezy)
 
-- **Three tiers** locked: Free (50 posts/mo), Pro ($79/mo for 5,000), Business ($299/mo for 25,000). Enterprise dropped from the ladder until a sales path exists.
+- **Three tiers** locked: Free (50 posts/mo), Pro ($79/mo for 5,000), Business ($299/mo for 25,000). Self-host is unlimited. Enterprise dropped from the ladder until a sales path exists.
 - **Body-hash event id** — Lemon Squeezy has no `X-Event-Id` header.
 - **Checkouts API** (not legacy `/buy/` URL).
 - **Fail-soft invoices** so dashboard always renders.
 - **CSRF-hardened webhook**, status-aware (respects LS subscription state).
 - **Quota gate on `POST /v1/posts`** — idempotent replays skip the counter (idempotency middleware short-circuits before the handler). Infinity-quota tiers (self_host) bypass the cap.
 - **Dunning + retention jobs** — hourly past_due → delinquent sweep; nightly per-org log cleanup respecting tier retention windows (Free 14d / Pro 30d / Business 180d).
-- **`BILLING_ENABLED` env gate** for non-metered instances.
+- **`BILLING_ENABLED` env gate** for self-host.
 
 ### Profiles (free org-structure primitive)
 
@@ -158,7 +158,7 @@ Astro, receipt-themed visual identity, brand mark + wordmark synced to dashboard
 - **`/api/[slug]` × 3** — Publishing API, Media API, Webhooks. Hero, code sample, feature grid.
 - **`/pricing`** — Three-card tier (Free / Pro $79 / Business $299), Business+ enquiry block, billing FAQ.
 - **`/agents`** — MCP-first landing. OAuth 2.1 + DCR, stdio binary, hosted streamable-HTTP. Agent-builder FAQ.
-- **`/about`** — solo, built in public.
+- **`/about`** — solo, open source, built in public.
 - **`/blog`** — Notion-backed via daily Vercel cron rebuild. Reading-view design, single column, large type, syntax-highlighted code, breadcrumbs, alt-text on cover images, self-hosted fonts for FCP.
 - **`/status`** — service-health stub.
 - **`/terms`**, **`/privacy`**, **`/data-deletion`**, **`/contact`** — legal + Meta-required.
@@ -174,6 +174,7 @@ Astro, receipt-themed visual identity, brand mark + wordmark synced to dashboard
 - **Quickstart**: quickstart, authentication, idempotency, errors index, preflight index.
 - **Agents**: MCP, CLI.
 - **Guides**: connect-account, publish-post, schedule-post, upload-media, migrate-from-{postiz, ayrshare, buffer}.
+- **Self-host**: quick-start, environment, platform-credentials, deploying, troubleshooting.
 - **Platforms** (one per platform × 8): caps, scopes, gotchas, code samples.
 - **Errors** (one per code × 11).
 - **Preflight** (one per rule × ~95, grouped by platform).
@@ -233,6 +234,7 @@ The remaining work is content, demos, and one-off polish.
 
 - **Smoke-test the platform-state gate in production-like env**: connect drawer should grey out `pending` tiles, `tiktok` should 403 with `platform_not_enabled` on POST `/v1/accounts/connect/tiktok`.
 - **End-to-end smoke for all 7 live platforms** — connect, publish, idempotency replay, webhook delivery, error contract surfacing.
+- **Self-host** — `docker compose up` against fresh Postgres + Redis. Same API responses as hosted.
 - **Lighthouse 100** on all marketing + docs pages (mobile + desktop). Add to CI.
 - **k6 load test** against staging — establish baseline, tune BullMQ concurrency.
 - **Security review** of token-encryption + webhook-signature paths.
@@ -256,9 +258,10 @@ The remaining work is content, demos, and one-off polish.
 4. **Post Log renders the full error contract** for every failure class (`preflight_failed`, `platform_rejected`, `platform_auth_failed`, `platform_unavailable`, `validation_failed`, `internal_error`, `idempotency_conflict`, `rate_limited`), with raw platform response visible and copy-as-curl on every row.
 5. **Docs parity** — every error code has a page; every preflight rule has a page with upstream citation; every endpoint has runnable examples in TS / Python / Go / cURL.
 6. **SDK parity** — TS, Python, Go on their respective registries; smoke tests green.
+7. **Self-host parity** — `docker compose up` works against fresh Postgres + Redis.
 8. **Lighthouse 100** on all marketing + docs pages.
 9. **Load test** — API handles 500 req/s sustained on a single Railway instance with p95 < 250ms (excluding upstream platform latency).
-10. **Pricing live** with committed tier shape (Free / $79 / $299).
+10. **Pricing live** with committed tier shape (Free / $79 / $299 / self-host unlimited).
 11. **n8n community node published** and linked in docs.
 
 ---

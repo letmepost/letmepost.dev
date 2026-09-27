@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "luma",
   "name": "letmepost.dev",
-  "description": "Social media publishing API. Preflight validation, transparent errors, idempotency, stable platform versions.",
+  "description": "Open-source social media publishing API. Preflight validation, transparent errors, idempotency, stable platform versions.",
   "colors": {
     "primary": "#2D7652",
     "light": "#53C68C",
@@ -53,6 +53,16 @@
               "guides/publish-post",
               "guides/schedule-post",
               "guides/upload-media"
+            ]
+          },
+          {
+            "group": "Self-host",
+            "pages": [
+              "self-host/quick-start",
+              "self-host/environment",
+              "self-host/platform-credentials",
+              "self-host/deploying",
+              "self-host/troubleshooting"
             ]
           },
           {
@@ -275,6 +285,14 @@
     ]
   },
   "navbar": {
+    "links": [
+      {
+        "label": "GitHub",
+        "href": "https://github.com/letmepost/letmepost.dev",
+        "icon": "github",
+        "iconType": "brands"
+      }
+    ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
@@ -283,6 +301,7 @@
   },
   "footer": {
     "socials": {
+      "github": "https://github.com/rosekamallove/letmepost.dev",
       "x": "https://x.com/letmepostdotdev"
     },
     "links": [
@@ -298,7 +317,8 @@
         "header": "Resources",
         "items": [
           { "label": "OpenAPI spec", "href": "/api-reference/openapi.json" },
-          { "label": "llms.txt", "href": "/llms.txt" }
+          { "label": "llms.txt", "href": "/llms.txt" },
+          { "label": "GitHub", "href": "https://github.com/rosekamallove/letmepost.dev" }
         ]
       },
       {
