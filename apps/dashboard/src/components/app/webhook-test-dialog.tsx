@@ -38,53 +38,104 @@ type TestResult = {
   sentEvent: unknown;
 };
 
+const POST_ID = "00000000-0000-0000-0000-000000000000";
+const ACCOUNT_ID = "11111111-1111-1111-1111-111111111111";
+const PROFILE_ID = "22222222-2222-2222-2222-222222222222";
+
+/**
+ * Synthetic `data` payloads, one per event type.
+ *
+ * These mirror what the API actually dispatches. They previously used a
+ * `postId` key and a `status` field, neither of which appears in any real
+ * payload — the dispatchers send `id` plus `accountId` / `profileId`. Anyone
+ * who wired a consumer against the old samples was testing a contract that
+ * did not exist, which is the exact failure this dialog is meant to prevent.
+ *
+ * Sources: `routes/posts.ts` (queued, canceled, rescheduled, updated) and
+ * `queue/publish-processor.ts` (published, rejected, failed).
+ */
 const DEFAULT_DATA: Record<WebhookEventType, unknown> = {
   "post.queued": {
-    postId: "00000000-0000-0000-0000-000000000000",
+    id: POST_ID,
     platform: "bluesky",
-    status: "queued",
-    text: "Test webhook from letmepost.dev",
+    accountId: ACCOUNT_ID,
+    profileId: PROFILE_ID,
+    scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    queuedAt: new Date().toISOString(),
   },
+  // Declared in the catalog but not currently dispatched anywhere in the API;
+  // the shape below follows the other lifecycle events.
   "post.validated": {
-    postId: "00000000-0000-0000-0000-000000000000",
+    id: POST_ID,
     platform: "bluesky",
-    status: "validated",
+    accountId: ACCOUNT_ID,
+    profileId: PROFILE_ID,
+    validatedAt: new Date().toISOString(),
   },
   "post.published": {
-    postId: "00000000-0000-0000-0000-000000000000",
+    id: POST_ID,
     platform: "bluesky",
-    status: "published",
-    text: "Test webhook from letmepost.dev",
+    accountId: ACCOUNT_ID,
+    profileId: PROFILE_ID,
+    uri: "at://did:plc:test/app.bsky.feed.post/test",
+    cid: "bafyreitest",
     publishedAt: new Date().toISOString(),
-    platformUri: "at://did:plc:test/app.bsky.feed.post/test",
   },
   "post.rejected": {
-    postId: "00000000-0000-0000-0000-000000000000",
+    id: POST_ID,
     platform: "linkedin",
-    status: "rejected",
+    accountId: ACCOUNT_ID,
+    profileId: PROFILE_ID,
     error: {
       code: "platform_rejected",
       rule: "linkedin.duplicate",
       message: "Duplicate share detected.",
     },
+    rejectedAt: new Date().toISOString(),
   },
   "post.failed": {
-    postId: "00000000-0000-0000-0000-000000000000",
+    id: POST_ID,
     platform: "linkedin",
-    status: "failed",
+    accountId: ACCOUNT_ID,
+    profileId: PROFILE_ID,
     error: {
       code: "preflight_failed",
       rule: "linkedin.text.grapheme_count",
       message: "Post exceeds 3,000-grapheme limit.",
     },
+    rejectedAt: new Date().toISOString(),
+  },
+  "post.canceled": {
+    id: POST_ID,
+    platform: "bluesky",
+    accountId: ACCOUNT_ID,
+    profileId: PROFILE_ID,
+    scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    canceledAt: new Date().toISOString(),
+  },
+  "post.rescheduled": {
+    id: POST_ID,
+    platform: "bluesky",
+    accountId: ACCOUNT_ID,
+    profileId: PROFILE_ID,
+    previousScheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    scheduledAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+  },
+  "post.updated": {
+    id: POST_ID,
+    platform: "bluesky",
+    accountId: ACCOUNT_ID,
+    profileId: PROFILE_ID,
+    changed: ["text", "media"],
+    scheduledAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
   },
   "token.expiring": {
-    accountId: "00000000-0000-0000-0000-000000000000",
+    accountId: ACCOUNT_ID,
     platform: "linkedin",
     expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   },
   "token.revoked": {
-    accountId: "00000000-0000-0000-0000-000000000000",
+    accountId: ACCOUNT_ID,
     platform: "linkedin",
     revokedAt: new Date().toISOString(),
   },
@@ -93,6 +144,58 @@ const DEFAULT_DATA: Record<WebhookEventType, unknown> = {
     version: "202304",
     sunsetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     upgradeTo: "202504",
+  },
+
+  // Billing, quota, and subscription events. The API has always accepted
+  // these on an endpoint subscription (`routes/webhook-endpoints.ts` validates
+  // against the full catalog); the dashboard simply could not offer them while
+  // its copy of the list was short. Shapes are documented alongside the
+  // catalog in `@letmepost/schemas`.
+  "subscription.activated": {
+    tier: "pro",
+    previousTier: "free",
+    periodStart: new Date().toISOString(),
+    periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  "subscription.cancelled": {
+    tier: "pro",
+    cancelAtPeriodEnd: true,
+    cancelledAt: new Date().toISOString(),
+    effectiveAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  "subscription.tier_changed": {
+    previousTier: "pro",
+    tier: "business",
+    periodStart: new Date().toISOString(),
+    periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  "quota.warning": {
+    period: new Date().toISOString().slice(0, 7),
+    postsCount: 80,
+    quota: 100,
+    percent: 0.8,
+    resetAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  "quota.exceeded": {
+    period: new Date().toISOString().slice(0, 7),
+    postsCount: 100,
+    quota: 100,
+    resetAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  "billing.payment_failed": {
+    ls_subscription_id: "123456",
+    failedAt: new Date().toISOString(),
+    tier: "pro",
+  },
+  "billing.delinquent": {
+    ls_subscription_id: "123456",
+    since: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    tier: "pro",
+  },
+  "billing.recovered": {
+    ls_subscription_id: "123456",
+    recoveredAt: new Date().toISOString(),
+    tier: "pro",
   },
 };
 

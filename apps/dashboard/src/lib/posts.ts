@@ -109,14 +109,39 @@ export function getPost(id: string): Promise<PostDetail> {
   return apiFetch<PostDetail>(`/v1/posts/${id}`);
 }
 
+/** A media attachment as the API accepts it on a post body. */
+export type PostMediaRef = {
+  kind: "image" | "video";
+  url: string;
+  altText?: string;
+};
+
+/**
+ * Fields a queued post accepts. Omitting a key leaves it untouched; passing
+ * `media: []` clears the attachments. At least one key must be present or the
+ * API rejects the request.
+ */
+export type PostPatch = {
+  scheduledAt?: string;
+  text?: string;
+  media?: PostMediaRef[];
+};
+
+export function updatePost(
+  id: string,
+  patch: PostPatch,
+): Promise<PostListItem> {
+  return apiFetch<PostListItem>(`/v1/posts/${id}`, {
+    method: "PATCH",
+    body: patch,
+  });
+}
+
 export function reschedulePost(
   id: string,
   scheduledAt: string,
 ): Promise<PostListItem> {
-  return apiFetch<PostListItem>(`/v1/posts/${id}`, {
-    method: "PATCH",
-    body: { scheduledAt },
-  });
+  return updatePost(id, { scheduledAt });
 }
 
 /** Statuses the retry endpoint accepts. `published` is excluded server-side. */

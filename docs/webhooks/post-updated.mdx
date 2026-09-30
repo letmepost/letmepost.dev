@@ -1,0 +1,53 @@
+---
+title: post.updated
+description: The caption or media of a queued post changed via PATCH /v1/posts/:id.
+---
+
+Fires when `PATCH /v1/posts/:id` successfully changes the **content** of a queued post — its caption, its media, or both. The row is updated and the edited content has already passed preflight for the target account's platform before this event dispatches.
+
+`post.rescheduled` remains time-only. A request that changes the time *and* the content emits both events, because they are independent facts: a consumer watching a calendar cares about the first, one mirroring copy cares about the second, and folding them together would force everyone to diff to find out what moved.
+
+## Payload
+
+```json post.updated.json
+{
+  "id": "evt_...",
+  "type": "post.updated",
+  "createdAt": "2026-05-08T11:45:00Z",
+  "organizationId": "org_...",
+  "data": {
+    "id": "post_...",
+    "platform": "bluesky",
+    "accountId": "...",
+    "profileId": "...",
+    "changed": ["text", "media"],
+    "scheduledAt": "2026-05-09T15:00:00Z"
+  }
+}
+```
+
+`changed` lists which content fields the request actually touched — `"text"`, `"media"`, or both. A field the caller omitted keeps its stored value and does not appear. `scheduledAt` is the post's firing time *after* the edit, so a consumer handling a combined edit does not need to correlate with the accompanying `post.rescheduled`.
+
+The new values are deliberately not in the payload. Fetch [`GET /v1/posts/{id}`](/api-reference/#get-/v1/posts/{id}) if you need them — webhook bodies are not a content-replication channel, and captions can carry anything the user typed.
+
+## Use it for
+
+- Mirroring copy edits into an external content calendar or approval tool.
+- Re-running your own brand or compliance checks when a caption changes after approval.
+- Audit trail: pair with `post.queued` and the eventual `post.published` to reconstruct exactly what was scheduled versus what went out.
+
+## Ordering
+
+`post.updated` fires after the row is updated. Across a post's life:
+
+1. `post.queued` (original caption, media, and `scheduledAt`)
+2. `post.updated` / `post.rescheduled` (any number of times — each PATCH emits one of each field family it touched)
+3. `post.published` / `post.canceled` / `post.failed` / `post.rejected` (terminal)
+
+When one PATCH changes both the time and the content, `post.rescheduled` dispatches first, then `post.updated`. Do not depend on that order — dedupe on event id and treat each event independently.
+
+## Related
+
+- [`PATCH /v1/posts/{id}`](/api-reference/#patch-/v1/posts/{id}) — the endpoint that triggers this event.
+- [`post.rescheduled` webhook](/webhooks/post-rescheduled) — sibling event for the time-only case.
+- [Scheduled posts guide](/guides/schedule-post) — full lifecycle including edit, reschedule, and cancel.

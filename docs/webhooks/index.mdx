@@ -18,6 +18,7 @@ Register an HTTPS URL once via `POST /v1/webhook-endpoints` and we'll deliver si
 | [`post.failed`](/webhooks/post-failed) | transient failure; the worker may retry |
 | [`post.canceled`](/webhooks/post-canceled) | queued scheduled post canceled via `DELETE` before it fired |
 | [`post.rescheduled`](/webhooks/post-rescheduled) | queued scheduled post moved to a new firing time via `PATCH` |
+| [`post.updated`](/webhooks/post-updated) | caption or media of a queued post changed via `PATCH` |
 
 ### Tokens & versions
 
