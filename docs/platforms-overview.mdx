@@ -7,7 +7,7 @@ icon: network-wired
 Every platform letmepost.dev supports goes through the same API surface — `POST /v1/posts` with `targets: [...]`. Per-platform quirks (caps, mime types, OAuth shapes) live in [preflight rules](/preflight) so failures surface locally with a rule id instead of an opaque upstream error.
 
 <Note>
-**Bluesky, X, and Pinterest are live today.** The remaining platforms (Instagram, LinkedIn, Facebook, Threads) are gated on their developer-portal reviews and turn on as approvals clear. The API surface is identical regardless of which platforms are approved for your org, same `POST /v1/posts`, same error envelope. Live status is also queryable at `GET /v1/platform-versions`.
+**All eight platforms are live.** Bluesky, X, Pinterest, LinkedIn, Instagram, Facebook Pages, and Threads publish end-to-end. TikTok publishes on its upload track, where the video lands in the creator's TikTok inbox for them to confirm in the app. The API surface is identical across all of them — same `POST /v1/posts`, same error envelope. Live status is also queryable at `GET /v1/platform-versions`.
 </Note>
 
 <CardGroup cols={2}>

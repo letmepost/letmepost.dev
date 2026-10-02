@@ -22,9 +22,10 @@ Built for two audiences:
 
 ## Status (as of 2026-05-26)
 
-- Bluesky, X (Twitter), Pinterest — live end-to-end
-- Instagram, Facebook, Threads, LinkedIn — in platform review
-- TikTok — planned for v2
+- Bluesky, X (Twitter), Pinterest, LinkedIn, Instagram, Facebook Pages,
+  Threads — live end-to-end
+- TikTok — live on the upload track; the video lands in the creator's
+  TikTok inbox and they confirm the publish in the app
 
 ## Pricing
 
