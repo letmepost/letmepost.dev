@@ -582,6 +582,7 @@ posts.post(
             platformAccountId: account.id,
             organizationId,
             ...(c.var.requestId ? { requestId: c.var.requestId } : {}),
+            ...(result.warnings?.length ? { warnings: result.warnings } : {}),
           });
 
           results.push(buildPublishingResult(account, rowId, result));

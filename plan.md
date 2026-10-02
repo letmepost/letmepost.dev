@@ -232,7 +232,7 @@ The remaining work is content, demos, and one-off polish.
 
 ### Pre-flight on the launch gate
 
-- **Smoke-test the platform-state gate in production-like env**: with every platform now `live` or `trial`, verify the gate using `PLATFORM_STATE_OVERRIDES=tiktok:pending` — the connect drawer should grey the tile out and POST `/v1/accounts/connect/tiktok` should 403 with `platform_not_enabled`.
+- **Smoke-test the platform-state gate in production-like env**: with every platform now `live` or `trial`, verify the gate by setting **both** `PLATFORM_STATE_OVERRIDES=tiktok:pending` (API) and `NEXT_PUBLIC_PLATFORM_STATE_OVERRIDES=tiktok:pending` (dashboard) — they are separate env vars and must stay in sync. POST `/v1/accounts/connect/tiktok` should 403 with `platform_not_enabled` and the connect drawer should grey the tile out.
 - **End-to-end smoke for all 7 live platforms** — connect, publish, idempotency replay, webhook delivery, error contract surfacing.
 - **Self-host** — `docker compose up` against fresh Postgres + Redis. Same API responses as hosted.
 - **Lighthouse 100** on all marketing + docs pages (mobile + desktop). Add to CI.

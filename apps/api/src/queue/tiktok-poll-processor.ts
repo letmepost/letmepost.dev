@@ -62,6 +62,7 @@ export async function processTikTokPublishStatusPoll(
     attempt,
     deadlineAt,
     requestId,
+    warnings,
   } = job.data;
 
   const repo = new DrizzlePlatformAccountsRepository(db);
@@ -121,6 +122,10 @@ export async function processTikTokPublishStatusPoll(
             uri: result.publicUri,
             cid: result.publishId,
             publishedAt: publishedAt.toISOString(),
+            // Raised at publish time, several polls ago. Without this the
+            // caller is told the post published and never learns we rewrote
+            // their requested privacy to SELF_ONLY.
+            ...(warnings?.length ? { warnings } : {}),
           },
           ...(requestId ? { requestId } : {}),
         })
@@ -217,6 +222,7 @@ export async function processTikTokPublishStatusPoll(
         attempt: attempt + 1,
         deadlineAt,
         ...(requestId ? { requestId } : {}),
+        ...(warnings?.length ? { warnings } : {}),
       },
       { delay: nextDelay },
     );

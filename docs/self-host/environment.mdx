@@ -74,6 +74,7 @@ These are only required when you want users to connect that platform. The full p
 | Facebook Pages | `META_APP_ID`, `META_APP_SECRET` | `META_GRAPH_VERSION` |
 | Instagram (IG Login) | `INSTAGRAM_CLIENT_ID`, `INSTAGRAM_CLIENT_SECRET` | `INSTAGRAM_GRAPH_BASE`, `INSTAGRAM_OAUTH_AUTHORIZE_URL`, `INSTAGRAM_OAUTH_TOKEN_URL` (test-only) |
 | Threads | `THREADS_CLIENT_ID`, `THREADS_CLIENT_SECRET` | `THREADS_API_BASE`, `THREADS_API_VERSION` |
+| TikTok | `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | `TIKTOK_API_BASE`, `TIKTOK_OAUTH_AUTHORIZE_URL` (test-only) |
 | Bluesky | — (uses app passwords) | — |
 
 The Meta family runs on three independent OAuth apps in v1 — Facebook Pages, Instagram (Instagram API with Instagram Login), and Threads are all separate developer apps with separate client credentials. See [platform credentials](/self-host/platform-credentials#meta) for why.
@@ -91,7 +92,7 @@ One pair appears in the example file but is not yet read by the source code. Don
 
 - `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` — placeholders for a future YouTube provider.
 
-`TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` **are** read (`apps/api/src/platforms/tiktok/provider.ts`) and are required to connect TikTok accounts on a self-hosted instance.
+`TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` used to be listed here as unread. They **are** read (`apps/api/src/platforms/tiktok/provider.ts`) and are required to connect TikTok accounts — see the platform table above.
 
 Likewise, three variables that older self-host docs referenced **do not exist** in the current build:
 

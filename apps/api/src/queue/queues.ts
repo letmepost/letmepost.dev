@@ -132,6 +132,13 @@ export type TikTokPublishStatusPollJobData = {
   deadlineAt: number;
   /** Correlates the inbound request that produced this poll. */
   requestId?: string;
+  /**
+   * Preflight warnings raised when the post was published. TikTok's
+   * `post.published` is fired by this poller, long after the publisher
+   * produced them, so they ride along on the job — otherwise a caller is
+   * told the post published without hearing that we rewrote their privacy.
+   */
+  warnings?: { code: string; message: string }[];
 };
 
 const defaultJobOptions: QueueOptions["defaultJobOptions"] = {
@@ -240,6 +247,8 @@ export interface TikTokPollEnqueueInput {
   platformAccountId: string;
   organizationId: string;
   requestId?: string;
+  /** Publish-time preflight warnings, forwarded onto `post.published`. */
+  warnings?: { code: string; message: string }[];
 }
 
 /**
@@ -264,6 +273,7 @@ export function createDefaultTikTokPollEnqueuer(): TikTokPollEnqueuer {
           attempt: 0,
           deadlineAt: Date.now() + TIKTOK_PUBLISH_STATUS_POLL_DEADLINE_MS,
           ...(input.requestId ? { requestId: input.requestId } : {}),
+          ...(input.warnings?.length ? { warnings: input.warnings } : {}),
         },
         { delay: tiktokPublishStatusPollDelayMs(0) },
       );

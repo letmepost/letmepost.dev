@@ -6,7 +6,7 @@ iconType: brands
 ---
 
 <Warning>
-**Before you start.** Every TikTok post currently goes to the creator's **upload inbox** as a draft: the video uploads, TikTok notifies the creator, and they confirm the publish in the TikTok app. letmepost sends `privacy=SELF_ONLY` because the upload-inbox endpoint accepts no privacy level at all — the creator picks one when they confirm.
+**Before you start.** Every TikTok post currently goes to the creator's **upload inbox** as a draft: the video uploads, TikTok notifies the creator, and they confirm the publish in the TikTok app. letmepost resolves your requested `privacy` to `self_only` and reports that back, but does not send a privacy level upstream at all — the upload-inbox request has no such field, and the creator picks one when they confirm.
 
 TikTok's Direct Post (`video.publish`) App Review has cleared, but Direct Post is a different endpoint (`/v2/post/publish/video/init/`) and is **not wired up yet**, so public posting still requires that confirmation tap. Passing review does not change this on its own.
 </Warning>

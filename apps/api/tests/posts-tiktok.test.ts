@@ -593,6 +593,57 @@ describeIfDb("POST /v1/posts (tiktok) — immediate publish is accepted, not pub
       expect(calls[0]!.organizationId).toBe(fixture.organizationId);
     });
   });
+
+  it("rides the privacy-rewrite warning on the status-poll job", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const { fixture, account } = await seedWithTikTok(tx);
+      server.use(liveVideoUrlHandler(), liveInitHandler(), liveUploadHandler());
+      const { dispatcher } = captureDispatcher();
+      const { enqueuer, calls } = capturePollEnqueuer();
+
+      const app = createApp({
+        db: tx,
+        webhookDispatcher: dispatcher,
+        tiktokPollEnqueuer: enqueuer,
+      });
+
+      const res = await app.request("/v1/posts", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${fixture.apiKey.plaintext}`,
+        },
+        body: JSON.stringify({
+          targets: [
+            {
+              accountId: account.id,
+              options: { platform: "tiktok", privacy: "public_to_everyone" },
+            },
+          ],
+          text: "immediate tiktok clip",
+          media: [videoMedia],
+        }),
+      });
+      expect(res.status).toBe(200);
+
+      const body = (await res.json()) as {
+        results: Array<{ warnings?: { code: string; message: string }[] }>;
+      };
+
+      // The synchronous response already told the caller we rewrote it.
+      expect(body.results[0]!.warnings?.map((w) => w.code)).toContain(
+        "tiktok.audit.self_only",
+      );
+
+      // `post.published` is fired by the poller much later, so the warning
+      // has to ride on the job too — otherwise the webhook reports a
+      // published post and never mentions the dropped privacy.
+      expect(calls[0]!.warnings?.map((w) => w.code)).toContain(
+        "tiktok.audit.self_only",
+      );
+    });
+  });
 });
 
 describeIfDb("processTikTokPublishStatusPoll — terminal reconciliation", () => {
@@ -682,6 +733,57 @@ describeIfDb("processTikTokPublishStatusPoll — terminal reconciliation", () =>
       expect(pdata.id).toBe(post.id);
       expect(pdata.cid).toBe("pub-immediate-1");
       expect(events.some((e) => e.type === "post.failed")).toBe(false);
+    });
+  });
+
+  it("forwards publish-time warnings onto post.published", async () => {
+    const { db } = await getTestDb();
+    await runInTransaction(db, async (tx) => {
+      const { fixture, account } = await seedWithTikTok(tx);
+      const post = await seedPublishingPost(tx, {
+        organizationId: fixture.organizationId,
+        accountId: account.id,
+      });
+      server.use(
+        http.post(`${LIVE_BASE}/v2/post/publish/status/fetch/`, () =>
+          HttpResponse.json({
+            data: {
+              status: "PUBLISH_COMPLETE",
+              publicaly_available_post_id: ["tt-post-1000"],
+            },
+            error: { code: "ok" },
+          }),
+        ),
+      );
+      const { deps, events } = makePollDeps(tx);
+
+      await processTikTokPublishStatusPoll(
+        {
+          data: {
+            postId: post.id,
+            publishId: "pub-warn-1",
+            platformAccountId: account.id,
+            organizationId: fixture.organizationId,
+            attempt: 0,
+            deadlineAt: Date.now() + 30 * 60_000,
+            warnings: [
+              {
+                code: "tiktok.audit.self_only",
+                message: "privacy rewritten",
+              },
+            ],
+          },
+        },
+        deps,
+      );
+
+      const published = events.find((e) => e.type === "post.published");
+      const pdata = published!.data as {
+        warnings?: { code: string; message: string }[];
+      };
+      expect(pdata.warnings?.map((w) => w.code)).toContain(
+        "tiktok.audit.self_only",
+      );
     });
   });
 
