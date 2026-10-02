@@ -44,20 +44,6 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
       "X retired the free posting tier in 2025 — Pay Per Use is the cheapest entry point. letmepost works on any tier with `tweet.write`.",
   },
   {
-    slug: "tiktok",
-    name: "TikTok",
-    icon: "tiktok-logo",
-    tagline: "Content Posting API · upload-inbox",
-    pitch:
-      "Content Posting API with OAuth 2.0 PKCE + push_by_file upload to the creator's TikTok inbox. Connect and publish work today; the video arrives as a draft and the creator taps publish in the TikTok app. Direct Post is approved upstream and is the next thing we wire up.",
-    detail:
-      "Content Posting API · video uploads · OAuth PKCE · creator confirms in-app",
-    videoSupport: true,
-    carouselSupport: false,
-    gotcha:
-      "Reserved in the schema for v2. No production traffic flows yet; the route exists for SEO + roadmap visibility.",
-  },
-  {
     slug: "linkedin",
     name: "LinkedIn",
     icon: "linkedin-logo",
@@ -121,7 +107,7 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
     videoSupport: true,
     carouselSupport: false,
     gotcha:
-      "App is in audit / sandbox state — uploads land in the user's TikTok inbox for manual publish. Direct Post unlocks once `video.publish` clears review.",
+      "Uploads land in the creator's TikTok inbox as a draft for them to publish. Direct Post has cleared `video.publish` review but is a separate endpoint and is not wired up yet.",
   },
   {
     slug: "threads",

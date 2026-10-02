@@ -100,10 +100,11 @@ export default function About() {
               dashboard we look at.
             </li>
             <li>
-              <b>Honest status.</b> Bluesky, X, and Pinterest are live
-              end-to-end. Instagram, Facebook, Threads, and LinkedIn are in
-              platform review. We never mark a platform
-              &quot;available&quot; before it is.
+              <b>Honest status.</b> All eight platforms are live end-to-end,
+              TikTok on its upload track where the creator confirms the post
+              in the app. We never mark a platform &quot;available&quot;
+              before it is, and the per-platform badges read the same state
+              the API enforces.
             </li>
             <li>
               <b>No sales call required.</b> Free tier, public pricing, Stripe

@@ -4,7 +4,7 @@ description: The platform exists in the API enum but isn't switched on for your 
 icon: power-off
 ---
 
-You tried to connect or publish to a platform that the API knows about but hasn't been enabled for your organization. Most commonly this means the platform is approval-gated upstream (Meta App Review, X Developer Portal review, LinkedIn Marketing Developer Platform) and your app's review hasn't cleared.
+You tried to connect or publish to a platform that the API knows about but hasn't been enabled for your organization. Every platform on the hosted API is live today, so you should not see this there. It fires when a platform has been put into `pending` deliberately — on a self-hosted instance whose upstream review hasn't cleared, or during a rollback.
 
 ## What triggers it
 

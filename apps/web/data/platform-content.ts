@@ -638,7 +638,7 @@ const linkedin: PlatformContent = {
   heroLede:
     "LinkedIn sunset five API versions in six months from 2024–25, breaking n8n, Zapier, Make, and every Postiz install. <b>letmepost</b> pins the version header, tracks deprecations, upgrades internally — your code keeps working when LinkedIn ships a breaking change at 2 a.m.",
   reassurance:
-    'In review · MDP submitted · <a href="https://docs.letmepost.dev/platforms/linkedin">read the docs →</a>',
+    'Live · personal posting · <a href="https://docs.letmepost.dev/platforms/linkedin">read the docs →</a>',
   miniCode: `{
   "targets": [{ "platform": "linkedin" }],
   "accountId": "acc_li_xyz",
@@ -659,8 +659,8 @@ const linkedin: PlatformContent = {
     { body: "Version header pinned in one config value; we own deprecations" },
     { body: "<code>version.deprecated</code> webhook fires before sunset" },
     { body: "URN encoding handled, error envelope normalized" },
-    { body: "Our MDP review covers hosted users; self-host applies their own" },
-    { body: "Personal posts in v1; org via MDP — same endpoint" },
+    { body: "Personal posting live through our reviewed app; nothing to file" },
+    { body: "Personal posts live now; org posting is the next slice" },
     { body: "Audit-state errors mapped to stable preflight rules" },
   ],
 
@@ -672,10 +672,10 @@ const linkedin: PlatformContent = {
 
   playground: {
     steps: ["Connect", "Configure", "Execute"],
-    body: "OAuth on linkedin.com. Personal posts work today (in review). Org posts unlock once our MDP review clears — self-host users can BYO MDP entry today.",
+    body: "OAuth on linkedin.com. Personal posts publish today through our reviewed app. Company-Page posting needs <code>w_organization_social</code> and is not supported yet — preflight rejects org URNs with a named rule rather than a vague 403.",
     cta: { href: "https://dashboard.letmepost.dev/accounts?connect=1", label: "CONNECT LINKEDIN →" },
-    result: "Approval-gated.",
-    resultCaption: "MDP IN REVIEW · DAY 12 / ~84",
+    result: "Live.",
+    resultCaption: "PERSONAL POSTING · LIVE",
   },
 
   contentTypes: [
@@ -694,7 +694,7 @@ const linkedin: PlatformContent = {
     },
     {
       title: "Publish a share",
-      body: 'One <code>POST /v1/posts</code> with <code>platform: "linkedin"</code>. Personal commentary is live the day approval clears.',
+      body: 'One <code>POST /v1/posts</code> with <code>platform: "linkedin"</code>. Personal commentary publishes immediately.',
     },
   ],
 
@@ -716,8 +716,8 @@ const linkedin: PlatformContent = {
     },
     {
       icon: "buildings",
-      title: "Personal + org, one shape",
-      body: "Same endpoint for personal and organization posts. Org publishing unlocks once MDP review clears.",
+      title: "Personal now, org next",
+      body: "Personal commentary publishes today. Org posts hit the same endpoint but need <code>w_organization_social</code>; until that ships, preflight rejects an org URN with <code>linkedin.author.org_not_supported</code> instead of letting LinkedIn 403 you.",
     },
   ],
 
@@ -742,8 +742,8 @@ const result = await lmp.posts.create({
   faqSubtitle: "about linkedin posting",
   faqs: [
     {
-      q: "When does LinkedIn go live on letmepost?",
-      a: "Personal posting flips live the day our MDP review clears (typically 8–12 weeks). Org publishing requires the full MDP grant. Self-host with your own MDP entry to use it today.",
+      q: "Is LinkedIn live?",
+      a: "Yes, for personal posting — connect an account and publish today through our reviewed app. Company-Page posting needs the <code>w_organization_social</code> grant and is not supported yet.",
     },
     {
       q: "What about the version churn?",
@@ -751,7 +751,7 @@ const result = await lmp.posts.create({
     },
     {
       q: "Can I post to a Company Page?",
-      a: "Yes, once your MDP grant covers org posting. Pass <code>organizationUrn: \"urn:li:organization:...\"</code>. Self-host with your own MDP is the fastest path.",
+      a: "Not yet. <code>organizationUrn</code> is reserved in the schema, but preflight rejects org URNs with <code>linkedin.author.org_not_supported</code> today — on self-hosted instances too, since the gate is in our code rather than in the credentials.",
     },
     {
       q: "What's URN encoding?",
@@ -759,24 +759,24 @@ const result = await lmp.posts.create({
     },
     {
       q: "Does my company need its own MDP grant?",
-      a: "For org-level publishing, yes — eventually. Personal posting via our shared OAuth is the day-one path.",
+      a: "Not for personal posting — that runs on our reviewed app and works today. Org-level publishing will need one.",
     },
   ],
 
   finalCtaH2: "READY FOR LINKEDIN PUBLISHING?",
   finalCtaLede:
-    "Personal commentary live the day MDP clears. Self-host with your own MDP entry to publish today. <b>Either way, the same one POST.</b>",
+    "Personal commentary publishes today, version-pinned, through our reviewed app. <b>One POST, and we own the sunsets.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/linkedin",
 
   closeoutThanks: "* * * VERSIONED REST · PINNED * * *",
-  closeoutCodeLine: "PLAT · LINKEDIN · MDP IN REVIEW",
+  closeoutCodeLine: "PLAT · LINKEDIN · LIVE",
 
   marg: [
     {
       tag: "Status",
-      body: "Publisher shipped. <b>MDP review in flight.</b> Personal posts flip live on approval; org posts behind the full MDP grant.",
+      body: "<b>Live</b> for personal posting through our reviewed app. Company-Page posting needs <code>w_organization_social</code> and is not supported yet.",
     },
     {
       tag: "Version pin",
@@ -792,7 +792,7 @@ const result = await lmp.posts.create({
     },
     {
       tag: "Self-host",
-      body: "Self-host users register their own MDP entry and use it today. No waiting on our queue.",
+      body: "Self-host users register their own MDP entry. Note that Company-Page posting is gated in our code, not just by credentials — preflight rejects org URNs either way until the org slice ships.",
     },
   ],
 
@@ -805,7 +805,7 @@ const threads: PlatformContent = {
   heroLede:
     "Threads has its own OAuth (not Facebook Login) and its own quirky two-step async publish. <b>letmepost</b> abstracts both: standalone OAuth handled, container creation + finalize hidden from the caller, mixed-media carousels treated as a single POST.",
   reassurance:
-    'In review · Threads Graph · <a href="https://docs.letmepost.dev/platforms/threads">read the docs →</a>',
+    'Live · Threads Graph · <a href="https://docs.letmepost.dev/platforms/threads">read the docs →</a>',
   miniCode: `{
   "targets": [{ "platform": "threads" }],
   "accountId": "acc_th_xyz",
@@ -838,10 +838,10 @@ const threads: PlatformContent = {
 
   playground: {
     steps: ["Connect", "Configure", "Execute"],
-    body: "Threads OAuth on threads.net. Standalone, not bundled with Facebook. Live the day Meta App Review clears for this surface.",
+    body: "Threads OAuth on threads.net. Standalone, not bundled with Facebook. Connect and publish today through our reviewed Meta app.",
     cta: { href: "https://dashboard.letmepost.dev/accounts?connect=1", label: "CONNECT THREADS →" },
-    result: "Approval-gated.",
-    resultCaption: "META REVIEW · DAY 24 / ~56",
+    result: "Live.",
+    resultCaption: "THREADS GRAPH · LIVE",
   },
 
   contentTypes: [
@@ -907,8 +907,8 @@ const result = await lmp.posts.create({
   faqSubtitle: "about threads publishing",
   faqs: [
     {
-      q: "When does Threads go live?",
-      a: "Publisher is shipped, waiting on Meta App Review for the Threads surface. Typical timeline 4–8 weeks. Self-host with your own Meta app to use it today.",
+      q: "Is Threads live?",
+      a: "Yes. Connect a Threads account and publish today — we absorbed Meta App Review for this surface, so there is nothing for you to file.",
     },
     {
       q: "Does Threads use Facebook Login?",
@@ -930,13 +930,13 @@ const result = await lmp.posts.create({
 
   finalCtaH2: "READY FOR THREADS?",
   finalCtaLede:
-    "Standalone OAuth, two-step publish, 2–20 carousels — all abstracted into one POST. <b>Live the day Meta approval clears.</b>",
+    "Standalone OAuth, two-step publish, 2–20 carousels — all abstracted into one POST. <b>Live today.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/threads",
 
   closeoutThanks: "* * * THREADS GRAPH · STANDALONE * * *",
-  closeoutCodeLine: "PLAT · THREADS · META REVIEW",
+  closeoutCodeLine: "PLAT · THREADS · LIVE",
 
   marg: [
     {
@@ -970,7 +970,7 @@ const instagram: PlatformContent = {
   heroLede:
     "<b>Meta App Review is the single biggest reason small teams cannot ship a social publishing API.</b> Eleven weeks, three rejections, four re-shot demo videos. We did that once. Connect via our reviewed Meta app and publish through it. <a href='/blog/why-we-ate-meta-app-review'>Read the postmortem →</a>",
   reassurance:
-    'In review · Meta App Review · <a href="https://docs.letmepost.dev/platforms/instagram">read the docs →</a>',
+    'Live · Meta App Review absorbed · <a href="https://docs.letmepost.dev/platforms/instagram">read the docs →</a>',
   miniCode: `{
   "targets": [{ "platform": "instagram" }],
   "accountId": "acc_ig_xyz",
@@ -1008,10 +1008,10 @@ const instagram: PlatformContent = {
 
   playground: {
     steps: ["Connect", "Configure", "Execute"],
-    body: "Facebook Login for Business. <b>One consent grants Pages + IG Business + Threads access.</b> Live the day Meta approval clears for hosted users.",
+    body: "Facebook Login for Business. <b>One consent grants Pages + IG Business + Threads access.</b> Live today — you publish through our reviewed Meta app.",
     cta: { href: "https://dashboard.letmepost.dev/accounts?connect=1", label: "CONNECT META →" },
-    result: "Approval-gated.",
-    resultCaption: "META REVIEW · DAY 24 / ~56",
+    result: "Live.",
+    resultCaption: "META REVIEW · ABSORBED",
   },
 
   contentTypes: [
@@ -1086,7 +1086,7 @@ const result = await lmp.posts.create({
   faqs: [
     {
       q: "When does Instagram go live?",
-      a: 'Publisher shipped; in Meta App Review. Typical 8–12 weeks. <a href="/blog/why-we-ate-meta-app-review">Read the postmortem</a> for what that process looks like. Self-host with your own Meta app to use it today.',
+      a: 'Live. We cleared Meta App Review so you do not have to — <a href="/blog/why-we-ate-meta-app-review">read the postmortem</a> for what that process looked like. Connect an Instagram Business account and publish today.',
     },
     {
       q: "Do I need to file Meta App Review?",
@@ -1112,7 +1112,7 @@ const result = await lmp.posts.create({
 
   finalCtaH2: "READY FOR INSTAGRAM?",
   finalCtaLede:
-    "Connect now, queue posts now, publish the day Meta approval clears. Or self-host with your own Meta app — <b>that surface is live today</b>.",
+    "Connect an account and publish today, through the Meta app we got reviewed. <b>Eleven weeks of paperwork, once, for everyone.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/instagram",
@@ -1152,7 +1152,7 @@ const facebook: PlatformContent = {
   heroLede:
     "One Facebook Login grants Pages + IG Business + Threads in a single consent. <b>letmepost</b> handles the Page token exchange, multi-photo + video posting, and the 63,206-character body limit (yes, really).",
   reassurance:
-    'In review · Meta Graph · <a href="https://docs.letmepost.dev/platforms/facebook">read the docs →</a>',
+    'Live · Meta Graph · <a href="https://docs.letmepost.dev/platforms/facebook">read the docs →</a>',
   miniCode: `{
   "targets": [{ "platform": "facebook" }],
   "accountId": "acc_fb_xyz",
@@ -1187,8 +1187,8 @@ const facebook: PlatformContent = {
     steps: ["Connect", "Configure", "Execute"],
     body: "Facebook Login for Business. Pick the Pages your app should post to. Page Access Tokens exchanged and stored encrypted.",
     cta: { href: "https://dashboard.letmepost.dev/accounts?connect=1", label: "CONNECT META →" },
-    result: "Approval-gated.",
-    resultCaption: "META REVIEW · DAY 24 / ~56",
+    result: "Live.",
+    resultCaption: "META REVIEW · ABSORBED",
   },
 
   contentTypes: [
@@ -1255,8 +1255,8 @@ const result = await lmp.posts.create({
   faqSubtitle: "about facebook page posting",
   faqs: [
     {
-      q: "When does Facebook go live?",
-      a: "Publisher shipped, in Meta App Review (shared with IG + Threads). Typical 8–12 weeks.",
+      q: "Is Facebook Pages live?",
+      a: "Yes, and there is nothing for you to file. One Facebook Login for Business consent covers Pages and Instagram Business together. Threads has its own OAuth at threads.net and connects separately.",
     },
     {
       q: "Personal profile vs Page?",
@@ -1278,7 +1278,7 @@ const result = await lmp.posts.create({
 
   finalCtaH2: "READY FOR FACEBOOK PAGES?",
   finalCtaLede:
-    "Pages + IG Business + Threads on one consent. <b>Live the day Meta approval clears.</b> Or self-host today with your own Meta app.",
+    "Pages + IG Business + Threads on one consent. <b>Live today.</b> One review, absorbed, for all three surfaces.",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/facebook",
@@ -1301,11 +1301,11 @@ const result = await lmp.posts.create({
     },
     {
       tag: "App Review",
-      body: 'Shared review with IG + Threads. Self-host with <code>LMP_META_APP_MODE=byo</code> for your own grant.',
+      body: 'Shared review with IG + Threads, already cleared. Self-host with <code>LMP_META_APP_MODE=byo</code> for your own grant.',
     },
     {
       tag: "Self-host",
-      body: "BYO Meta App with the right Page permissions to skip the queue.",
+      body: "BYO Meta App with the right Page permissions if you want to be your own reviewer-of-record.",
     },
   ],
 
@@ -1352,10 +1352,10 @@ const tiktok: PlatformContent = {
 
   playground: {
     steps: ["Connect", "Configure", "Execute"],
-    body: "TikTok OAuth 2.0 PKCE + account pick. Audit-gated for hosted users; self-host today with your own TikTok developer app.",
+    body: "TikTok OAuth 2.0 PKCE + account pick. Connect and upload today; the creator confirms the publish in the TikTok app.",
     cta: { href: "https://dashboard.letmepost.dev/accounts?connect=1", label: "CONNECT TIKTOK →" },
-    result: "Approval-gated.",
-    resultCaption: "APP REVIEW · IN FLIGHT",
+    result: "Live.",
+    resultCaption: "UPLOAD TRACK · LIVE",
   },
 
   contentTypes: [
@@ -1455,7 +1455,7 @@ const result = await lmp.posts.create({
   marg: [
     {
       tag: "Review",
-      body: "Two-track app review — Upload (<code>push_by_file</code> → inbox) + Direct Post (<code>video.publish</code> → public). 4–10 weeks per scope.",
+      body: "Two-track app review — Upload (<code>push_by_file</code> → inbox) and Direct Post (<code>video.publish</code> → public). Both cleared; the Upload track is what ships today.",
     },
     {
       tag: "Limits",
@@ -1475,7 +1475,7 @@ const result = await lmp.posts.create({
     },
   ],
 
-  colophon: "<b>Content Posting API.</b> TikTok-review-gated. Self-host today, hosted when review clears.",
+  colophon: "<b>Content Posting API.</b> Upload track live; the creator taps publish. Direct Post next.",
 };
 
 export const PLATFORM_CONTENT: Record<string, PlatformContent> = {

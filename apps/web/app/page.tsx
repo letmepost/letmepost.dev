@@ -13,7 +13,7 @@ import { highlight } from "@/lib/highlight";
 import { getPublishedPosts } from "@/lib/notion";
 
 const description =
-  "One POST, eight platforms. X, Bluesky, and Pinterest live today; the rest in review. 80 preflight rules, idempotency, structured errors, native MCP server. Apache 2.0, real free tier.";
+  "One POST, eight platforms, all live. 80 preflight rules, idempotency, structured errors, native MCP server. Apache 2.0, real free tier.";
 
 export const metadata: Metadata = {
   title: "Open-source social media publishing API",
@@ -25,7 +25,7 @@ const pillars = [
   {
     n: "01",
     h: "We absorbed the platform reviews",
-    p: "Meta App Review and LinkedIn's Marketing Developer Platform take weeks each. letmepost is the reviewed app of record. Connect through our OAuth and publish through our approved apps. X, Bluesky, and Pinterest are live today; the rest are in platform review.",
+    p: "Meta App Review and LinkedIn's Marketing Developer Platform take weeks each. letmepost is the reviewed app of record. Connect through our OAuth and publish through our approved apps. All eight platforms are live — you file nothing.",
     tg: "OAuth · reviewed app of record",
   },
   {
@@ -58,7 +58,7 @@ const pricing = [
 const faqs = [
   {
     q: "What actually works today?",
-    a: "Bluesky, X, and Pinterest are live end-to-end. Connect an account, send a post, attach images or video, and get a webhook back. TikTok is live on its upload track, where the video lands in the creator's inbox for them to confirm. Instagram, Facebook, Threads, and LinkedIn are in platform review and flip on the day approval clears.",
+    a: "All eight. Connect an account, send a post, get a webhook back. Bluesky, X, Pinterest, Instagram, Facebook Pages, and Threads take images and video; LinkedIn is text-only in v1 (the media slice is next); TikTok is video and publishes to the creator's inbox for them to confirm in the app.",
   },
   {
     q: "Why another social media API?",

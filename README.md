@@ -71,16 +71,18 @@ letmepost.dev addresses all four, in one API.
 | Platform | Status | Notes |
 |---|---|---|
 | **Bluesky** | live | App-password auth, video via dedicated transcoder, 300-grapheme preflight |
-| **X / Twitter** | trial | OAuth 2.0 PKCE, 280 graphemes (t.co-aware), 4 images OR 1 video, threads & quote tweets |
-| **Pinterest** | trial | v5 API, image + video pins, board-required preflight |
-| **LinkedIn** | pending | Versioned REST, 3,000-grapheme commentary, MDP-gated for org posts |
-| **Threads** | pending | Standalone OAuth at threads.net, 500-char, 2–20 mixed-media carousels |
-| **Instagram** | pending | Meta Graph, Reels + carousels, FB Login fan-out |
-| **Facebook Pages** | pending | Meta Graph, single video OR 10 photos |
+| **X / Twitter** | live | OAuth 2.0 PKCE, 280 graphemes (t.co-aware), 4 images OR 1 video, threads & quote tweets. Per-account launch cap (`TWITTER_LAUNCH_CAP_PER_ACCOUNT`, default 50) as a backstop |
+| **Pinterest** | live | v5 API, image + video pins, board-required preflight |
+| **LinkedIn** | live | Versioned REST, 3,000-grapheme commentary. Personal posting via `w_member_social`; org posts still MDP-gated |
+| **Threads** | live | Standalone OAuth at threads.net, 500-char, 2–20 mixed-media carousels |
+| **Instagram** | live | Meta Graph, Reels + carousels, FB Login fan-out |
+| **Facebook Pages** | live | Meta Graph, single video OR 10 photos |
 | **TikTok** | live | Content Posting API v2, OAuth 2.0 PKCE, `push_by_file` upload to the creator's inbox — they confirm the publish in the app |
 | **YouTube** | planned | Data API v3, CASA-gated for production verification |
 
-**`live`** = production-ready end-to-end. **`trial`** = connect works but rate-limited or sandboxed (X on Pay-Per-Use, Pinterest on Trial Access). **`pending`** = approval in flight; the publisher is built and ships the moment review clears. **`planned`** = built into the schema, publisher pending.
+**`live`** = production-ready end-to-end. **`trial`** = connect works but rate-limited or sandboxed. **`pending`** = approval in flight; the publisher is built and ships the moment review clears. **`planned`** = built into the schema, publisher pending.
+
+Every supported platform is `live` today. `PLATFORM_STATE` in [`packages/schemas/src/platform-state.ts`](./packages/schemas/src/platform-state.ts) is the source of truth the API enforces, and the marketing site reads it directly — this table is prose and should be checked against it.
 
 TikTok ships the Upload track: a post uploads to the creator's TikTok inbox and they tap publish in the app. Direct Post (`video.publish`), which publishes without that tap, has cleared TikTok's audit but is a separate endpoint and is not implemented yet. Reddit, Telegram, Discord, Snapchat, Google Business, and WhatsApp are deliberately cut from v1. Reasoning in [`PRODUCT.md`](./PRODUCT.md).
 

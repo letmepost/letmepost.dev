@@ -41,7 +41,7 @@ const liveCount = platforms.filter((p) => p.status === "live").length;
 
 export const metadata: Metadata = {
   title: "Supported social media platforms",
-  description: `${total} platforms behind one POST. Bluesky, X, and Pinterest are live end-to-end today; the rest are in review.`,
+  description: `${total} platforms behind one POST, all live end-to-end today. One contract, one error envelope, whichever you publish to.`,
   alternates: { canonical: "/platforms/" },
 };
 
@@ -73,8 +73,8 @@ export default function Platforms() {
         </h1>
         <p className="max-w-[58ch] text-[21px] leading-[1.55] text-mut">
           The same <span className="font-mono">POST /v1/posts</span> body publishes
-          everywhere. {liveCount} platforms are live end-to-end today; the rest
-          flip on the day their review clears, with no code change on your side.
+          everywhere. All {liveCount} platforms are live end-to-end today, with
+          one contract and one error envelope whichever you publish to.
         </p>
       </header>
 
