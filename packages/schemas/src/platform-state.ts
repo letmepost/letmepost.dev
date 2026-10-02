@@ -32,8 +32,10 @@ export const PLATFORM_STATE: Record<Platform, PlatformState> = {
   facebook: "live",
   instagram: "live",
   threads: "live",
-  // Publisher built + tested; connect stays gated until App Review clears.
-  tiktok: "pending",
+  // App Review cleared. Publishing routes through the upload-inbox endpoint,
+  // so a post lands as a draft the creator confirms in the TikTok app; Direct
+  // Post (`video.publish`) is approved upstream but not yet wired up here.
+  tiktok: "live",
 };
 
 export function platformState(p: Platform): PlatformState {

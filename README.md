@@ -77,11 +77,12 @@ letmepost.dev addresses all four, in one API.
 | **Threads** | pending | Standalone OAuth at threads.net, 500-char, 2–20 mixed-media carousels |
 | **Instagram** | pending | Meta Graph, Reels + carousels, FB Login fan-out |
 | **Facebook Pages** | pending | Meta Graph, single video OR 10 photos |
+| **TikTok** | live | Content Posting API v2, OAuth 2.0 PKCE, `push_by_file` upload to the creator's inbox — they confirm the publish in the app |
 | **YouTube** | planned | Data API v3, CASA-gated for production verification |
 
 **`live`** = production-ready end-to-end. **`trial`** = connect works but rate-limited or sandboxed (X on Pay-Per-Use, Pinterest on Trial Access). **`pending`** = approval in flight; the publisher is built and ships the moment review clears. **`planned`** = built into the schema, publisher pending.
 
-TikTok is deferred to v2 — schemas + DB enum keep it reserved so the v2 add is additive. Reddit, Telegram, Discord, Snapchat, Google Business, and WhatsApp are deliberately cut from v1. Reasoning in [`PRODUCT.md`](./PRODUCT.md).
+TikTok ships the Upload track: a post uploads to the creator's TikTok inbox and they tap publish in the app. Direct Post (`video.publish`), which publishes without that tap, has cleared TikTok's audit but is a separate endpoint and is not implemented yet. Reddit, Telegram, Discord, Snapchat, Google Business, and WhatsApp are deliberately cut from v1. Reasoning in [`PRODUCT.md`](./PRODUCT.md).
 
 ## Quickstart
 

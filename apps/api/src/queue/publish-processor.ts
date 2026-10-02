@@ -156,6 +156,7 @@ export async function processPublishJob(
           attempt: 0,
           deadlineAt: Date.now() + TIKTOK_PUBLISH_STATUS_POLL_DEADLINE_MS,
           ...(requestId ? { requestId } : {}),
+          ...(result.warnings?.length ? { warnings: result.warnings } : {}),
         },
         { delay: tiktokPublishStatusPollDelayMs(0) },
       );
@@ -184,6 +185,10 @@ export async function processPublishJob(
         uri: result.uri,
         cid: result.cid,
         publishedAt: publishedAt.toISOString(),
+        // The immediate path puts these on the same event (routes/posts.ts);
+        // omitting them here silently dropped every warning raised on a
+        // scheduled post, on every platform.
+        warnings: result.warnings,
         ...(post.sandbox ? { sandbox: true } : {}),
       },
       ...(requestId ? { requestId } : {}),

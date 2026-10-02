@@ -6,6 +6,34 @@ icon: clock-rotate-left
 
 The canonical record lives in the git history; this page summarises the milestones a caller needs to know about. Subscribe to [GitHub releases](https://github.com/rosekamallove/letmepost.dev/releases) for tagged cuts, or follow [the open source repo](https://github.com/rosekamallove/letmepost.dev) for the running history.
 
+## 2026-10
+
+### TikTok is live on the upload track
+
+`tiktok` moves from `pending` to `live`. Connect works and
+`POST /v1/posts` publishes — the video uploads to the creator's TikTok inbox
+and they confirm it in the TikTok app.
+
+- **What a post actually does.** letmepost calls
+  `/v2/post/publish/inbox/video/init/` (push_by_file), chunk-uploads the bytes,
+  and polls `/v2/post/publish/status/fetch/`. `SEND_TO_USER_INBOX` is treated as
+  terminal-published: TikTok gives no signal for the creator's final tap.
+- **Direct Post is approved but not implemented.** TikTok audits Upload
+  (`video.upload`) and Direct Post (`video.publish`) separately. The Direct Post
+  audit has cleared, but it is a different endpoint
+  (`/v2/post/publish/video/init/`) and letmepost does not call it yet, nor
+  request the scope. Publishing without the confirmation tap is still to come.
+- **`privacy` is always rewritten to `self_only`, and now always says so.**
+  The upload-inbox endpoint carries no privacy level. Preflight previously
+  only warned when the *account* looked unaudited, which meant that once the
+  app passed audit a caller could ask for `public_to_everyone`, receive no
+  warning, and get a private draft. The `tiktok.audit.self_only` warning now
+  fires whenever the requested privacy is rewritten, whatever the account
+  reports. The code is unchanged for compatibility; only its trigger widened.
+- **Retired: `tiktok.privacy.not_allowed`.** Every account permits
+  `SELF_ONLY`, so once privacy is always coerced this rule can no longer fire.
+  It returns when Direct Post ships.
+
 ## 2026-08
 
 ### Fixed: scheduled posts stayed queued and never published

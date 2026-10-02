@@ -1316,9 +1316,9 @@ const tiktok: PlatformContent = {
   heroH1: { before: "Ship Your", after: "Integration", emphasize: "In Minutes, Not Weeks." },
   heroSub: "Content Posting API. OAuth 2.0 PKCE.",
   heroLede:
-    "TikTok's Content Posting API + creator OAuth flow, gated by TikTok's two-track app review (Upload + Direct Post). <b>letmepost</b> has the publisher shipped — push_by_file inbox upload with chunked status polling. Hosted users wait on review; self-hosters with their own TikTok developer app can publish today.",
+    "TikTok's Content Posting API + creator OAuth flow. <b>letmepost</b> ships the upload track — push_by_file inbox upload with chunked status polling. Connect and publish work today: the video lands in the creator's TikTok inbox and they tap publish in the app. Direct Post is approved and is next up.",
   reassurance:
-    'In review · Content Posting API · <a href="https://docs.letmepost.dev/platforms/tiktok">read the docs →</a>',
+    'Live · Content Posting API · <a href="https://docs.letmepost.dev/platforms/tiktok">read the docs →</a>',
   miniCode: `{
   "targets": [{ "platform": "tiktok", "accountId": "acc_tt_xyz" }],
   "text": "Posted via letmepost.",
@@ -1336,18 +1336,18 @@ const tiktok: PlatformContent = {
     { body: "You parse TikTok's status-poll responses + timeouts" },
   ],
   vsLetmepost: [
-    { body: "Our reviewed TikTok app covers hosted users (when review clears)" },
+    { body: "Our reviewed TikTok app covers you; no audit of your own" },
     { body: "push_by_file abstracted; one POST + a mediaId" },
-    { body: "Privacy level surfaced per-call; SELF_ONLY in sandbox, public after audit" },
-    { body: "Inbox upload works today; Direct Post flips when its audit clears" },
+    { body: "Privacy accepted per-call and always echoed back in a warning when we rewrite it" },
+    { body: "Inbox upload works today; Direct Post is approved and next to ship" },
     { body: "OAuth 2.0 PKCE + refresh handled — no token rot" },
     { body: 'Upload + finalize timing surfaced via <code>post.published</code> webhook' },
   ],
 
   highlight: {
     tone: "warn",
-    title: "⚠  TikTok's review gates production",
-    body: "TikTok runs <b>two separate audits</b> — Upload (push_by_file → inbox, SELF_ONLY) and Direct Post (video.publish → public). letmepost has the publisher built for both. Hosted users wait on review; self-host users with their own TikTok app can publish today.",
+    title: "⚠  Posts land as a draft, not a public video",
+    body: "TikTok splits posting into <b>two tracks</b> — Upload (push_by_file → the creator's inbox) and Direct Post (video.publish → straight to public). letmepost ships the Upload track today, so a post arrives in the creator's TikTok inbox and <b>they tap publish</b>. Direct Post has cleared review and is the next thing we wire up.",
   },
 
   playground: {
@@ -1380,8 +1380,8 @@ const tiktok: PlatformContent = {
   features: [
     {
       icon: "shield-check",
-      title: "Audit-aware",
-      body: "Hosted users wait on our TikTok review; self-host users plug their own TikTok developer app and use it today. Same publisher code, your audit record.",
+      title: "Honest about the draft step",
+      body: "Ask for a public post and we say so: a tiktok.audit.self_only warning comes back on the response and on the post.published webhook, never a silent downgrade. Ask for self_only and there is nothing to warn about.",
     },
     {
       icon: "cloud-arrow-up",
@@ -1421,8 +1421,8 @@ const result = await lmp.posts.create({
   faqSubtitle: "about tiktok uploads",
   faqs: [
     {
-      q: "When does TikTok go live?",
-      a: "Hosted users wait on TikTok app review (4–10 weeks per scope). Self-host with your own TikTok developer app today — same publisher code, your audit record.",
+      q: "Does my post go straight to TikTok?",
+      a: "It uploads to the creator's TikTok inbox as a draft and they tap publish in the app. That is the Upload track, which is live today. Direct Post, which publishes without that tap, has cleared review and is the next thing we ship.",
     },
     {
       q: "What audits does TikTok require?",
@@ -1444,13 +1444,13 @@ const result = await lmp.posts.create({
 
   finalCtaH2: "READY FOR TIKTOK?",
   finalCtaLede:
-    "Self-host today with your own TikTok developer app. Hosted users queue up; live when TikTok app review clears. <b>Same publisher either way.</b>",
+    "Connect a TikTok account and send your first upload today. <b>The creator confirms the publish in the app.</b>",
   finalCtaPrimaryLabel: "START FREE →",
   finalCtaSecondaryLabel: "READ DOCS",
   finalCtaSecondaryHref: "https://docs.letmepost.dev/platforms/tiktok",
 
-  closeoutThanks: "* * * CONTENT POSTING API · IN REVIEW * * *",
-  closeoutCodeLine: "PLAT · TIKTOK · IN REVIEW",
+  closeoutThanks: "* * * CONTENT POSTING API · UPLOAD TRACK LIVE * * *",
+  closeoutCodeLine: "PLAT · TIKTOK · LIVE",
 
   marg: [
     {

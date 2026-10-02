@@ -131,7 +131,7 @@ Profiles are free at every tier. Per-profile and per-seat pricing are *rejected*
 | **Twitter / X** | live | Table-stakes for the automation-builder ICP. Most-quirky publisher (chunked video upload, t.co counter, reply chains, quote tweets, alt-text on a separate v1.1 endpoint). |
 | **Instagram + Facebook + Threads** | live | Meta Graph trio, built together because they share auth. ~51% of post volume and 54k accounts in the Zernio data. App Review cleared. |
 | **Pinterest** | live | Fastest-growing platform in the Zernio dataset (+1369% over 90 days), lowest fail rate (3%). Image + video pins with the same media plumbing as Meta. Standard Access cleared. |
-| **TikTok** | pending review | Replaced YouTube in the April 2026 scope update. Publisher fully built — OAuth 2.0 PKCE, `push_by_file` inbox upload, status-poll worker. State flips to `live` the moment App Review approves. |
+| **TikTok** | live (Upload track) | Replaced YouTube in the April 2026 scope update. OAuth 2.0 PKCE, `push_by_file` inbox upload, status-poll worker. A post lands in the creator's inbox and they confirm it in the app. Direct Post (`video.publish`) cleared audit in Oct 2026 but is a separate endpoint and is not built. |
 
 **Deliberately cut from v1:** YouTube (deferred), Reddit (67% fail rate, hostile API), Telegram / Discord / Snapchat / Google Business / WhatsApp (long tail, <1k accounts each in the data).
 
@@ -161,7 +161,7 @@ What was open in the original draft and is now locked in:
 
 - **LangGraph / CrewAI adapters.** Not committed. The native MCP server handles most of the agent-builder ask; framework-specific adapters are demand-driven.
 - **Ayrshare SDK drop-in adapter.** Migration lever, not v1 — revisit if outbound to Ayrshare's user base finds heat.
-- **TikTok Direct Post (`video.publish`) audit.** Current state — inbox push with `privacy=SELF_ONLY` works in sandbox. Direct Post requires a second audit. Decision to push for it depends on TikTok being a meaningful share of post volume post-launch.
+- **TikTok Direct Post (`video.publish`) implementation.** The audit cleared in Oct 2026, so the scope is available. Building it means requesting the scope at OAuth (forcing re-consent on connected accounts), calling `/v2/post/publish/video/init/`, and carrying `post_info` through preflight. Until then every post is an inbox draft the creator confirms.
 
 ## Related files in this repo
 

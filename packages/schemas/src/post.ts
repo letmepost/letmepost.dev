@@ -52,11 +52,13 @@ export const FACEBOOK_IMAGE_MAX_BYTES = 4_000_000; // photo upload via /photos
 export const FACEBOOK_VIDEO_MAX_BYTES = 4_000_000_000; // /videos endpoint accepts up to 4GB
 
 // TikTok (Content Posting API, OAuth 2.0 PKCE).
-// Sandbox / audit-state apps cannot post publicly: privacy is forced to
-// SELF_ONLY until TikTok finishes review. The `pull_by_url` upload mode
-// requires a domain-verification step we have not done yet, so v1 uses
-// `push_by_file` with the upload-inbox path (video.upload scope rather
-// than the still-pending video.publish / Direct Post scope).
+// v1 uploads with `push_by_file` to the upload-inbox path (video.upload
+// scope). That endpoint carries no privacy level — the video lands as a
+// draft and the creator picks a privacy when they confirm it in the app —
+// so preflight always resolves `privacy` to SELF_ONLY and warns. Direct
+// Post (video.publish) cleared TikTok's audit in Oct 2026 but is a
+// separate endpoint and is not implemented. `pull_by_url` additionally
+// requires a domain-verification step we have not done.
 export const TIKTOK_MAX_CAPTION_CHARS = 2200;
 export const TIKTOK_MAX_HASHTAG_COUNT = 100;
 export const TIKTOK_VIDEO_MAX_BYTES = 4 * 1024 * 1024 * 1024; // 4 GB push_by_file ceiling
@@ -198,12 +200,12 @@ export const TargetOptions = z
     }),
     z.object({
       platform: z.literal("tiktok"),
-      // Privacy level surfaced to TikTok. SELF_ONLY is forced on audit/
-      // sandbox accounts regardless of caller intent; preflight rewrites
-      // public_to_everyone / mutual_follow_friend to self_only and emits
-      // a `tiktok_audit_self_only` warning. Default is self_only so a
-      // caller who omits this on an audited account doesn't get a vague
-      // 400 from upstream.
+      // Requested privacy. Currently always rewritten to self_only —
+      // posts route through the upload-inbox endpoint, which takes no
+      // privacy level, so the value cannot be honoured whatever the
+      // account's audit state. Preflight emits a `tiktok.audit.self_only`
+      // warning on every rewrite so the downgrade is never silent. Becomes
+      // meaningful once Direct Post is wired up.
       privacy: z
         .enum(["public_to_everyone", "mutual_follow_friend", "self_only"])
         .optional(),

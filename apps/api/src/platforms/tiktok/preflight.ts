@@ -182,30 +182,28 @@ export function validateTikTokInput(input: {
     });
   }
 
-  // Privacy: audit accounts can only post SELF_ONLY. Force it and warn.
+  // Privacy: v1 publishes through the upload-inbox endpoint, which accepts
+  // no privacy level — the video lands as a draft and the creator picks a
+  // privacy when they confirm it in the TikTok app. A requested privacy
+  // therefore cannot be honoured here, whatever the account reports.
+  //
+  // This used to be gated on the account's audit state, which masked the
+  // gap: an unaudited app's `creator_info` reports SELF_ONLY-only, so the
+  // warning always fired. Once the app passed TikTok's audit, creator_info
+  // began reporting PUBLIC_TO_EVERYONE, the audit branch stopped matching,
+  // and a caller asking for a public post got an unannounced private draft.
+  // The condition is now our own capability, not the account's state.
+  //
+  // The `tiktok.audit.self_only` code is a documented part of the error
+  // contract, so it stays put even though the trigger has broadened.
   let resolved = toUpstreamPrivacy(input.privacy);
-  const allowlist = input.privacyLevelOptions ?? [];
-  const isAudit =
-    input.auditState === "audit" ||
-    (allowlist.length === 1 && allowlist[0] === "SELF_ONLY");
-  if (isAudit && resolved !== "SELF_ONLY") {
+  if (resolved !== "SELF_ONLY") {
     warnings.push({
       code: "tiktok.audit.self_only",
       message:
-        "TikTok account is in audit / sandbox state — privacy forced to SELF_ONLY. Submit `video.publish` for review to unlock public posting.",
+        `TikTok privacy forced to SELF_ONLY (requested ${resolved}). Posts upload to the creator's TikTok inbox as a draft; the creator chooses the privacy when they confirm it in the app. Direct Post is not wired up yet.`,
     });
     resolved = "SELF_ONLY";
-  } else if (allowlist.length > 0 && !allowlist.includes(resolved)) {
-    // Account permits some non-SELF_ONLY options but not the requested one.
-    throw new LetmepostError({
-      code: "preflight_failed",
-      status: 400,
-      message: `TikTok account does not allow privacy=${resolved}.`,
-      rule: "tiktok.privacy.not_allowed",
-      platform: PLATFORM,
-      remediation: `TikTok permits these privacy levels on this account: ${allowlist.join(", ")}.`,
-      platformResponse: { allowed: allowlist, requested: resolved },
-    });
   }
 
   return { privacy: resolved, warnings };

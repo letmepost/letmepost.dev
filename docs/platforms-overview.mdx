@@ -29,8 +29,8 @@ Every platform letmepost.dev supports goes through the same API surface — `POS
   <Card title="Pinterest" icon="pinterest" iconType="brands" href="/platforms/pinterest">
     v5 API · OAuth 2.0 · Image + video pins · Cover image required for video.
   </Card>
-  <Card title="TikTok — in review" icon="tiktok" iconType="brands" href="/platforms/tiktok">
-    Content Posting API · OAuth 2.0 PKCE · Upload-inbox path. Pending TikTok app review — connect is gated until approval lands.
+  <Card title="TikTok" icon="tiktok" iconType="brands" href="/platforms/tiktok">
+    Content Posting API · OAuth 2.0 PKCE · Upload-inbox path. Live — posts land in the creator's TikTok inbox for them to confirm in the app.
   </Card>
   <Card title="Bluesky" icon="bluesky" iconType="brands" href="/platforms/bluesky">
     AT Proto · App-password connect (no OAuth) · Text + media + first comment.
@@ -64,7 +64,7 @@ Deliberately cut:
 
 - **Reddit, Telegram, Discord, Snapchat, Google Business, WhatsApp** — long-tail platforms with fewer than 1k accounts each in the dataset that drove platform priority decisions.
 
-TikTok was originally cut for the same audit-complexity reason; it's now landed under App Review and surfaces as `in review` until the upload-inbox track clears.
+TikTok was originally cut for the same audit-complexity reason; it is now live on the upload-inbox track, where a post arrives as a draft the creator confirms in the TikTok app.
 
 ## Build order
 

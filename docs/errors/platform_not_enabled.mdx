@@ -31,7 +31,7 @@ The status is `403`.
 
 ## What to do
 
-- **For approval-gated platforms** (Meta family, TikTok) — wait for the review to clear. Subscribe to the [changelog](/changelog) for launch notifications, and check the [platforms overview](/platforms-overview) for the current per-platform status. Every `POST /v1/accounts/connect/:platform` response also carries a `state` field (`live`, `trial`, or `pending`) once a platform is connectable.
+- **Check the current state first.** Every platform letmepost supports is `live` or `trial` today, so the hosted API does not return this error for any of them. It fires when a platform has been put into `pending` deliberately — on a self-hosted instance, or during a rollback. `POST /v1/accounts/connect/:platform` carries a `state` field (`live`, `trial`, or `pending`); the [platforms overview](/platforms-overview) tracks the same thing, and the [changelog](/changelog) announces changes.
 - **For self-host deployments** — check that the platform's OAuth credentials are present in your environment (e.g. `META_APP_ID`, `TWITTER_CLIENT_ID`). The platform stays disabled if its credentials are unset. You can also flip a platform live yourself with `PLATFORM_STATE_OVERRIDES` (e.g. `PLATFORM_STATE_OVERRIDES=tiktok:live`).
 - **For the meantime** — Bluesky has no upstream review gate and works for every signup today. The API surface (`POST /v1/posts`) is identical, so any code you write against Bluesky carries over.
 
