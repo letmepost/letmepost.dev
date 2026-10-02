@@ -38,8 +38,9 @@ We intentionally start with two tiers. Once we have real usage data we'll add ti
 
 ## What's actually live
 
-- **Bluesky**, **X**, and **Pinterest** are live for every signup today.
-- **Instagram**, **LinkedIn**, **Facebook Pages**, and **Threads** are gated on per-platform developer-portal reviews. Each ships as the review clears. Same API, same error envelope.
+- **Bluesky**, **X**, **Pinterest**, **Instagram**, **LinkedIn**, **Facebook Pages**, and **Threads** are live for every signup today.
+- **TikTok** is live on its upload track: the video lands in the creator's TikTok inbox and they confirm the publish in the app.
+- **LinkedIn** is personal posting only — Company-Page posting needs `w_organization_social` and is not supported yet.
 - Live status is queryable at `GET /v1/platform-versions` and tracked in the [changelog](/changelog).
 
 ## What's free during alpha
