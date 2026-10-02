@@ -87,10 +87,11 @@ The Meta family runs on three independent OAuth apps in v1 — Facebook Pages, I
 
 ## What's not in scope today
 
-Three names appear in the example file but are not yet read by the source code. Don't carry these into your `.env` expecting them to do anything in v1:
+One pair appears in the example file but is not yet read by the source code. Don't carry it into your `.env` expecting it to do anything in v1:
 
 - `YOUTUBE_CLIENT_ID` / `YOUTUBE_CLIENT_SECRET` — placeholders for a future YouTube provider.
-- `TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` — deferred to v2.
+
+`TIKTOK_CLIENT_KEY` / `TIKTOK_CLIENT_SECRET` **are** read (`apps/api/src/platforms/tiktok/provider.ts`) and are required to connect TikTok accounts on a self-hosted instance.
 
 Likewise, three variables that older self-host docs referenced **do not exist** in the current build:
 

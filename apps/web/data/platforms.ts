@@ -47,11 +47,11 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
     slug: "tiktok",
     name: "TikTok",
     icon: "tiktok-logo",
-    tagline: "Content Posting API · in App Review",
+    tagline: "Content Posting API · upload-inbox",
     pitch:
-      "Content Posting API with OAuth 2.0 PKCE + push_by_file upload to the user's TikTok inbox. Publisher is built and ready; we're under App Review for the Direct Post scope. Connect is gated until approval — until then sandbox / audit accounts post privacy=SELF_ONLY.",
+      "Content Posting API with OAuth 2.0 PKCE + push_by_file upload to the creator's TikTok inbox. Connect and publish work today; the video arrives as a draft and the creator taps publish in the TikTok app. Direct Post is approved upstream and is the next thing we wire up.",
     detail:
-      "Content Posting API · video uploads · OAuth PKCE · App Review in progress",
+      "Content Posting API · video uploads · OAuth PKCE · creator confirms in-app",
     videoSupport: true,
     carouselSupport: false,
     gotcha:
@@ -115,9 +115,9 @@ const PLATFORMS_BASE: readonly PlatformBase[] = [
     icon: "tiktok-logo",
     tagline: "Content Posting API · upload-inbox in v1",
     pitch:
-      "OAuth 2.0 PKCE + push_by_file upload to the user's TikTok inbox. App-review for the Direct Post scope is in progress; until then, sandbox / audit accounts post privacy=SELF_ONLY and the user confirms publish in the TikTok app.",
+      "OAuth 2.0 PKCE + push_by_file upload to the creator's TikTok inbox. The video uploads, TikTok notifies the creator, and they confirm the publish in the app. Direct Post is approved upstream but not wired up yet, so privacy is always sent as SELF_ONLY.",
     detail:
-      "Content Posting API · MP4 / MOV / MPEG video · 4 GB push_by_file ceiling · privacy forced to SELF_ONLY on audit accounts",
+      "Content Posting API · MP4 / MOV / MPEG video · 4 GB push_by_file ceiling · creator confirms publish in-app",
     videoSupport: true,
     carouselSupport: false,
     gotcha:

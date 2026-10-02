@@ -99,7 +99,7 @@
           "tiktok",
           "twitter"
         ],
-        "description": "Supported platforms. `tiktok` is currently in App Review — connect requests return `platform_not_enabled` until approval lands."
+        "description": "Supported platforms. `tiktok` posts upload to the creator's TikTok inbox as a draft that the creator confirms in the TikTok app; Direct Post is not implemented yet."
       },
       "PostStatus": {
         "type": "string",
@@ -359,7 +359,7 @@
                   "mutual_follow_friend",
                   "self_only"
                 ],
-                "description": "Privacy level surfaced to TikTok. Audit/sandbox accounts force `self_only`: preflight rewrites `public_to_everyone` / `mutual_follow_friend` to `self_only` and emits a `tiktok_audit_self_only` warning. Defaults to `self_only`."
+                "description": "Privacy level requested for the TikTok post. Currently always rewritten to `self_only` \u2014 posts route through the upload-inbox endpoint, which carries no privacy level, and the creator chooses one when confirming the draft. Preflight emits a `tiktok.audit.self_only` warning whenever it rewrites the value. Defaults to `self_only`."
               },
               "disableComment": {
                 "type": "boolean",

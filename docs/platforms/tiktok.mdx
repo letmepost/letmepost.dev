@@ -1,12 +1,14 @@
 ---
 title: TikTok
-description: TikTok Content Posting API. OAuth 2.0 PKCE + push_by_file upload to the user's inbox. SELF_ONLY privacy on audit / sandbox accounts.
+description: TikTok Content Posting API. OAuth 2.0 PKCE + push_by_file upload to the creator's inbox, confirmed in the TikTok app.
 icon: tiktok
 iconType: brands
 ---
 
 <Warning>
-**Before you start.** TikTok gates the Direct Post (`video.publish`) scope behind a separate App Review. Until that clears, posts go to the **upload inbox** with `privacy=SELF_ONLY` and the user manually confirms publish in the TikTok app. Public posting unlocks the moment review is approved — no code change needed; letmepost re-reads the privacy allowlist on every token refresh.
+**Before you start.** Every TikTok post currently goes to the creator's **upload inbox** as a draft: the video uploads, TikTok notifies the creator, and they confirm the publish in the TikTok app. letmepost sends `privacy=SELF_ONLY` because the upload-inbox endpoint accepts no privacy level at all — the creator picks one when they confirm.
+
+TikTok's Direct Post (`video.publish`) App Review has cleared, but Direct Post is a different endpoint (`/v2/post/publish/video/init/`) and is **not wired up yet**, so public posting still requires that confirmation tap. Passing review does not change this on its own.
 </Warning>
 
 ## Quick reference
@@ -21,7 +23,7 @@ iconType: brands
 | Video duration | 3 s minimum, 10 min maximum (audit accounts typically capped to 60 s) |
 | Video resolution | ≥ 540 px on short edge (1080 x 1920 recommended) |
 | Aspect ratio | 9:16 preferred; 1:1 and 16:9 accepted with a warning |
-| Privacy | `public_to_everyone`, `mutual_follow_friend`, `self_only` — forced to `self_only` on audit accounts |
+| Privacy | Accepted on the request, but always rewritten to `self_only` — the inbox draft carries no privacy; the creator sets it on confirm |
 | Branded content | `brandContentToggle` OR `brandOrganicToggle` (mutually exclusive) |
 | Post types supported | single video |
 | Scheduling | Yes (via `scheduledAt`) |
@@ -72,7 +74,7 @@ Extended (not requested by default): `video.publish` (Direct Post), `video.list`
 
 ### Privacy
 
-`privacy` accepts three values: `public_to_everyone`, `mutual_follow_friend`, `self_only`. Audit / sandbox accounts always end up as `SELF_ONLY` regardless of what you pass — letmepost rewrites the request and attaches a `tiktok.audit.self_only` warning so the caller knows we did so.
+`privacy` accepts three values: `public_to_everyone`, `mutual_follow_friend`, `self_only`. All three are currently rewritten to `SELF_ONLY`, whatever the account's audit state, because posts route through the upload inbox and that endpoint takes no privacy level. letmepost attaches a `tiktok.audit.self_only` warning every time it rewrites your intent, so a request for a public post is never silently downgraded. The value becomes meaningful once Direct Post is wired up.
 
 ### Branded content
 
@@ -164,8 +166,8 @@ The `SEND_TO_USER_INBOX` state is also treated as terminal-published — TikTok'
 ## Wisdom (platform-specific things that bite)
 
 <Tip>
-- **Audit / sandbox accounts can only post SELF_ONLY.** letmepost reads the privacy allowlist via `creator_info` at connect time and on every refresh; SELF_ONLY-only accounts are flagged `auditState: "audit"` and every post is rewritten regardless of the caller's intent. A warning fires so you know we did so.
-- **The Direct Post (`video.publish`) scope is a separate App Review.** Without it, posts go to the user's TikTok inbox for manual confirmation. There's no API signal for the user tapping publish, so the worker treats `SEND_TO_USER_INBOX` as terminal-published.
+- **Every post is rewritten to SELF_ONLY.** The upload-inbox endpoint accepts no privacy level, so whatever you pass is rewritten and a `tiktok.audit.self_only` warning fires. This is true on audited and unaudited accounts alike — the constraint is the endpoint, not the account.
+- **Direct Post is approved but not implemented.** TikTok's `video.publish` review has cleared, but letmepost still posts through the inbox endpoint and does not yet request the `video.publish` scope. Posts land for manual confirmation. There's no API signal for the user tapping publish, so the worker treats `SEND_TO_USER_INBOX` as terminal-published.
 - **ffprobe is needed for duration / resolution preflight.** Without ffprobe installed locally, letmepost emits a `tiktok.video.probe_unavailable` warning and lets the upload proceed; TikTok's own preflight will catch resolution issues at publish time.
 - **Aspect ratio 9:16 is strongly preferred.** 1:1 and 16:9 work but emit `tiktok.video.aspect_non_vertical`. Anything else trips `tiktok.video.aspect_unusual`.
 - **Refresh tokens roll on every use.** TikTok issues a new `refresh_token` on each refresh; letmepost stores it. If you bypass the refresh worker and call the upstream endpoint yourself, persist the new refresh token — discarding it silently shortens the next refresh window.
@@ -186,8 +188,7 @@ The `SEND_TO_USER_INBOX` state is also treated as terminal-published — TikTok'
 | `tiktok.video.too_short` | Duration < 3 s (detected via ffprobe) | Use a video at least 3 s long. |
 | `tiktok.video.too_long` | Duration > 10 min | Trim to 10 min or under. |
 | `tiktok.resolution.unsupported` | Short edge < 540 px | Use 1080 x 1920 (or any 540+ short-edge resolution). |
-| `tiktok.audit.self_only` (warning) | Privacy rewritten to SELF_ONLY on audit account | Wait for `video.publish` review approval to post publicly. |
-| `tiktok.privacy.not_allowed` | Requested privacy not in account allowlist | Use one of the privacy levels surfaced in the error. |
+| `tiktok.audit.self_only` (warning) | Privacy rewritten to SELF_ONLY — posts go to the inbox as a draft | Expect the creator to confirm the post in the TikTok app. Returns to meaning "audit account only" once Direct Post ships. |
 | `tiktok.branded_content.mutual_exclusive` | Both brand toggles set | Set exactly one of `brandContentToggle` / `brandOrganicToggle`. |
 | `tiktok.publish.failed` | TikTok rejected the upload async | Check `fail_reason` on the webhook payload. |
 | `tiktok.publish.pending` | Poll deadline exceeded (30 min) | The upload may still finish in the user's TikTok inbox; re-check via the app. |
@@ -195,7 +196,7 @@ The `SEND_TO_USER_INBOX` state is also treated as terminal-published — TikTok'
 ## What you can't do (yet)
 
 - Photo carousels (unaudited apps).
-- Direct Post (public publishing without user confirmation) until `video.publish` clears review.
+- Direct Post (public publishing without user confirmation). The scope is approved; the endpoint is not implemented yet.
 - pull_by_url uploads (domain verification gate).
 - Reading post engagement, comments, or analytics.
 - TikTok Live, Shop, DMs.

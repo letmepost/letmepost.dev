@@ -41,7 +41,7 @@ Canonical state lives in `packages/schemas/src/platform-state.ts`; the dashboard
 | Facebook | **live** | Text, single photo, multi-photo, video. FBLB OAuth fan-out grants Pages + linked IG Business + Threads in one consent. App Review cleared. |
 | Instagram | **live** | Single image, single video / Reels, 2–10 mixed-media carousel. URL-source preflight (direct answer to the Google-Drive-URL failure pattern), `OAuthException 2207052` mapped. Async media-publish polling — we await and surface. App Review cleared. |
 | Threads | **live** | Text, image, video, 2–20 mixed carousel, replies. App Review cleared. |
-| TikTok | **pending** | Publisher fully built: OAuth 2.0 PKCE, `push_by_file` upload to inbox, status-poll worker with bucketed backoff (5s → 30s → 120s up to 30 min). State flips on App Review approval — code is ready, no further work needed there. Posts go to inbox with `privacy=SELF_ONLY` until Direct Post (`video.publish`) audit clears. |
+| TikTok | **live** (Upload track) | OAuth 2.0 PKCE, `push_by_file` upload to inbox, status-poll worker with bucketed backoff (5s → 30s → 120s up to 30 min). Every post goes to the creator's inbox with `privacy=SELF_ONLY` and they confirm it in the app. Direct Post (`video.publish`) cleared audit Oct 2026 but hits a different endpoint and is **not implemented** — public posting without the confirm tap is still outstanding work. |
 
 **Deferred to v2+:** YouTube (CASA verification path; deprioritized vs TikTok in the April 2026 scope update), Reddit, Telegram, Discord, Snapchat, Google Business, WhatsApp.
 
@@ -202,7 +202,7 @@ Astro, receipt-themed visual identity, brand mark + wordmark synced to dashboard
 
 ## Approvals — open
 
-- **TikTok App Review** — submitted. Publisher is fully built; state flips from `pending` → `live` the day approval clears. Sandbox / audit accounts post to inbox with `privacy=SELF_ONLY` until then.
+- **TikTok App Review** — cleared (Oct 2026); state is now `live`. The Upload track ships: posts land in the creator's inbox with `privacy=SELF_ONLY` and they confirm in the app. Direct Post (`video.publish`) was the scope under review and is approved, but it is a separate endpoint and is **not implemented** — that work is still outstanding.
 - **Pinterest Standard Access** — cleared.
 - **Meta App Review** (IG + FB + Threads) — cleared.
 - **LinkedIn MDP / Community Management API** — cleared.
@@ -232,7 +232,7 @@ The remaining work is content, demos, and one-off polish.
 
 ### Pre-flight on the launch gate
 
-- **Smoke-test the platform-state gate in production-like env**: connect drawer should grey out `pending` tiles, `tiktok` should 403 with `platform_not_enabled` on POST `/v1/accounts/connect/tiktok`.
+- **Smoke-test the platform-state gate in production-like env**: with every platform now `live` or `trial`, verify the gate using `PLATFORM_STATE_OVERRIDES=tiktok:pending` — the connect drawer should grey the tile out and POST `/v1/accounts/connect/tiktok` should 403 with `platform_not_enabled`.
 - **End-to-end smoke for all 7 live platforms** — connect, publish, idempotency replay, webhook delivery, error contract surfacing.
 - **Self-host** — `docker compose up` against fresh Postgres + Redis. Same API responses as hosted.
 - **Lighthouse 100** on all marketing + docs pages (mobile + desktop). Add to CI.

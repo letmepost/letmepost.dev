@@ -150,31 +150,43 @@ describe("validateTikTokInput — audit-state privacy", () => {
     expect(result.warnings).toHaveLength(0);
   });
 
-  it("accepts public_to_everyone on production accounts when the allowlist permits it", () => {
+  // These two cases replace earlier tests that asserted preflight returns
+  // PUBLIC_TO_EVERYONE for production accounts. It did — but the publisher
+  // discards the resolved privacy (`void shape.privacy`) and posts through
+  // the upload-inbox endpoint, which takes no privacy at all. So the old
+  // assertions were green while the end-to-end result was a silent private
+  // draft. They only stayed hidden because an unaudited app never reported
+  // a production allowlist; passing TikTok's audit would have exposed them
+  // in production rather than in CI.
+  it("forces SELF_ONLY on production accounts too, while posting via the inbox", () => {
     const result = validateTikTokInput({
       ...baseInput(),
       privacy: "public_to_everyone",
       auditState: "production",
       privacyLevelOptions: ["PUBLIC_TO_EVERYONE", "SELF_ONLY"],
     });
-    expect(result.privacy).toBe("PUBLIC_TO_EVERYONE");
-    expect(result.warnings).toHaveLength(0);
+    expect(result.privacy).toBe("SELF_ONLY");
+    expect(result.warnings.map((w) => w.code)).toContain(
+      "tiktok.audit.self_only",
+    );
   });
 
-  it("rejects unsupported privacy on production accounts with tiktok.privacy.not_allowed", () => {
-    try {
-      validateTikTokInput({
+  it("never downgrades a caller's privacy without saying so", () => {
+    for (const privacy of ["public_to_everyone", "mutual_follow_friend"] as const) {
+      const result = validateTikTokInput({
         ...baseInput(),
-        privacy: "public_to_everyone",
+        privacy,
         auditState: "production",
-        privacyLevelOptions: ["SELF_ONLY", "MUTUAL_FOLLOW_FRIENDS"],
+        privacyLevelOptions: ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"],
       });
-      throw new Error("should have thrown");
-    } catch (err) {
-      expect(err).toBeInstanceOf(LetmepostError);
-      expect((err as LetmepostError).rule).toBe("tiktok.privacy.not_allowed");
+      expect(result.privacy).toBe("SELF_ONLY");
+      expect(
+        result.warnings.map((w) => w.code),
+        `${privacy} was rewritten with no warning`,
+      ).toContain("tiktok.audit.self_only");
     }
   });
+
 
   it("defaults to SELF_ONLY when caller omits privacy", () => {
     const result = validateTikTokInput({

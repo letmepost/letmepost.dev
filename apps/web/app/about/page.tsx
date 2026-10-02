@@ -102,7 +102,7 @@ export default function About() {
             <li>
               <b>Honest status.</b> Bluesky, X, and Pinterest are live
               end-to-end. Instagram, Facebook, Threads, and LinkedIn are in
-              platform review; TikTok is in App Review. We never mark a platform
+              platform review. We never mark a platform
               &quot;available&quot; before it is.
             </li>
             <li>

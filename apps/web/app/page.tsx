@@ -58,7 +58,7 @@ const pricing = [
 const faqs = [
   {
     q: "What actually works today?",
-    a: "Bluesky, X, and Pinterest are live end-to-end. Connect an account, send a post, attach images or video, and get a webhook back. Instagram, Facebook, Threads, and LinkedIn are in platform review and flip on the day approval clears; TikTok is in App Review.",
+    a: "Bluesky, X, and Pinterest are live end-to-end. Connect an account, send a post, attach images or video, and get a webhook back. TikTok is live on its upload track, where the video lands in the creator's inbox for them to confirm. Instagram, Facebook, Threads, and LinkedIn are in platform review and flip on the day approval clears.",
   },
   {
     q: "Why another social media API?",
