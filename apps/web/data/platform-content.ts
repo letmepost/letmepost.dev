@@ -672,7 +672,7 @@ const linkedin: PlatformContent = {
 
   playground: {
     steps: ["Connect", "Configure", "Execute"],
-    body: "OAuth on linkedin.com. Personal posts publish today through our reviewed app. Company-Page posting needs `w_organization_social` and is not supported yet — preflight rejects org URNs with a named rule rather than a vague 403.",
+    body: "OAuth on linkedin.com. Personal posts publish today through our reviewed app. Company-Page posting needs <code>w_organization_social</code> and is not supported yet — preflight rejects org URNs with a named rule rather than a vague 403.",
     cta: { href: "https://dashboard.letmepost.dev/accounts?connect=1", label: "CONNECT LINKEDIN →" },
     result: "Live.",
     resultCaption: "PERSONAL POSTING · LIVE",
@@ -751,7 +751,7 @@ const result = await lmp.posts.create({
     },
     {
       q: "Can I post to a Company Page?",
-      a: "Not yet. <code>organizationUrn</code> is reserved in the schema, but preflight rejects org URNs with <code>linkedin.author.org_not_supported</code> today. Self-host with your own MDP entry is the immediate path.",
+      a: "Not yet. <code>organizationUrn</code> is reserved in the schema, but preflight rejects org URNs with <code>linkedin.author.org_not_supported</code> today — on self-hosted instances too, since the gate is in our code rather than in the credentials.",
     },
     {
       q: "What's URN encoding?",
@@ -792,7 +792,7 @@ const result = await lmp.posts.create({
     },
     {
       tag: "Self-host",
-      body: "Self-host users register their own MDP entry, which is also the only route to Company-Page posting today.",
+      body: "Self-host users register their own MDP entry. Note that Company-Page posting is gated in our code, not just by credentials — preflight rejects org URNs either way until the org slice ships.",
     },
   ],
 
@@ -1256,7 +1256,7 @@ const result = await lmp.posts.create({
   faqs: [
     {
       q: "Is Facebook Pages live?",
-      a: "Yes. It shares our reviewed Meta app with Instagram and Threads, so one consent covers all three and there is nothing for you to file.",
+      a: "Yes, and there is nothing for you to file. One Facebook Login for Business consent covers Pages and Instagram Business together. Threads has its own OAuth at threads.net and connects separately.",
     },
     {
       q: "Personal profile vs Page?",

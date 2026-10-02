@@ -103,8 +103,8 @@ export default function About() {
               <b>Honest status.</b> All eight platforms are live end-to-end,
               TikTok on its upload track where the creator confirms the post
               in the app. We never mark a platform &quot;available&quot;
-              before it is, and the site reads the same state the API
-              enforces rather than a hand-maintained list.
+              before it is, and the per-platform badges read the same state
+              the API enforces.
             </li>
             <li>
               <b>No sales call required.</b> Free tier, public pricing, Stripe

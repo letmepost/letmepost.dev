@@ -58,7 +58,7 @@ const pricing = [
 const faqs = [
   {
     q: "What actually works today?",
-    a: "All eight. Bluesky, X, Pinterest, LinkedIn, Instagram, Facebook Pages, and Threads publish end-to-end: connect an account, send a post, attach images or video, get a webhook back. TikTok publishes on its upload track, where the video lands in the creator's inbox for them to confirm in the app.",
+    a: "All eight. Connect an account, send a post, get a webhook back. Bluesky, X, Pinterest, Instagram, Facebook Pages, and Threads take images and video; LinkedIn is text-only in v1 (the media slice is next); TikTok is video and publishes to the creator's inbox for them to confirm in the app.",
   },
   {
     q: "Why another social media API?",
