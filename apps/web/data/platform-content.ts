@@ -1381,7 +1381,7 @@ const tiktok: PlatformContent = {
     {
       icon: "shield-check",
       title: "Honest about the draft step",
-      body: "Every post tells you it landed as an inbox draft rather than a public video — a tiktok.audit.self_only warning on the response, never a silent downgrade.",
+      body: "Ask for a public post and we say so: a tiktok.audit.self_only warning comes back on the response and on the post.published webhook, never a silent downgrade. Ask for self_only and there is nothing to warn about.",
     },
     {
       icon: "cloud-arrow-up",
