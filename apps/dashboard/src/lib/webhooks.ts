@@ -1,17 +1,16 @@
 /**
- * Mirror of @letmepost/schemas WEBHOOK_EVENT_TYPES. Kept local for the same
- * reason as CONNECTABLE_PLATFORMS — avoids a cross-package zod dependency in
- * the dashboard bundle. Keep both arrays in sync when the catalog changes.
+ * The webhook event catalog, re-exported from the canonical list in
+ * `@letmepost/schemas/webhook-event-types`.
+ *
+ * This used to be a hand-maintained copy, kept local to avoid pulling zod into
+ * the dashboard bundle. It drifted: it was missing `post.canceled` and
+ * `post.rescheduled`, both of which the scheduled-post drawer fires and
+ * neither of which could be subscribed to from the webhooks page. The schemas
+ * package now exposes the list through a zod-free subpath — the same split
+ * `platform-state` uses — so the bundle stays clean without a second copy.
  */
-export const WEBHOOK_EVENT_TYPES = [
-  "post.queued",
-  "post.validated",
-  "post.published",
-  "post.rejected",
-  "post.failed",
-  "token.expiring",
-  "token.revoked",
-  "version.deprecated",
-] as const;
-
-export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
+export {
+  WEBHOOK_EVENT_TYPES,
+  isWebhookEventType,
+  type WebhookEventType,
+} from "@letmepost/schemas/webhook-event-types";
