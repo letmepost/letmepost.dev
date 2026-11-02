@@ -189,7 +189,7 @@ importers:
         version: 2.1.10(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@sentry/nextjs':
         specifier: ^10.54.0
-        version: 10.54.0(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(next@16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(webpack@5.107.2(lightningcss@1.32.0))
+        version: 10.54.0(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(next@15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(webpack@5.107.2(lightningcss@1.32.0))
       '@tanstack/react-query':
         specifier: ^5.100.5
         version: 5.100.5(react@19.2.4)
@@ -201,7 +201,7 @@ importers:
         version: 8.21.3(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       better-auth:
         specifier: ^1.6.8
-        version: 1.7.7(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(kysely@0.29.8)(postgres@3.4.9))(next@16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@2.1.9(@edge-runtime/vm@3.2.0)(@types/node@20.19.39)(lightningcss@1.32.0)(msw@2.13.5(@types/node@20.19.39)(typescript@5.9.3))(terser@5.51.2))
+        version: 1.7.7(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(kysely@0.29.8)(postgres@3.4.9))(next@15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@2.1.9(@edge-runtime/vm@3.2.0)(@types/node@20.19.39)(lightningcss@1.32.0)(msw@2.13.5(@types/node@20.19.39)(typescript@5.9.3))(terser@5.51.2))
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -215,8 +215,8 @@ importers:
         specifier: ^12.38.0
         version: 12.38.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next:
-        specifier: 16.2.4
-        version: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: 15.5.28
+        version: 15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -323,7 +323,7 @@ importers:
         version: 5.22.0
       '@vercel/analytics':
         specifier: ^2.0.1
-        version: 2.0.1(next@15.5.20(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
+        version: 2.0.1(next@15.5.28(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -343,8 +343,8 @@ importers:
         specifier: ^12.23.12
         version: 12.42.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next:
-        specifier: ^15.5.4
-        version: 15.5.20(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+        specifier: ^15.5.28
+        version: 15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -1916,8 +1916,8 @@ packages:
     resolution: {integrity: sha512-r3ZZhRjEcfEdKIZnoB1RusNgvHuaBRqfCzV4Gi+5A9yUX0S4HTws/ASWqt13wL4y4I+0rqsWGdA2w7EQXHi3+Q==}
     engines: {node: '>=19.0.0'}
 
-  '@next/env@15.5.20':
-    resolution: {integrity: sha512-dXh51Wvddf8daEyBXryZZEe1FdVxEWx9lgaTseLZUtC1XP/W8Wri+Z+VPOElHlByk23CyqHdc2oVByX7wsTWsw==}
+  '@next/env@15.5.28':
+    resolution: {integrity: sha512-xxW5EBI8fMPuVTPBW7LL980IRbuDXlbkUAwp9DDhtb4Lnich3nJ13uYpvrX4VE74hWPf6AvHHAMmGCidcHjbfg==}
 
   '@next/env@16.2.4':
     resolution: {integrity: sha512-dKkkOzOSwFYe5RX6y26fZgkSpVAlIOJKQHIiydQcrWH6y/97+RceSOAdjZ14Qa3zLduVUy0TXcn+EiM6t4rPgw==}
@@ -1925,8 +1925,8 @@ packages:
   '@next/eslint-plugin-next@15.5.20':
     resolution: {integrity: sha512-MZUgFpVd9rGSZpb8bNceUWvkAZe6aQw/6h2SSqHQuYzKfaiEUEVPIO6mXqaBmiBEBSN1f1sOc1uV8GCM90oegg==}
 
-  '@next/swc-darwin-arm64@15.5.20':
-    resolution: {integrity: sha512-in0yXG7/pRBVjWeEl7f7ZZETpletSMFKXVS4GJgHENTPVrJFNJKPrYewa9rpZcvdjwFece5fZP0CK34G4PxowA==}
+  '@next/swc-darwin-arm64@15.5.28':
+    resolution: {integrity: sha512-dPoQYXcfSIqx5o+TOXVXO7kONK5qbtNRDeiTfII0bT3puGIT6VF5e0QwmxNZfEZ5Zety5f3m9P/p4xqwfiLlPg==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [darwin]
@@ -1937,8 +1937,8 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  '@next/swc-darwin-x64@15.5.20':
-    resolution: {integrity: sha512-0hsFshdPnTzGJdDTHeHJ+XPUShOpnyp9pUFDwDhqctsA0Cd8NcIVGRPtptYhgYY9DjkKgCDRkXxmgRc+CgT5Wg==}
+  '@next/swc-darwin-x64@15.5.28':
+    resolution: {integrity: sha512-RgCJ7buBivTH+6sddqaVm+/v8kwMHlFkobvdt3DfETutws5HrxnToMIWSN9X3MZ3aAi7BbKrGZZWUDQLEycXqw==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [darwin]
@@ -1949,8 +1949,8 @@ packages:
     cpu: [x64]
     os: [darwin]
 
-  '@next/swc-linux-arm64-gnu@15.5.20':
-    resolution: {integrity: sha512-DMvkoBtAABOzE6pMZRW/xNm7sKqql3wzzzZJ1R/d/rp4BCxv6LykouD3tHjGY8WdQqGpZs11t+R9AtjPxvvljw==}
+  '@next/swc-linux-arm64-gnu@15.5.28':
+    resolution: {integrity: sha512-OHXQe13olE59aKe++zHavGcJPh5SLHXi6Anret3BBeq1+qhSuOJDNAli/EDDfxs6UTqA4Qddo4uyYry2slyjiQ==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -1963,8 +1963,8 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@next/swc-linux-arm64-musl@15.5.20':
-    resolution: {integrity: sha512-RQmDfeYBtXV2FSId7dfA1hE6M/T6+g7wdbYnFQ47tw/gUBwV+CccLVejNmCGa9yLDitk83foeg8hl/3DjfYQ5g==}
+  '@next/swc-linux-arm64-musl@15.5.28':
+    resolution: {integrity: sha512-nTB7bB6vfn4ezCJNYP43ukt2o8L3+WxKF/sTcTxepdXsJh3SM9RhlU7wrZYbH7L4HO5M87dqDTwm8587vAkCiw==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [linux]
@@ -1977,8 +1977,8 @@ packages:
     os: [linux]
     libc: [musl]
 
-  '@next/swc-linux-x64-gnu@15.5.20':
-    resolution: {integrity: sha512-DkWLEdKajJwdGt27M3i1VEO2kelTvZrK6Pcb7JvW2BY+nofWm7FBsBNDj7g7Pr1NuQ5PLJvqEqYa20GTsBDnKQ==}
+  '@next/swc-linux-x64-gnu@15.5.28':
+    resolution: {integrity: sha512-WXCfVI32rW3xCusoUX1RpZKtyChWU2Zwe27JUDmM3KrXwcDNc9vV4zEq0GKFAURnuQ/Ouo/XqPvB0yh445XZCg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -1991,8 +1991,8 @@ packages:
     os: [linux]
     libc: [glibc]
 
-  '@next/swc-linux-x64-musl@15.5.20':
-    resolution: {integrity: sha512-rAO5b7pKHvX+ExdmJskusDXTNbiNZfptifIPZItbUx+AOXxxTydVBsPt7Oz84DRd5mY8e0DcE8kvLj3AIfjE6w==}
+  '@next/swc-linux-x64-musl@15.5.28':
+    resolution: {integrity: sha512-Miq+NDb/HWsXuxseYxMM6fuEOQXgTziarkKIRpVKCn8W69cEfhQaQr+90pO+u4q2CbJR2wzXmUuCFyZaJs/Nng==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [linux]
@@ -2005,8 +2005,8 @@ packages:
     os: [linux]
     libc: [musl]
 
-  '@next/swc-win32-arm64-msvc@15.5.20':
-    resolution: {integrity: sha512-Hp3zFsN8N8Kj9+vY6L4vnZ9EtA9eXyATu0q4EfGbZTiocgPUNSfz8NWhym6xvaOmHpJ8EuoypuU1WejCPsTFtg==}
+  '@next/swc-win32-arm64-msvc@15.5.28':
+    resolution: {integrity: sha512-5LR79lemgDlgxvG7MQJ+zHCkVcrUoQuO7CiIvq3I58vNW4goSOE2b+19Z6FujRWMouvni4gvudYFuFuNxolGWA==}
     engines: {node: '>= 10'}
     cpu: [arm64]
     os: [win32]
@@ -2017,8 +2017,8 @@ packages:
     cpu: [arm64]
     os: [win32]
 
-  '@next/swc-win32-x64-msvc@15.5.20':
-    resolution: {integrity: sha512-T/L7CXpR1M0wij/xbF3rT1+7KvSkfOLr7C+ToHHWZTG2eKmb52C5WvsyGCBNtkVvDEUESWkRUbbqSH4rSbOCYQ==}
+  '@next/swc-win32-x64-msvc@15.5.28':
+    resolution: {integrity: sha512-GNipvXUYROSTf4PXEyH95FrWImIB5zdaK6uEOg0RP1/X2drnvoMwiBkJ0VWdzX7w3iiBm3y5g2TxkKDGVTOQcg==}
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
@@ -4413,9 +4413,6 @@ packages:
     resolution: {integrity: sha512-P8BjAsXvZS+VIDUI11hHCQEv74YT67YUi5JJFNWIqL235sBmjX4+qx9Muvls5ivyNENctx46xQLQ3aTuE7ssaQ==}
     engines: {node: '>=6'}
 
-  caniuse-lite@1.0.30001790:
-    resolution: {integrity: sha512-bOoxfJPyYo+ds6W0YfptaCWbFnJYjh2Y1Eow5lRv+vI2u8ganPZqNm1JwNh0t2ELQCqIWg4B3dWEusgAmsoyOw==}
-
   caniuse-lite@1.0.30001820:
     resolution: {integrity: sha512-gfWD6MxqVCqAOwmODfZf7DchWvlrA+SRdNX7ceLfg3xRqe5ssjjpF7EgslC/0tiLiNTajdaNN/q8c/5u/7Gz8w==}
 
@@ -6166,6 +6163,11 @@ packages:
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
 
+  nanoid@3.3.20:
+    resolution: {integrity: sha512-uKdg2G3GNCKQn9byYOpxbGqrT2fGO5KRt5J/8b3pok8rT6qxGWF6hxMyJiEYtAf+FVyYuD9hRaDqX5uPFYJ4ZQ==}
+    engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+    hasBin: true
+
   nanostores@1.5.5:
     resolution: {integrity: sha512-FixtE239Gl6Gz0ZGCK0WzvNwObNCIwVT+L7zQcf1QgcA6AzBxblzqe9OT88qiucNkhsjSOqiogSaF5jVbJiqSA==}
     engines: {node: ^20.0.0 || >=22.0.0}
@@ -6191,8 +6193,8 @@ packages:
       react: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
       react-dom: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
 
-  next@15.5.20:
-    resolution: {integrity: sha512-cvyS3/geydan1xLtE3FA8VCgdoQ/Gg/dlOldFkFCbB5VcVYJV7090hQLBnvTW2PwT76Z/dHdzDZCsVhZpoOlUA==}
+  next@15.5.28:
+    resolution: {integrity: sha512-JjhLBBY1PNnuwPtcZ7t8yxVeJVYvD2Jyp633J+gRCNbzSt7N0E+xqCf6uQiff3+3qmUkwcF/ksfSsK1xsZ76Tw==}
     engines: {node: ^18.18.0 || ^19.8.0 || >= 20.0.0}
     hasBin: true
     peerDependencies:
@@ -6465,6 +6467,10 @@ packages:
 
   postcss@8.5.10:
     resolution: {integrity: sha512-pMMHxBOZKFU6HgAZ4eyGnwXF/EvPGGqUr0MnZ5+99485wwW41kW91A4LOGxSHhgugZmSChL5AlElNdwlNgcnLQ==}
+    engines: {node: ^10 || ^12 || >=14}
+
+  postcss@8.5.32:
+    resolution: {integrity: sha512-LJlKCCAUFKOuZxipUdYw1NzIITEsPcgyOG9LkvRJvuKj/bRzbuRY0ARXvL0pWGpsZvn8jku+LMep2eU0seHp8g==}
     engines: {node: ^10 || ^12 || >=14}
 
   postgres@3.4.9:
@@ -6770,6 +6776,11 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
+  semver@7.8.5:
+    resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
+    engines: {node: '>=10'}
+    hasBin: true
+
   send@1.2.1:
     resolution: {integrity: sha512-1gnZf7DFcoIcajTjTwjwuDjzuz4PPcY2StKPlsGAQ1+YH20IRVrBaXSWmdjowTJ6u8Rc01PoYOGHXfP1mYcZNQ==}
     engines: {node: '>= 18'}
@@ -6852,6 +6863,10 @@ packages:
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+    engines: {node: '>=0.10.0'}
+
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
   source-map-support@0.5.21:
@@ -7138,6 +7153,9 @@ packages:
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
+
+  tslib@2.9.1:
+    resolution: {integrity: sha512-a4Ux9VKuIMHsOS7ENbEq6hK2ZGYIT27Rtl0E4eD9KqwxhKiQeMZE/9xb3IdYwWaSOyIBQLExhQgXDTYoiCxnWA==}
 
   tsx@4.21.0:
     resolution: {integrity: sha512-5C1sg4USs1lfG0GFb2RLXsdpXqBSEhAaA/0kPL01wxzpMqLILNxIxIOKiILz+cdg/pLnOUxFYOR5yhHU666wbw==}
@@ -7524,13 +7542,13 @@ snapshots:
     dependencies:
       '@aws-crypto/util': 5.2.0
       '@aws-sdk/types': 3.973.8
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-crypto/crc32c@5.2.0':
     dependencies:
       '@aws-crypto/util': 5.2.0
       '@aws-sdk/types': 3.973.8
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-crypto/sha1-browser@5.2.0':
     dependencies:
@@ -7559,13 +7577,13 @@ snapshots:
 
   '@aws-crypto/supports-web-crypto@5.2.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-crypto/util@5.2.0':
     dependencies:
       '@aws-sdk/types': 3.973.8
       '@smithy/util-utf8': 2.3.0
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-sdk/client-s3@3.1038.0':
     dependencies:
@@ -7647,7 +7665,7 @@ snapshots:
   '@aws-sdk/crc64-nvme@3.972.7':
     dependencies:
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-sdk/credential-provider-env@3.972.32':
     dependencies:
@@ -7655,7 +7673,7 @@ snapshots:
       '@aws-sdk/types': 3.973.8
       '@smithy/property-provider': 4.2.14
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-sdk/credential-provider-http@3.972.34':
     dependencies:
@@ -7668,7 +7686,7 @@ snapshots:
       '@smithy/smithy-client': 4.12.13
       '@smithy/types': 4.14.1
       '@smithy/util-stream': 4.5.25
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-sdk/credential-provider-ini@3.972.36':
     dependencies:
@@ -7685,7 +7703,7 @@ snapshots:
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
     transitivePeerDependencies:
       - aws-crt
 
@@ -7698,7 +7716,7 @@ snapshots:
       '@smithy/protocol-http': 5.3.14
       '@smithy/shared-ini-file-loader': 4.4.9
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
     transitivePeerDependencies:
       - aws-crt
 
@@ -7726,7 +7744,7 @@ snapshots:
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-sdk/credential-provider-sso@3.972.36':
     dependencies:
@@ -7737,7 +7755,7 @@ snapshots:
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
     transitivePeerDependencies:
       - aws-crt
 
@@ -7749,7 +7767,7 @@ snapshots:
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
     transitivePeerDependencies:
       - aws-crt
 
@@ -7900,7 +7918,7 @@ snapshots:
       '@smithy/util-middleware': 4.2.14
       '@smithy/util-retry': 4.3.5
       '@smithy/util-utf8': 4.2.2
-      tslib: 2.8.1
+      tslib: 2.9.1
     transitivePeerDependencies:
       - aws-crt
 
@@ -7929,7 +7947,7 @@ snapshots:
       '@smithy/property-provider': 4.2.14
       '@smithy/shared-ini-file-loader': 4.4.9
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
     transitivePeerDependencies:
       - aws-crt
 
@@ -7940,7 +7958,7 @@ snapshots:
 
   '@aws-sdk/util-arn-parser@3.972.3':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-sdk/util-endpoints@3.996.8':
     dependencies:
@@ -7952,7 +7970,7 @@ snapshots:
 
   '@aws-sdk/util-locate-window@3.965.5':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws-sdk/util-user-agent-browser@3.972.10':
     dependencies:
@@ -7975,7 +7993,7 @@ snapshots:
       '@nodable/entities': 2.1.0
       '@smithy/types': 4.14.1
       fast-xml-parser: 5.7.2
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@aws/lambda-invoke-store@0.2.4': {}
 
@@ -8286,17 +8304,17 @@ snapshots:
   '@emnapi/core@1.10.0':
     dependencies:
       '@emnapi/wasi-threads': 1.2.1
-      tslib: 2.8.1
+      tslib: 2.9.1
     optional: true
 
   '@emnapi/runtime@1.10.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
     optional: true
 
   '@emnapi/wasi-threads@1.2.1':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
     optional: true
 
   '@esbuild-kit/core-utils@3.3.2':
@@ -9013,57 +9031,58 @@ snapshots:
 
   '@neondatabase/serverless@1.1.0': {}
 
-  '@next/env@15.5.20': {}
+  '@next/env@15.5.28': {}
 
-  '@next/env@16.2.4': {}
+  '@next/env@16.2.4':
+    optional: true
 
   '@next/eslint-plugin-next@15.5.20':
     dependencies:
       fast-glob: 3.3.1
 
-  '@next/swc-darwin-arm64@15.5.20':
+  '@next/swc-darwin-arm64@15.5.28':
     optional: true
 
   '@next/swc-darwin-arm64@16.2.4':
     optional: true
 
-  '@next/swc-darwin-x64@15.5.20':
+  '@next/swc-darwin-x64@15.5.28':
     optional: true
 
   '@next/swc-darwin-x64@16.2.4':
     optional: true
 
-  '@next/swc-linux-arm64-gnu@15.5.20':
+  '@next/swc-linux-arm64-gnu@15.5.28':
     optional: true
 
   '@next/swc-linux-arm64-gnu@16.2.4':
     optional: true
 
-  '@next/swc-linux-arm64-musl@15.5.20':
+  '@next/swc-linux-arm64-musl@15.5.28':
     optional: true
 
   '@next/swc-linux-arm64-musl@16.2.4':
     optional: true
 
-  '@next/swc-linux-x64-gnu@15.5.20':
+  '@next/swc-linux-x64-gnu@15.5.28':
     optional: true
 
   '@next/swc-linux-x64-gnu@16.2.4':
     optional: true
 
-  '@next/swc-linux-x64-musl@15.5.20':
+  '@next/swc-linux-x64-musl@15.5.28':
     optional: true
 
   '@next/swc-linux-x64-musl@16.2.4':
     optional: true
 
-  '@next/swc-win32-arm64-msvc@15.5.20':
+  '@next/swc-win32-arm64-msvc@15.5.28':
     optional: true
 
   '@next/swc-win32-arm64-msvc@16.2.4':
     optional: true
 
-  '@next/swc-win32-x64-msvc@15.5.20':
+  '@next/swc-win32-x64-msvc@15.5.28':
     optional: true
 
   '@next/swc-win32-x64-msvc@16.2.4':
@@ -10254,7 +10273,7 @@ snapshots:
 
   '@sentry/core@10.54.0': {}
 
-  '@sentry/nextjs@10.54.0(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(next@16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(webpack@5.107.2(lightningcss@1.32.0))':
+  '@sentry/nextjs@10.54.0(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.7.1(@opentelemetry/api@1.9.1))(next@15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)(webpack@5.107.2(lightningcss@1.32.0))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/semantic-conventions': 1.40.0
@@ -10267,7 +10286,7 @@ snapshots:
       '@sentry/react': 10.54.0(react@19.2.4)
       '@sentry/vercel-edge': 10.54.0
       '@sentry/webpack-plugin': 5.3.0(webpack@5.107.2(lightningcss@1.32.0))
-      next: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      next: 15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       rollup: 4.60.4
       stacktrace-parser: 0.1.11
     transitivePeerDependencies:
@@ -10339,11 +10358,11 @@ snapshots:
   '@smithy/chunked-blob-reader-native@4.2.3':
     dependencies:
       '@smithy/util-base64': 4.3.2
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/chunked-blob-reader@5.2.2':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/config-resolver@4.4.17':
     dependencies:
@@ -10373,14 +10392,14 @@ snapshots:
       '@smithy/property-provider': 4.2.14
       '@smithy/types': 4.14.1
       '@smithy/url-parser': 4.2.14
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/eventstream-codec@4.2.14':
     dependencies:
       '@aws-crypto/crc32': 5.2.0
       '@smithy/types': 4.14.1
       '@smithy/util-hex-encoding': 4.2.2
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/eventstream-serde-browser@4.2.14':
     dependencies:
@@ -10403,7 +10422,7 @@ snapshots:
     dependencies:
       '@smithy/eventstream-codec': 4.2.14
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/fetch-http-handler@5.3.17':
     dependencies:
@@ -10440,11 +10459,11 @@ snapshots:
 
   '@smithy/is-array-buffer@2.2.0':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/is-array-buffer@4.2.2':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/md5-js@4.2.14':
     dependencies:
@@ -10511,7 +10530,7 @@ snapshots:
   '@smithy/property-provider@4.2.14':
     dependencies:
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/protocol-http@5.3.14':
     dependencies:
@@ -10522,12 +10541,12 @@ snapshots:
     dependencies:
       '@smithy/types': 4.14.1
       '@smithy/util-uri-escape': 4.2.2
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/querystring-parser@4.2.14':
     dependencies:
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/service-error-classification@4.3.1':
     dependencies:
@@ -10536,7 +10555,7 @@ snapshots:
   '@smithy/shared-ini-file-loader@4.4.9':
     dependencies:
       '@smithy/types': 4.14.1
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/signature-v4@5.3.14':
     dependencies:
@@ -10547,7 +10566,7 @@ snapshots:
       '@smithy/util-middleware': 4.2.14
       '@smithy/util-uri-escape': 4.2.2
       '@smithy/util-utf8': 4.2.2
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/smithy-client@4.12.13':
     dependencies:
@@ -10586,16 +10605,16 @@ snapshots:
   '@smithy/util-buffer-from@2.2.0':
     dependencies:
       '@smithy/is-array-buffer': 2.2.0
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/util-buffer-from@4.2.2':
     dependencies:
       '@smithy/is-array-buffer': 4.2.2
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/util-config-provider@4.2.2':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/util-defaults-mode-browser@4.3.49':
     dependencies:
@@ -10622,7 +10641,7 @@ snapshots:
 
   '@smithy/util-hex-encoding@4.2.2':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/util-middleware@4.2.14':
     dependencies:
@@ -10648,12 +10667,12 @@ snapshots:
 
   '@smithy/util-uri-escape@4.2.2':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/util-utf8@2.3.0':
     dependencies:
       '@smithy/util-buffer-from': 2.2.0
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@smithy/util-utf8@4.2.2':
     dependencies:
@@ -10667,7 +10686,7 @@ snapshots:
 
   '@smithy/uuid@1.1.2':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@stablelib/base64@1.0.1': {}
 
@@ -10675,7 +10694,7 @@ snapshots:
 
   '@swc/helpers@0.5.15':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   '@tailwindcss/node@4.2.4':
     dependencies:
@@ -10795,7 +10814,7 @@ snapshots:
 
   '@tybys/wasm-util@0.10.3':
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
     optional: true
 
   '@types/busboy@1.5.4':
@@ -10971,7 +10990,7 @@ snapshots:
       '@typescript-eslint/visitor-keys': 8.59.0
       debug: 4.4.3
       minimatch: 10.2.5
-      semver: 7.7.4
+      semver: 7.8.5
       tinyglobby: 0.2.16
       ts-api-utils: 2.5.0(typescript@5.9.3)
       typescript: 5.9.3
@@ -11077,9 +11096,9 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
 
-  '@vercel/analytics@2.0.1(next@15.5.20(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)':
+  '@vercel/analytics@2.0.1(next@15.5.28(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)':
     optionalDependencies:
-      next: 15.5.20(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      next: 15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react: 19.2.4
 
   '@vitest/expect@2.1.9':
@@ -11292,7 +11311,7 @@ snapshots:
 
   aria-hidden@1.2.6:
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   aria-query@5.3.2: {}
 
@@ -11369,7 +11388,7 @@ snapshots:
 
   ast-types@0.16.1:
     dependencies:
-      tslib: 2.8.1
+      tslib: 2.9.1
 
   async-function@1.0.0: {}
 
@@ -11393,7 +11412,7 @@ snapshots:
 
   baseline-browser-mapping@2.11.34: {}
 
-  better-auth@1.7.7(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(kysely@0.29.8)(postgres@3.4.9))(next@16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@2.1.9(@edge-runtime/vm@3.2.0)(@types/node@20.19.39)(lightningcss@1.32.0)(msw@2.13.5(@types/node@20.19.39)(typescript@5.9.3))(terser@5.51.2)):
+  better-auth@1.7.7(@opentelemetry/api@1.9.1)(drizzle-kit@0.31.10)(drizzle-orm@0.45.2(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(kysely@0.29.8)(postgres@3.4.9))(next@15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vitest@2.1.9(@edge-runtime/vm@3.2.0)(@types/node@20.19.39)(lightningcss@1.32.0)(msw@2.13.5(@types/node@20.19.39)(typescript@5.9.3))(terser@5.51.2)):
     dependencies:
       '@better-auth/core': 1.7.7(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.2)(@opentelemetry/api@1.9.1)(better-call@1.4.0(zod@4.6.7))(jose@6.2.14)(kysely@0.29.8)(nanostores@1.5.5)
       '@better-auth/drizzle-adapter': 1.7.7(@better-auth/core@1.7.7(@better-auth/utils@0.4.2)(@better-fetch/fetch@1.3.2)(@opentelemetry/api@1.9.1)(better-call@1.4.0(zod@4.6.7))(jose@6.2.14)(kysely@0.29.8)(nanostores@1.5.5))(@better-auth/utils@0.4.2)(drizzle-orm@0.45.2(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(kysely@0.29.8)(postgres@3.4.9))
@@ -11415,7 +11434,7 @@ snapshots:
     optionalDependencies:
       drizzle-kit: 0.31.10
       drizzle-orm: 0.45.2(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(kysely@0.29.8)(postgres@3.4.9)
-      next: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      next: 15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
       vitest: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@20.19.39)(lightningcss@1.32.0)(msw@2.13.5(@types/node@20.19.39)(typescript@5.9.3))(terser@5.51.2)
@@ -11444,7 +11463,7 @@ snapshots:
     optionalDependencies:
       drizzle-kit: 0.31.10
       drizzle-orm: 0.45.2(@neondatabase/serverless@1.1.0)(@opentelemetry/api@1.9.1)(kysely@0.29.8)(postgres@3.4.9)
-      next: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      next: 16.2.4(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
       vitest: 2.1.9(@edge-runtime/vm@3.2.0)(@types/node@22.19.17)(lightningcss@1.32.0)(msw@2.13.5(@types/node@22.19.17)(typescript@5.9.3))(terser@5.51.2)
@@ -11505,7 +11524,7 @@ snapshots:
   browserslist@4.28.2:
     dependencies:
       baseline-browser-mapping: 2.10.21
-      caniuse-lite: 1.0.30001790
+      caniuse-lite: 1.0.30001820
       electron-to-chromium: 1.5.344
       node-releases: 2.0.38
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
@@ -11567,8 +11586,6 @@ snapshots:
       get-intrinsic: 1.3.0
 
   callsites@3.1.0: {}
-
-  caniuse-lite@1.0.30001790: {}
 
   caniuse-lite@1.0.30001820: {}
 
@@ -12882,7 +12899,7 @@ snapshots:
 
   is-bun-module@2.0.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.5
 
   is-callable@1.2.7: {}
 
@@ -13653,6 +13670,8 @@ snapshots:
 
   nanoid@3.3.11: {}
 
+  nanoid@3.3.20: {}
+
   nanostores@1.5.5: {}
 
   napi-postinstall@0.3.4: {}
@@ -13668,36 +13687,36 @@ snapshots:
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
 
-  next@15.5.20(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  next@15.5.28(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
-      '@next/env': 15.5.20
+      '@next/env': 15.5.28
       '@swc/helpers': 0.5.15
-      caniuse-lite: 1.0.30001790
+      caniuse-lite: 1.0.30001820
       postcss: 8.4.31
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
       styled-jsx: 5.1.6(@babel/core@7.29.0)(react@19.2.4)
     optionalDependencies:
-      '@next/swc-darwin-arm64': 15.5.20
-      '@next/swc-darwin-x64': 15.5.20
-      '@next/swc-linux-arm64-gnu': 15.5.20
-      '@next/swc-linux-arm64-musl': 15.5.20
-      '@next/swc-linux-x64-gnu': 15.5.20
-      '@next/swc-linux-x64-musl': 15.5.20
-      '@next/swc-win32-arm64-msvc': 15.5.20
-      '@next/swc-win32-x64-msvc': 15.5.20
+      '@next/swc-darwin-arm64': 15.5.28
+      '@next/swc-darwin-x64': 15.5.28
+      '@next/swc-linux-arm64-gnu': 15.5.28
+      '@next/swc-linux-arm64-musl': 15.5.28
+      '@next/swc-linux-x64-gnu': 15.5.28
+      '@next/swc-linux-x64-musl': 15.5.28
+      '@next/swc-win32-arm64-msvc': 15.5.28
+      '@next/swc-win32-x64-msvc': 15.5.28
       '@opentelemetry/api': 1.9.1
       sharp: 0.34.5
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
 
-  next@16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
+  next@16.2.4(@opentelemetry/api@1.9.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4):
     dependencies:
       '@next/env': 16.2.4
       '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.10.21
-      caniuse-lite: 1.0.30001790
+      baseline-browser-mapping: 2.11.34
+      caniuse-lite: 1.0.30001820
       postcss: 8.4.31
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
@@ -13716,6 +13735,7 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
+    optional: true
 
   node-abort-controller@3.1.1: {}
 
@@ -13955,15 +13975,21 @@ snapshots:
 
   postcss@8.4.31:
     dependencies:
-      nanoid: 3.3.11
+      nanoid: 3.3.20
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   postcss@8.5.10:
     dependencies:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  postcss@8.5.32:
+    dependencies:
+      nanoid: 3.3.20
+      picocolors: 1.1.1
+      source-map-js: 1.2.2
 
   postgres@3.4.9: {}
 
@@ -14135,7 +14161,7 @@ snapshots:
     dependencies:
       react: 19.2.4
       react-style-singleton: 2.2.3(@types/react@19.2.14)(react@19.2.4)
-      tslib: 2.8.1
+      tslib: 2.9.1
     optionalDependencies:
       '@types/react': 19.2.14
 
@@ -14144,7 +14170,7 @@ snapshots:
       react: 19.2.4
       react-remove-scroll-bar: 2.3.8(@types/react@19.2.14)(react@19.2.4)
       react-style-singleton: 2.2.3(@types/react@19.2.14)(react@19.2.4)
-      tslib: 2.8.1
+      tslib: 2.9.1
       use-callback-ref: 1.3.3(@types/react@19.2.14)(react@19.2.4)
       use-sidecar: 1.1.3(@types/react@19.2.14)(react@19.2.4)
     optionalDependencies:
@@ -14154,7 +14180,7 @@ snapshots:
     dependencies:
       get-nonce: 1.0.1
       react: 19.2.4
-      tslib: 2.8.1
+      tslib: 2.9.1
     optionalDependencies:
       '@types/react': 19.2.14
 
@@ -14419,6 +14445,8 @@ snapshots:
 
   semver@7.7.4: {}
 
+  semver@7.8.5: {}
+
   send@1.2.1:
     dependencies:
       debug: 4.4.3
@@ -14594,6 +14622,8 @@ snapshots:
       react-dom: 19.2.4(react@19.2.4)
 
   source-map-js@1.2.1: {}
+
+  source-map-js@1.2.2: {}
 
   source-map-support@0.5.21:
     dependencies:
@@ -14846,6 +14876,8 @@ snapshots:
 
   tslib@2.8.1: {}
 
+  tslib@2.9.1: {}
+
   tsx@4.21.0:
     dependencies:
       esbuild: 0.27.7
@@ -15026,7 +15058,7 @@ snapshots:
   use-callback-ref@1.3.3(@types/react@19.2.14)(react@19.2.4):
     dependencies:
       react: 19.2.4
-      tslib: 2.8.1
+      tslib: 2.9.1
     optionalDependencies:
       '@types/react': 19.2.14
 
@@ -15034,7 +15066,7 @@ snapshots:
     dependencies:
       detect-node-es: 1.1.0
       react: 19.2.4
-      tslib: 2.8.1
+      tslib: 2.9.1
     optionalDependencies:
       '@types/react': 19.2.14
 
@@ -15105,7 +15137,7 @@ snapshots:
   vite@5.4.21(@types/node@20.19.39)(lightningcss@1.32.0)(terser@5.51.2):
     dependencies:
       esbuild: 0.21.5
-      postcss: 8.5.10
+      postcss: 8.5.32
       rollup: 4.60.2
     optionalDependencies:
       '@types/node': 20.19.39
@@ -15117,7 +15149,7 @@ snapshots:
   vite@5.4.21(@types/node@22.19.17)(lightningcss@1.32.0)(terser@5.51.2):
     dependencies:
       esbuild: 0.21.5
-      postcss: 8.5.10
+      postcss: 8.5.32
       rollup: 4.60.2
     optionalDependencies:
       '@types/node': 22.19.17
