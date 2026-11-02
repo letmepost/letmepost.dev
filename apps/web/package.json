@@ -29,7 +29,7 @@
     "lucide-react": "^0.545.0",
     "mdast-util-to-string": "^4.0.0",
     "motion": "^12.23.12",
-    "next": "^15.5.4",
+    "next": "^15.5.28",
     "next-themes": "^0.4.6",
     "notion-to-md": "^3.1.9",
     "posthog-js": "^1.372.10",
